@@ -1,0 +1,221 @@
+import React, { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
+import axios from 'axios';
+import API_BASE_URL from '../config';
+
+const getAcademyId = () => localStorage.getItem('academyId') || '';
+
+const SliderField = ({ label, name, value, onChange, color, trackColor }) => (
+  <div className="bg-gray-800 rounded-2xl p-5 border border-gray-700 hover:border-gray-600 transition-all">
+    <div className="flex justify-between items-center mb-4">
+      <p className="text-gray-400 text-xs font-black uppercase tracking-widest">{label}</p>
+      <span className={`text-3xl font-black ${color}`}>{value}<span className="text-gray-600 text-sm font-bold">/10</span></span>
+    </div>
+    <input type="range" name={name} min="1" max="10" value={value} onChange={onChange}
+      className="w-full accent-current h-2 bg-gray-900 rounded-lg appearance-none cursor-pointer"
+      style={{ accentColor: trackColor }}
+    />
+    <div className="flex justify-between text-[10px] font-bold text-gray-600 mt-2 uppercase tracking-widest">
+      <span>Low</span><span>High</span>
+    </div>
+  </div>
+);
+
+const metrics = [
+  { label: 'Energy', key: 'energy', color: 'text-blue-400', emoji: '⚡', track: '#3b82f6' },
+  { label: 'Sleep', key: 'sleep', color: 'text-purple-400', emoji: '😴', track: '#a855f7' },
+  { label: 'Soreness', key: 'soreness', color: 'text-red-400', emoji: '💢', track: '#ef4444' },
+  { label: 'Mood', key: 'mood', color: 'text-yellow-400', emoji: '😊', track: '#eab308' },
+];
+
+function AthleteCheckIn() {
+  const navigate = useNavigate();
+  const athleteName = (localStorage.getItem('athleteName') || '').trim();
+  const athleteSport = localStorage.getItem('athleteSport') || '';
+  const academyId = getAcademyId();
+
+  const [form, setForm] = useState({ energy: 5, sleep: 5, soreness: 5, mood: 5, notes: '' });
+  const [loading, setLoading] = useState(false);
+  const [showComparison, setShowComparison] = useState(false);
+  const [yesterdayData, setYesterdayData] = useState(null);
+  const [todayData, setTodayData] = useState(null);
+  const [aiMessage, setAiMessage] = useState('');
+
+  useEffect(() => {
+    if (!athleteName) { navigate('/login'); return; }
+    const fetchYesterday = async () => {
+      try {
+        const res = await axios.get(
+          `${API_BASE_URL}/wellness/history/${encodeURIComponent(athleteName)}`,
+          { params: { academy_id: academyId, days: 30 } }
+        );
+        const history = res.data.history || [];
+        if (history.length > 0) {
+          const todayStr = new Date().toISOString().slice(0, 10);
+          const previous = history.filter(h => h.created_at.slice(0, 10) !== todayStr);
+          setYesterdayData(previous[0] || null);
+        }
+      } catch {
+        // no previous data — fine
+      }
+    };
+    fetchYesterday();
+  }, [athleteName, navigate, academyId]);
+
+  const handleChange = (e) => setForm({ ...form, [e.target.name]: e.target.value });
+
+  const handleSubmit = async () => {
+    setLoading(true);
+    try {
+      await axios.post(
+        `${API_BASE_URL}/wellness?academy_id=${academyId}`,
+        {
+          athlete_name: athleteName,
+          energy: parseInt(form.energy),
+          sleep: parseInt(form.sleep),
+          soreness: parseInt(form.soreness),
+          mood: parseInt(form.mood),
+          notes: form.notes,
+        }
+      );
+
+      try {
+        const aiRes = await axios.get(
+          `${API_BASE_URL}/ai/insights/${encodeURIComponent(athleteName)}`,
+          { params: { academy_id: academyId } }
+        );
+        setAiMessage(aiRes.data.athlete_message || '');
+      } catch {
+        setAiMessage('');
+      }
+
+      setTodayData({
+        energy: parseInt(form.energy),
+        sleep: parseInt(form.sleep),
+        soreness: parseInt(form.soreness),
+        mood: parseInt(form.mood),
+      });
+      setShowComparison(true);
+      setTimeout(() => navigate('/athlete-dashboard'), 4000);
+    } catch (err) {
+      console.error('Error submitting wellness:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('role');
+    localStorage.removeItem('athleteName');
+    localStorage.removeItem('athleteSport');
+    navigate('/login');
+  };
+
+  const getDiff = (today, yesterday) => {
+    if (yesterday == null) return null;
+    const diff = today - yesterday;
+    if (diff > 0) return { label: `+${diff}`, color: 'text-green-400' };
+    if (diff < 0) return { label: `${diff}`, color: 'text-red-400' };
+    return { label: '0', color: 'text-gray-500' };
+  };
+
+  if (showComparison && todayData) {
+    return (
+      <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center p-6 sm:p-12">
+        <div className="w-full max-w-sm">
+          <div className="text-center mb-8">
+            <div className="text-5xl mb-4">✅</div>
+            <h2 className="text-3xl font-black text-white">Submitted!</h2>
+            <p className="text-gray-500 text-sm mt-1">
+              Hey {athleteName.split(' ')[0]}, here's how today compares to yesterday
+            </p>
+          </div>
+          <div className="bg-gray-800 rounded-2xl border border-gray-700 p-6 mb-4">
+            <div className="grid grid-cols-3 text-[10px] font-black text-gray-500 uppercase tracking-widest mb-4">
+              <span className="text-left">Metric</span>
+              <span className="text-center">Today</span>
+              <span className="text-right">Change</span>
+            </div>
+            <div className="space-y-4">
+              {metrics.map(m => {
+                const diff = getDiff(todayData[m.key], yesterdayData?.[m.key]);
+                return (
+                  <div key={m.key} className="grid grid-cols-3 items-center">
+                    <span className="text-gray-400 text-xs font-bold text-left">{m.emoji} {m.label}</span>
+                    <span className={`text-2xl font-black text-center ${m.color}`}>{todayData[m.key]}</span>
+                    <span className={`text-xs font-bold text-right ${diff?.color || 'text-gray-600'}`}>
+                      {yesterdayData ? (diff?.label || '—') : 'First Sync'}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+          {aiMessage && (
+            <div className="bg-blue-500/10 border border-blue-500/20 rounded-2xl p-4 mb-6">
+              <p className="text-blue-400 text-[10px] font-black uppercase tracking-widest mb-2">🤖 AI Coach Wisdom</p>
+              <p className="text-gray-200 text-sm italic">"{aiMessage}"</p>
+            </div>
+          )}
+          <p className="text-gray-600 text-[10px] text-center uppercase font-bold tracking-widest animate-pulse">
+            Redirecting to dashboard...
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-900 text-white p-6 md:p-12">
+      <div className="max-w-xl mx-auto">
+        <div className="flex justify-between items-start mb-10 flex-wrap gap-6">
+          <div>
+            <h1 className="text-3xl font-black tracking-tight">Daily Wellness Check-in</h1>
+            <p className="text-gray-500 text-sm mt-1">Hey {athleteName.split(' ')[0]} 👋 How are you feeling today?</p>
+            {athleteSport && (
+              <p className="text-gray-600 text-[10px] uppercase font-bold tracking-widest mt-1 opacity-70 italic">{athleteSport}</p>
+            )}
+          </div>
+          <div className="flex gap-2">
+            <button onClick={() => navigate('/athlete-dashboard')}
+              className="border border-gray-600 text-gray-500 px-4 py-2 rounded-xl text-xs hover:border-blue-500 hover:text-blue-400 font-bold transition">
+              Dashboard
+            </button>
+            <button onClick={() => navigate('/meditation')}
+              className="border border-gray-600 text-gray-500 px-4 py-2 rounded-xl text-xs hover:border-indigo-500 hover:text-indigo-400 font-bold transition">
+              🧘 Meditate
+            </button>
+            <button onClick={handleLogout}
+              className="border border-gray-600 text-gray-500 px-4 py-2 rounded-xl text-xs hover:border-red-500 hover:text-red-400 font-bold transition">
+              Logout
+            </button>
+          </div>
+        </div>
+
+        <div className="space-y-3 mb-6">
+          {metrics.map(m => (
+            <SliderField key={m.key} label={`${m.emoji} ${m.label} Level`} name={m.key}
+              value={form[m.key]} onChange={handleChange} color={m.color} trackColor={m.track} />
+          ))}
+        </div>
+
+        <div className="bg-gray-800 rounded-2xl p-5 border border-gray-700 mb-6">
+          <label className="block text-gray-400 text-xs font-black uppercase tracking-widest mb-3">
+            Anything else to add? (Optional)
+          </label>
+          <textarea name="notes" value={form.notes} onChange={handleChange} rows="3"
+            placeholder="Injuries, concerns, or comments..."
+            className="w-full bg-gray-900 border border-gray-700 rounded-xl px-4 py-3 text-white placeholder-gray-600 focus:outline-none focus:border-blue-500/50 transition resize-none text-sm"
+          />
+        </div>
+
+        <button onClick={handleSubmit} disabled={loading}
+          className="w-full bg-blue-600 hover:bg-blue-500 disabled:bg-gray-700 disabled:text-gray-500 text-white py-4 rounded-xl font-black text-lg transition shadow-lg active:scale-95">
+          {loading ? 'Submitting...' : 'Confirm Check-in'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+export default AthleteCheckIn;
