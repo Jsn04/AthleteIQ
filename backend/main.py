@@ -12,7 +12,8 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "http://localhost:3000",
-        "https://athlete-iq-git-main-jineshnanal04-gmailcoms-projects.vercel.app", 
+        "https://athlete-iq-git-main-jineshnanal04-gmailcoms-projects.vercel.app",
+        "https://athlete-iq-dun.vercel.app",
     ],
     allow_credentials=True,
     allow_methods=["*"],
