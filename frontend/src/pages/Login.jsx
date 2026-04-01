@@ -164,6 +164,11 @@ function Login() {
             <span className="text-sm">⚡</span>
           </div>
           <span className="text-2xl tracking-wider">ATHLETEIQ</span>
+          <button
+            onClick={() => { localStorage.clear(); navigate('/'); }}
+            className="body-font text-xs text-gray-600 hover:text-red-400 border border-gray-800 hover:border-red-500/40 px-3 py-1.5 rounded-lg transition ml-2">
+            ← Switch Academy
+          </button>
         </div>
         <div className="flex items-center gap-4 body-font">
           <button onClick={() => { setRole('parent'); setError(''); setPassword(''); setAthleteName(''); }}
