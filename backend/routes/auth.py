@@ -36,19 +36,22 @@ def academy_login(body: AcademyLoginRequest):
 
 @router.post("/register-academy")
 def register_academy(body: AcademyLoginRequest):
-    """
-    Use this once to seed each new academy.
-    In production add an admin secret header before exposing this.
-    """
     supabase = get_supabase()
 
-    slug = body.name.lower().strip().replace(" ", "-")
+    # Check by name (case-insensitive)
+    existing_name = supabase.table("academies").select("id")\
+        .ilike("name", body.name.strip()).execute().data
 
-    existing = supabase.table("academies").select("id")\
+    if existing_name:
+        raise HTTPException(status_code=400, detail="Academy name already taken")
+
+    # Generate slug and check that too
+    slug = body.name.lower().strip().replace(" ", "-")
+    existing_slug = supabase.table("academies").select("id")\
         .eq("slug", slug).execute().data
 
-    if existing:
-        raise HTTPException(status_code=400, detail="Academy already exists")
+    if existing_slug:
+        raise HTTPException(status_code=400, detail="Academy name already taken")
 
     result = supabase.table("academies").insert({
         "name":     body.name.strip(),
