@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import API_BASE_URL from '../config';
 
-const API = 'http://127.0.0.1:8000';
+const API = API_BASE_URL;
 
 const ACADEMIES = [
     { name: 'Delhi Skating Academy', sport: '⛸️', athletes: 24, status: 'Live' },
@@ -108,21 +109,14 @@ export default function AcademyLogin() {
         .scan { position:absolute; left:0; right:0; height:1px; background:linear-gradient(90deg,transparent,rgba(99,102,241,0.15),transparent); animation: scanline 6s linear infinite; pointer-events:none; }
       `}</style>
 
-            {/* ── Background atmosphere ── */}
             <div className="fixed inset-0 pointer-events-none overflow-hidden">
                 <div style={{ background: 'radial-gradient(ellipse 80% 60% at 60% 0%, rgba(99,102,241,0.07) 0%, transparent 60%)' }} className="absolute inset-0" />
                 <div style={{ background: 'radial-gradient(ellipse 60% 50% at 10% 80%, rgba(59,130,246,0.05) 0%, transparent 60%)' }} className="absolute inset-0" />
-
-                {/* Subtle grid */}
                 <div className="absolute inset-0 opacity-[0.025]" style={{
                     backgroundImage: 'linear-gradient(rgba(255,255,255,1) 1px, transparent 1px), linear-gradient(90deg,rgba(255,255,255,1) 1px, transparent 1px)',
                     backgroundSize: '60px 60px'
                 }} />
-
-                {/* Scanline sweep */}
                 <div className="scan" />
-
-                {/* Floating sport emojis */}
                 {[
                     { e: '⚽', x: 8, y: 15, d: 7 },
                     { e: '🏏', x: 88, y: 20, d: 9 },
@@ -140,7 +134,6 @@ export default function AcademyLogin() {
                 ))}
             </div>
 
-            {/* ── Navbar ── */}
             <nav className="relative z-10 flex items-center justify-between px-8 py-5 border-b border-white/5">
                 <div className="flex items-center gap-3">
                     <div className="w-8 h-8 bg-indigo-500 rounded-lg flex items-center justify-center text-white font-black text-sm shadow-lg shadow-indigo-500/30">
@@ -156,7 +149,6 @@ export default function AcademyLogin() {
                 </div>
             </nav>
 
-            {/* ── Marquee ── */}
             <div className="relative z-10 border-b border-white/5 py-2.5 marquee-wrap">
                 <div className="marquee-track text-[11px] text-gray-600 uppercase tracking-[0.15em] font-semibold">
                     {[...Array(2)].map((_, gi) =>
@@ -170,20 +162,14 @@ export default function AcademyLogin() {
                 </div>
             </div>
 
-            {/* ── Main layout ── */}
             <div className="relative z-10 max-w-7xl mx-auto px-6 lg:px-10 py-16 lg:py-20">
                 <div className="grid lg:grid-cols-2 gap-16 items-start">
-
-                    {/* ── LEFT — Hero ── */}
                     <div className={mounted ? '' : 'opacity-0'}>
-
-                        {/* Badge */}
                         <div className="anim-1 inline-flex items-center gap-2 border border-indigo-500/30 bg-indigo-500/10 text-indigo-400 text-[11px] uppercase tracking-widest font-bold px-3 py-1.5 rounded-full mb-8">
                             <span className="w-1.5 h-1.5 bg-indigo-400 rounded-full animate-pulse" />
                             AI Sports Performance Platform
                         </div>
 
-                        {/* Headline */}
                         <h1 className="anim-2 display text-[5.5rem] lg:text-[7rem] leading-none tracking-wider text-white mb-6">
                             YOUR<br />
                             <span className="shimmer-text">ACADEMY.</span><br />
@@ -194,7 +180,6 @@ export default function AcademyLogin() {
                             One platform for your entire academy. Track every athlete's wellness, predict injuries with AI, and make smarter coaching decisions — every single day.
                         </p>
 
-                        {/* Stats row */}
                         <div className="anim-4 grid grid-cols-3 gap-4 mb-12">
                             {[
                                 { val: '15+', label: 'Sports', color: 'text-indigo-400' },
@@ -208,7 +193,6 @@ export default function AcademyLogin() {
                             ))}
                         </div>
 
-                        {/* Live academy feed */}
                         <div className="anim-5">
                             <p className="text-gray-600 text-[11px] uppercase tracking-widest font-bold mb-3 flex items-center gap-2">
                                 <span className="w-1 h-1 bg-indigo-500 rounded-full" />
@@ -238,12 +222,9 @@ export default function AcademyLogin() {
                         </div>
                     </div>
 
-                    {/* ── RIGHT — Auth card ── */}
                     <div className="lg:sticky lg:top-8">
                         <div className="bg-white/[0.02] border border-white/8 rounded-3xl overflow-hidden backdrop-blur-sm"
                             style={{ border: '1px solid rgba(255,255,255,0.07)' }}>
-
-                            {/* Card header */}
                             <div className="px-8 pt-8 pb-6 border-b border-white/5">
                                 <p className="text-gray-500 text-[11px] uppercase tracking-[0.2em] font-bold mb-1">Academy Portal</p>
                                 <h2 className="display text-4xl text-white tracking-wider">
@@ -256,27 +237,24 @@ export default function AcademyLogin() {
                                 </p>
                             </div>
 
-                            {/* Tab switcher */}
                             <div className="flex border-b border-white/5">
                                 <button onClick={() => switchTab('signin')}
                                     className={`flex-1 py-3.5 text-xs font-bold uppercase tracking-widest transition-all ${tab === 'signin'
-                                            ? 'text-indigo-400 border-b-2 border-indigo-500 bg-indigo-500/5'
-                                            : 'text-gray-600 hover:text-gray-400'
+                                        ? 'text-indigo-400 border-b-2 border-indigo-500 bg-indigo-500/5'
+                                        : 'text-gray-600 hover:text-gray-400'
                                         }`}>
                                     Sign In
                                 </button>
                                 <button onClick={() => switchTab('signup')}
                                     className={`flex-1 py-3.5 text-xs font-bold uppercase tracking-widest transition-all ${tab === 'signup'
-                                            ? 'text-indigo-400 border-b-2 border-indigo-500 bg-indigo-500/5'
-                                            : 'text-gray-600 hover:text-gray-400'
+                                        ? 'text-indigo-400 border-b-2 border-indigo-500 bg-indigo-500/5'
+                                        : 'text-gray-600 hover:text-gray-400'
                                         }`}>
                                     New Academy
                                 </button>
                             </div>
 
-                            {/* Form */}
                             <div className="px-8 py-7 space-y-4">
-
                                 <div>
                                     <label className="text-gray-500 text-[11px] uppercase tracking-widest font-bold block mb-2">
                                         Academy Name
@@ -355,7 +333,6 @@ export default function AcademyLogin() {
                                 </p>
                             </div>
 
-                            {/* Card footer — trust signals */}
                             <div className="px-8 pb-7">
                                 <div className="flex items-center gap-3 mb-4">
                                     <div className="flex-1 h-px bg-white/5" />
@@ -382,7 +359,6 @@ export default function AcademyLogin() {
                             AthleteIQ · Built for serious sports academies · © 2026
                         </p>
                     </div>
-
                 </div>
             </div>
         </div>
