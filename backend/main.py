@@ -12,7 +12,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "http://localhost:3000",
-        "https://athlete-iq.vercel.app",  # ← replace with your actual Vercel URL
+        "https://athlete-iq-git-main-jineshnanal04-gmailcoms-projects.vercel.app", 
     ],
     allow_credentials=True,
     allow_methods=["*"],
