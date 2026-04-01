@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import API_BASE_URL from '../config';
 
-const API = 'http://127.0.0.1:8000';
+const API = API_BASE_URL;
 
 const PARTICLES = Array.from({ length: 20 }, (_, i) => ({
   id: i,
@@ -22,17 +23,14 @@ const KNOWN_SPORTS = [
 function detectSportCoach(password) {
   const lower = password.trim().toLowerCase();
   if (lower === 'coach123') return null;
-
   for (const sport of KNOWN_SPORTS) {
     if (lower === `${sport.toLowerCase()}coach123`) return sport;
   }
-
   const match = lower.match(/^([a-z]+)coach123$/);
   if (match) {
     const raw = match[1];
     return raw.charAt(0).toUpperCase() + raw.slice(1);
   }
-
   return undefined;
 }
 
@@ -54,24 +52,19 @@ function Login() {
 
   const handleLogin = async () => {
     setError('');
-
     if (role === 'coach') {
       const sportCoach = detectSportCoach(password);
-
       if (sportCoach === null) {
         localStorage.setItem('role', 'coach');
         localStorage.removeItem('coachSport');
         navigate('/dashboard');
-
       } else if (sportCoach) {
         localStorage.setItem('role', 'coach');
         localStorage.setItem('coachSport', sportCoach);
         navigate('/dashboard');
-
       } else {
         setError('Wrong password. Use coach123 for admin, or sportcoach123 (e.g. skatingcoach123).');
       }
-
     } else if (role === 'athlete') {
       try {
         const academyId = localStorage.getItem('academyId') || '';
@@ -91,7 +84,6 @@ function Login() {
       } catch {
         setError('Could not verify athletes. Check your connection.');
       }
-
     } else if (role === 'parent') {
       if (!athleteName.trim()) {
         setError("Please enter your child's name.");
@@ -100,7 +92,6 @@ function Login() {
       localStorage.setItem('role', 'parent');
       localStorage.setItem('parentChildName', athleteName.trim());
       navigate('/parent');
-
     } else {
       setError('Wrong password. Try again.');
     }
@@ -122,7 +113,6 @@ function Login() {
         @keyframes particle-float { 0% { transform: translateY(0px) translateX(0px); opacity: 0; } 10% { opacity: 1; } 90% { opacity: 1; } 100% { transform: translateY(-100px) translateX(20px); opacity: 0; } }
         @keyframes shimmer { 0% { background-position: -200% center; } 100% { background-position: 200% center; } }
         @keyframes modal-in { from { opacity: 0; transform: scale(0.95) translateY(10px); } to { opacity: 1; transform: scale(1) translateY(0); } }
-        .body-font { font-family: 'DM Sans', sans-serif; }
         .hero-title { animation: fadeUp 0.8s ease forwards; }
         .hero-sub { animation: fadeUp 0.8s ease 0.2s both; }
         .hero-cta { animation: fadeUp 0.8s ease 0.4s both; }
@@ -151,7 +141,6 @@ function Login() {
         .diagonal-line { position: absolute; width: 1px; background: linear-gradient(to bottom, transparent, rgba(255,255,255,0.05), transparent); top: 0; bottom: 0; }
       `}</style>
 
-      {/* Background */}
       <div className="noise-bg">
         <div className="gradient-orb-1" />
         <div className="gradient-orb-2" />
@@ -169,7 +158,6 @@ function Login() {
         ))}
       </div>
 
-      {/* Navbar */}
       <nav className="relative z-10 flex justify-between items-center px-10 py-5 border-b border-white/5">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 bg-blue-500 rounded-lg flex items-center justify-center glow-blue">
@@ -193,7 +181,6 @@ function Login() {
         </div>
       </nav>
 
-      {/* Marquee */}
       <div className="relative z-10 border-b border-white/5 py-2 overflow-hidden">
         <div className="marquee-track text-xs text-gray-600 uppercase tracking-widest" style={{ display: 'flex', gap: '3rem' }}>
           {['Daily Wellness Tracking', 'AI Powered Insights', 'Injury Prevention', 'Match Readiness', 'Performance Analytics', 'Real-time Monitoring', 'Squad Management', 'Recovery Optimization',
@@ -206,7 +193,6 @@ function Login() {
         </div>
       </div>
 
-      {/* Hero */}
       <div className="relative z-10 max-w-7xl mx-auto px-10 pt-28 pb-20">
         <div className="grid grid-cols-2 gap-16 items-center">
           <div>
@@ -234,7 +220,6 @@ function Login() {
             </div>
           </div>
 
-          {/* Floating preview */}
           <div className="relative" style={{ animation: 'float 6s ease-in-out infinite' }}>
             <div className="bg-gray-900 border border-white/10 rounded-3xl p-6 shadow-2xl">
               <div className="flex items-center justify-between mb-5">
@@ -279,7 +264,6 @@ function Login() {
         </div>
       </div>
 
-      {/* Stats bar */}
       <div className="stats-bar relative z-10 border-t border-b border-white/5 py-10 mb-20">
         <div className="max-w-7xl mx-auto px-10 grid grid-cols-4 gap-8 text-center">
           {[
@@ -296,7 +280,6 @@ function Login() {
         </div>
       </div>
 
-      {/* Features grid */}
       <div className="relative z-10 max-w-7xl mx-auto px-10 mb-24">
         <div className="text-center mb-14">
           <p className="text-xs text-blue-400 uppercase tracking-widest body-font mb-3">Platform Features</p>
@@ -320,7 +303,6 @@ function Login() {
         </div>
       </div>
 
-      {/* For Who */}
       <div className="relative z-10 max-w-7xl mx-auto px-10 mb-24">
         <div className="grid grid-cols-3 gap-6">
           <div className="card-hover bg-gradient-to-br from-blue-950/50 to-gray-900 border border-blue-500/20 rounded-3xl p-8 cursor-pointer"
@@ -376,18 +358,14 @@ function Login() {
         </div>
       </div>
 
-      {/* Footer */}
       <div className="relative z-10 border-t border-white/5 py-8 text-center">
         <p className="text-2xl tracking-wider mb-2">ATHLETEIQ</p>
         <p className="text-gray-600 text-xs body-font">Built for serious coaches and athletes · © 2026</p>
       </div>
 
-      {/* Login Modal */}
       {role && (
-        <div
-          className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-50 p-6"
-          onClick={(e) => e.target === e.currentTarget && (setRole(null), setError(''), setPassword(''), setAthleteName(''))}
-        >
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-50 p-6"
+          onClick={(e) => e.target === e.currentTarget && (setRole(null), setError(''), setPassword(''), setAthleteName(''))}>
           <div className="modal-animate bg-gray-950 border border-white/10 rounded-3xl p-8 w-full max-w-md shadow-2xl">
             <div className="flex justify-between items-center mb-8">
               <div>
@@ -398,10 +376,8 @@ function Login() {
                   {role === 'coach' ? 'WELCOME BACK' : role === 'athlete' ? 'CHECK IN' : 'VIEW PROGRESS'}
                 </h2>
               </div>
-              <button
-                onClick={() => { setRole(null); setError(''); setPassword(''); setAthleteName(''); }}
-                className="w-8 h-8 bg-gray-800 rounded-xl flex items-center justify-center text-gray-400 hover:text-white transition body-font"
-              >
+              <button onClick={() => { setRole(null); setError(''); setPassword(''); setAthleteName(''); }}
+                className="w-8 h-8 bg-gray-800 rounded-xl flex items-center justify-center text-gray-400 hover:text-white transition body-font">
                 ✕
               </button>
             </div>
@@ -411,29 +387,21 @@ function Login() {
                 <label className="block text-gray-500 text-xs uppercase tracking-widest body-font mb-3">
                   Your Child's Name
                 </label>
-                <input
-                  type="text"
-                  value={athleteName}
+                <input type="text" value={athleteName}
                   onChange={(e) => { setAthleteName(e.target.value); setError(''); }}
                   onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
-                  placeholder="Enter your child's full name"
-                  autoFocus
+                  placeholder="Enter your child's full name" autoFocus
                   className="w-full bg-gray-900 border border-white/10 rounded-2xl px-5 py-4 text-white placeholder-gray-600 focus:outline-none focus:border-purple-500/50 transition body-font text-sm"
                 />
-                <p className="text-gray-700 text-xs body-font mt-2">
-                  Enter the name exactly as registered by the coach.
-                </p>
+                <p className="text-gray-700 text-xs body-font mt-2">Enter the name exactly as registered by the coach.</p>
               </div>
             ) : (
               <div className="mb-5">
                 <label className="block text-gray-500 text-xs uppercase tracking-widest body-font mb-3">Password</label>
-                <input
-                  type="password"
-                  value={password}
+                <input type="password" value={password}
                   onChange={(e) => { setPassword(e.target.value); setError(''); }}
                   onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
-                  placeholder={role === 'athlete' ? 'e.g. jineshn123' : 'Enter password'}
-                  autoFocus
+                  placeholder={role === 'athlete' ? 'e.g. jineshn123' : 'Enter password'} autoFocus
                   className="w-full bg-gray-900 border border-white/10 rounded-2xl px-5 py-4 text-white placeholder-gray-600 focus:outline-none focus:border-blue-500/50 transition body-font text-sm"
                 />
                 {role === 'athlete' && (
@@ -450,11 +418,8 @@ function Login() {
               </div>
             )}
 
-            <button
-              onClick={handleLogin}
-              className={`btn-primary w-full py-4 rounded-2xl font-semibold body-font text-sm text-white ${role === 'coach' ? 'bg-blue-600' : role === 'athlete' ? 'bg-green-600' : 'bg-purple-600'
-                }`}
-            >
+            <button onClick={handleLogin}
+              className={`btn-primary w-full py-4 rounded-2xl font-semibold body-font text-sm text-white ${role === 'coach' ? 'bg-blue-600' : role === 'athlete' ? 'bg-green-600' : 'bg-purple-600'}`}>
               {role === 'coach' ? 'Access Dashboard →' : role === 'athlete' ? 'Submit Check-in →' : 'View My Child →'}
             </button>
 
