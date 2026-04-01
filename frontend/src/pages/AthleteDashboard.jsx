@@ -22,10 +22,12 @@ function AthleteDashboard() {
   const fetchData = useCallback(async (isSilent = false) => {
     if (!isSilent) setLoading(true);
     try {
+      const academyId = localStorage.getItem('academyId') || '';
+
       const [historyRes, insightRes, injuryRes] = await Promise.all([
-        axios.get(`${API_BASE_URL}/wellness/history/${encodeURIComponent(athleteName)}`),
-        axios.get(`${API_BASE_URL}/ai/insights/${encodeURIComponent(athleteName)}`),
-        axios.get(`${API_BASE_URL}/ai/injury-risk/${encodeURIComponent(athleteName)}`),
+        axios.get(`${API_BASE_URL}/wellness/history/${encodeURIComponent(athleteName)}`, { params: { academy_id: academyId } }),
+        axios.get(`${API_BASE_URL}/ai/insights/${encodeURIComponent(athleteName)}`, { params: { academy_id: academyId } }),
+        axios.get(`${API_BASE_URL}/ai/injury-risk/${encodeURIComponent(athleteName)}`, { params: { academy_id: academyId } }),
       ]);
 
       const raw = historyRes.data.history.slice().reverse();
