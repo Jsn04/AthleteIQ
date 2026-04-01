@@ -226,7 +226,9 @@ function ParentView() {
 
       const raw = historyRes.data.history.reverse();
       if (raw.length === 0) {
-        if (!isSilent) setNotFound(true);
+        setHistory([]);
+        setInsight(insightRes.data);
+        setNotFound(false);
         setLoading(false);
         return;
       }

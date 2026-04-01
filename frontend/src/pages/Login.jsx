@@ -165,7 +165,14 @@ function Login() {
           </div>
           <span className="text-2xl tracking-wider">ATHLETEIQ</span>
           <button
-            onClick={() => { localStorage.clear(); navigate('/'); }}
+            onClick={() => { 
+              localStorage.removeItem('role');
+              localStorage.removeItem('athleteName');
+              localStorage.removeItem('athleteSport');
+              localStorage.removeItem('coachSport');
+              localStorage.removeItem('parentChildName');
+              navigate('/'); 
+            }}
             className="body-font text-xs text-gray-600 hover:text-red-400 border border-gray-800 hover:border-red-500/40 px-3 py-1.5 rounded-lg transition ml-2">
             ← Switch Academy
           </button>
