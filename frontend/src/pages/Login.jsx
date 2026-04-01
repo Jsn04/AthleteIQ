@@ -77,6 +77,7 @@ function Login() {
           localStorage.setItem('role', 'athlete');
           localStorage.setItem('athleteName', matched.name);
           localStorage.setItem('athleteSport', matched.sport || '');
+          localStorage.setItem('academyId', academyId);
           navigate('/checkin');
         } else {
           setError('Invalid password. Use firstname + last initial + 123 (e.g. jineshn123)');
