@@ -24,14 +24,6 @@ export default function AcademyLogin() {
     const navigate = useNavigate();
 
     useEffect(() => {
-        localStorage.removeItem('academyId');
-        localStorage.removeItem('academyName');
-        localStorage.removeItem('plan');
-        localStorage.removeItem('role');
-        localStorage.removeItem('athleteName');
-        localStorage.removeItem('athleteSport');
-        localStorage.removeItem('coachSport');
-        localStorage.removeItem('parentChildName');
         setTimeout(() => setMounted(true), 50);
     }, []);
 
@@ -109,6 +101,7 @@ export default function AcademyLogin() {
         .scan { position:absolute; left:0; right:0; height:1px; background:linear-gradient(90deg,transparent,rgba(99,102,241,0.15),transparent); animation: scanline 6s linear infinite; pointer-events:none; }
       `}</style>
 
+            {/* Background effects */}
             <div className="fixed inset-0 pointer-events-none overflow-hidden">
                 <div style={{ background: 'radial-gradient(ellipse 80% 60% at 60% 0%, rgba(99,102,241,0.07) 0%, transparent 60%)' }} className="absolute inset-0" />
                 <div style={{ background: 'radial-gradient(ellipse 60% 50% at 10% 80%, rgba(59,130,246,0.05) 0%, transparent 60%)' }} className="absolute inset-0" />
@@ -118,14 +111,10 @@ export default function AcademyLogin() {
                 }} />
                 <div className="scan" />
                 {[
-                    { e: '⚽', x: 8, y: 15, d: 7 },
-                    { e: '🏏', x: 88, y: 20, d: 9 },
-                    { e: '⛸️', x: 15, y: 70, d: 11 },
-                    { e: '🏸', x: 82, y: 65, d: 8 },
-                    { e: '🏀', x: 50, y: 8, d: 10 },
-                    { e: '🤸', x: 5, y: 45, d: 13 },
-                    { e: '🎾', x: 92, y: 45, d: 7 },
-                    { e: '🏊', x: 45, y: 85, d: 9 },
+                    { e: '⚽', x: 8, y: 15, d: 7 }, { e: '🏏', x: 88, y: 20, d: 9 },
+                    { e: '⛸️', x: 15, y: 70, d: 11 }, { e: '🏸', x: 82, y: 65, d: 8 },
+                    { e: '🏀', x: 50, y: 8, d: 10 }, { e: '🤸', x: 5, y: 45, d: 13 },
+                    { e: '🎾', x: 92, y: 45, d: 7 }, { e: '🏊', x: 45, y: 85, d: 9 },
                 ].map((p, i) => (
                     <div key={i} className="absolute text-2xl select-none opacity-[0.06]"
                         style={{ left: `${p.x}%`, top: `${p.y}%`, animation: `float ${p.d}s ease-in-out infinite`, animationDelay: `${i * 0.7}s` }}>
@@ -134,21 +123,23 @@ export default function AcademyLogin() {
                 ))}
             </div>
 
-            <nav className="relative z-10 flex items-center justify-between px-8 py-5 border-b border-white/5">
+            {/* Nav */}
+            <nav className="relative z-10 flex items-center justify-between px-4 sm:px-8 py-4 sm:py-5 border-b border-white/5">
                 <div className="flex items-center gap-3">
                     <div className="w-8 h-8 bg-indigo-500 rounded-lg flex items-center justify-center text-white font-black text-sm shadow-lg shadow-indigo-500/30">
                         ⚡
                     </div>
-                    <span className="display text-2xl text-white tracking-wider">ATHLETEIQ</span>
+                    <span className="display text-xl sm:text-2xl text-white tracking-wider">ATHLETEIQ</span>
                 </div>
                 <div className="flex items-center gap-2">
                     <span className="relative flex items-center gap-2 bg-green-500/10 border border-green-500/20 text-green-400 text-xs px-3 py-1.5 rounded-full font-semibold">
                         <span className="live-dot relative w-2 h-2 bg-green-400 rounded-full" />
-                        Platform Live
+                        <span className="hidden sm:inline">Platform </span>Live
                     </span>
                 </div>
             </nav>
 
+            {/* Marquee */}
             <div className="relative z-10 border-b border-white/5 py-2.5 marquee-wrap">
                 <div className="marquee-track text-[11px] text-gray-600 uppercase tracking-[0.15em] font-semibold">
                     {[...Array(2)].map((_, gi) =>
@@ -162,9 +153,12 @@ export default function AcademyLogin() {
                 </div>
             </div>
 
-            <div className="relative z-10 max-w-7xl mx-auto px-6 lg:px-10 py-16 lg:py-20">
-                <div className="grid lg:grid-cols-2 gap-16 items-start">
-                    <div className={mounted ? '' : 'opacity-0'}>
+            {/* Main content */}
+            <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-10 py-10 lg:py-20">
+                <div className="grid lg:grid-cols-2 gap-10 lg:gap-16 items-start">
+
+                    {/* Left — hero copy (hidden on mobile, shown on lg) */}
+                    <div className={`hidden lg:block ${mounted ? '' : 'opacity-0'}`}>
                         <div className="anim-1 inline-flex items-center gap-2 border border-indigo-500/30 bg-indigo-500/10 text-indigo-400 text-[11px] uppercase tracking-widest font-bold px-3 py-1.5 rounded-full mb-8">
                             <span className="w-1.5 h-1.5 bg-indigo-400 rounded-full animate-pulse" />
                             AI Sports Performance Platform
@@ -216,18 +210,43 @@ export default function AcademyLogin() {
                                     </div>
                                 ))}
                             </div>
-                            <p className="text-gray-700 text-[11px] mt-3 text-center font-medium">
-                                + your academy, fully isolated and private
-                            </p>
                         </div>
                     </div>
 
+                    {/* Mobile hero — compact, shown only on mobile */}
+                    <div className="lg:hidden text-center mb-2">
+                        <div className="inline-flex items-center gap-2 border border-indigo-500/30 bg-indigo-500/10 text-indigo-400 text-[11px] uppercase tracking-widest font-bold px-3 py-1.5 rounded-full mb-4">
+                            <span className="w-1.5 h-1.5 bg-indigo-400 rounded-full animate-pulse" />
+                            AI Sports Performance Platform
+                        </div>
+                        <h1 className="display text-5xl leading-none tracking-wider text-white mb-3">
+                            YOUR <span className="shimmer-text">ACADEMY.</span>
+                        </h1>
+                        <p className="text-gray-500 text-sm mb-4 font-light px-2">
+                            Track wellness, predict injuries with AI, and coach smarter.
+                        </p>
+                        {/* Mini stats */}
+                        <div className="grid grid-cols-3 gap-2 mb-2 max-w-xs mx-auto">
+                            {[
+                                { val: '15+', label: 'Sports', color: 'text-indigo-400' },
+                                { val: 'AI', label: 'Injury Alerts', color: 'text-blue-400' },
+                                { val: '∞', label: 'Athletes', color: 'text-green-400' },
+                            ].map(s => (
+                                <div key={s.label} className="bg-white/[0.02] border border-white/5 rounded-xl p-2 text-center">
+                                    <p className={`display text-2xl ${s.color} tracking-wider`}>{s.val}</p>
+                                    <p className="text-gray-600 text-[10px] uppercase tracking-widest font-semibold">{s.label}</p>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* Form card */}
                     <div className="lg:sticky lg:top-8">
-                        <div className="bg-white/[0.02] border border-white/8 rounded-3xl overflow-hidden backdrop-blur-sm"
+                        <div className="bg-white/[0.02] rounded-3xl overflow-hidden backdrop-blur-sm"
                             style={{ border: '1px solid rgba(255,255,255,0.07)' }}>
-                            <div className="px-8 pt-8 pb-6 border-b border-white/5">
+                            <div className="px-5 sm:px-8 pt-6 sm:pt-8 pb-5 sm:pb-6 border-b border-white/5">
                                 <p className="text-gray-500 text-[11px] uppercase tracking-[0.2em] font-bold mb-1">Academy Portal</p>
-                                <h2 className="display text-4xl text-white tracking-wider">
+                                <h2 className="display text-3xl sm:text-4xl text-white tracking-wider">
                                     {tab === 'signin' ? 'ENTER WORKSPACE' : 'REGISTER ACADEMY'}
                                 </h2>
                                 <p className="text-gray-500 text-sm mt-1">
@@ -241,50 +260,42 @@ export default function AcademyLogin() {
                                 <button onClick={() => switchTab('signin')}
                                     className={`flex-1 py-3.5 text-xs font-bold uppercase tracking-widest transition-all ${tab === 'signin'
                                         ? 'text-indigo-400 border-b-2 border-indigo-500 bg-indigo-500/5'
-                                        : 'text-gray-600 hover:text-gray-400'
-                                        }`}>
+                                        : 'text-gray-600 hover:text-gray-400'}`}>
                                     Sign In
                                 </button>
                                 <button onClick={() => switchTab('signup')}
                                     className={`flex-1 py-3.5 text-xs font-bold uppercase tracking-widest transition-all ${tab === 'signup'
                                         ? 'text-indigo-400 border-b-2 border-indigo-500 bg-indigo-500/5'
-                                        : 'text-gray-600 hover:text-gray-400'
-                                        }`}>
+                                        : 'text-gray-600 hover:text-gray-400'}`}>
                                     New Academy
                                 </button>
                             </div>
 
-                            <div className="px-8 py-7 space-y-4">
+                            <div className="px-5 sm:px-8 py-6 sm:py-7 space-y-4">
                                 <div>
-                                    <label className="text-gray-500 text-[11px] uppercase tracking-widest font-bold block mb-2">
-                                        Academy Name
-                                    </label>
+                                    <label className="text-gray-500 text-[11px] uppercase tracking-widest font-bold block mb-2">Academy Name</label>
                                     <input type="text" value={name} onChange={e => setName(e.target.value)}
                                         onKeyDown={handleKey}
                                         placeholder={tab === 'signin' ? 'e.g. Delhi Skating Club' : 'e.g. Mumbai Athletic Club'}
-                                        className="input-field w-full rounded-xl px-4 py-3.5 text-white placeholder-gray-700 text-sm"
+                                        className="input-field w-full rounded-xl px-4 py-3 sm:py-3.5 text-white placeholder-gray-700 text-sm"
                                     />
                                 </div>
 
                                 <div>
-                                    <label className="text-gray-500 text-[11px] uppercase tracking-widest font-bold block mb-2">
-                                        Password
-                                    </label>
+                                    <label className="text-gray-500 text-[11px] uppercase tracking-widest font-bold block mb-2">Password</label>
                                     <input type="password" value={password} onChange={e => setPassword(e.target.value)}
                                         onKeyDown={handleKey}
                                         placeholder={tab === 'signup' ? 'Min. 6 characters' : '••••••••'}
-                                        className="input-field w-full rounded-xl px-4 py-3.5 text-white placeholder-gray-700 text-sm"
+                                        className="input-field w-full rounded-xl px-4 py-3 sm:py-3.5 text-white placeholder-gray-700 text-sm"
                                     />
                                 </div>
 
                                 {tab === 'signup' && (
                                     <div>
-                                        <label className="text-gray-500 text-[11px] uppercase tracking-widest font-bold block mb-2">
-                                            Confirm Password
-                                        </label>
+                                        <label className="text-gray-500 text-[11px] uppercase tracking-widest font-bold block mb-2">Confirm Password</label>
                                         <input type="password" value={confirmPw} onChange={e => setConfirmPw(e.target.value)}
                                             onKeyDown={handleKey} placeholder="••••••••"
-                                            className="input-field w-full rounded-xl px-4 py-3.5 text-white placeholder-gray-700 text-sm"
+                                            className="input-field w-full rounded-xl px-4 py-3 sm:py-3.5 text-white placeholder-gray-700 text-sm"
                                         />
                                     </div>
                                 )}
@@ -333,7 +344,7 @@ export default function AcademyLogin() {
                                 </p>
                             </div>
 
-                            <div className="px-8 pb-7">
+                            <div className="px-5 sm:px-8 pb-6 sm:pb-7">
                                 <div className="flex items-center gap-3 mb-4">
                                     <div className="flex-1 h-px bg-white/5" />
                                     <p className="text-gray-700 text-[10px] uppercase tracking-widest font-bold whitespace-nowrap">Why AthleteIQ</p>

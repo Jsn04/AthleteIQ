@@ -81,26 +81,26 @@ function SportSection({ sport, athletes, insights, injuryRisks, checkins, onNavi
 
   return (
     <div className="mb-10">
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-4 flex-wrap">
+      {/* Sport section header */}
+      <div className="flex flex-col gap-3 mb-6 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center gap-3 flex-wrap">
           <h2 className="text-xl font-black text-white tracking-tight uppercase">{sport}</h2>
-          <div className="h-4 w-[1px] bg-gray-700 hidden sm:block" />
           <span className="text-gray-500 text-xs font-medium">
-            {athletes.length} athletes · {checkedIn} checked in today
+            {athletes.length} athletes · {checkedIn} checked in
           </span>
-          {unlocked && !skipLock && (
-            <button onClick={handleLock}
-              className="text-gray-500 hover:text-white text-[10px] font-bold uppercase tracking-widest border border-gray-800 hover:border-gray-600 px-2 py-1 rounded-lg transition-all">
-              🔒 Lock Section
-            </button>
-          )}
           {skipLock && (
             <span className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[10px] font-black uppercase tracking-wider px-2 py-1 rounded-lg">
               Your Sport
             </span>
           )}
+          {unlocked && !skipLock && (
+            <button onClick={handleLock}
+              className="text-gray-500 hover:text-white text-[10px] font-bold uppercase tracking-widest border border-gray-800 hover:border-gray-600 px-2 py-1 rounded-lg transition-all">
+              🔒 Lock
+            </button>
+          )}
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           {sportRed > 0 && (
             <span className="bg-rose-500/10 text-rose-400 border border-rose-500/20 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider">
               {sportRed} High Risk
@@ -148,39 +148,49 @@ function SportSection({ sport, athletes, insights, injuryRisks, checkins, onNavi
             const isCheckedIn = !!checkin;
             return (
               <div key={athlete.id}
-                className={`bg-gray-800 rounded-2xl p-5 border transition-all hover:border-gray-600 cursor-pointer ${insight?.risk === 'red' ? 'border-rose-500/30'
+                className={`bg-gray-800 rounded-2xl p-4 sm:p-5 border transition-all hover:border-gray-600 cursor-pointer ${insight?.risk === 'red' ? 'border-rose-500/30'
                   : insight?.risk === 'yellow' ? 'border-amber-500/20'
                     : 'border-gray-700'
                   }`}
                 onClick={() => onNavigate(`/athlete/${encodeURIComponent(athlete.name)}`)}>
-                <div className="flex justify-between items-start mb-6 gap-4 flex-wrap">
-                  <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400 font-black text-xl">
+
+                {/* Athlete header row */}
+                <div className="flex items-start justify-between mb-4 gap-3">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400 font-black text-lg shrink-0">
                       {athlete.name[0]}
                     </div>
-                    <div>
-                      <h3 className="text-lg font-black text-white">{athlete.name}</h3>
+                    <div className="min-w-0">
+                      <h3 className="text-base sm:text-lg font-black text-white truncate">{athlete.name}</h3>
                       <p className="text-gray-500 text-xs font-bold uppercase mt-0.5">
                         {athlete.sport}{athlete.age ? ` · Age ${athlete.age}` : ''}
                       </p>
                     </div>
                   </div>
-                  <div className="flex items-center gap-4 flex-wrap">
+                  {/* Scores — stacked on mobile */}
+                  <div className="flex items-center gap-2 shrink-0">
                     {insight?.score != null && isCheckedIn && (
-                      <div className="text-center bg-gray-900 rounded-xl px-4 py-2 border border-gray-700">
-                        <p className={`text-2xl font-black ${insight.risk === 'red' ? 'text-rose-400'
+                      <div className="text-center bg-gray-900 rounded-xl px-3 py-1.5 border border-gray-700">
+                        <p className={`text-xl sm:text-2xl font-black ${insight.risk === 'red' ? 'text-rose-400'
                           : insight.risk === 'yellow' ? 'text-amber-400'
                             : 'text-emerald-400'
                           }`}>{insight.score}</p>
-                        <p className="text-[10px] text-gray-500 font-bold uppercase">Readiness</p>
+                        <p className="text-[10px] text-gray-500 font-bold uppercase">Ready</p>
                       </div>
                     )}
-                    <InjuryScorePill score={injuryData?.injury_risk_score} riskLevel={injuryData?.risk_level} />
                     <RiskBadge risk={insight?.risk} checkedIn={isCheckedIn} />
                   </div>
                 </div>
+
+                {/* Injury pill — below header on mobile */}
+                {injuryData?.injury_risk_score != null && (
+                  <div className="mb-4">
+                    <InjuryScorePill score={injuryData.injury_risk_score} riskLevel={injuryData.risk_level} />
+                  </div>
+                )}
+
                 {checkin ? (
-                  <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-5">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
                     {[
                       { label: 'Energy', val: checkin.energy, color: 'bg-blue-500' },
                       { label: 'Sleep', val: checkin.sleep, color: 'bg-indigo-500' },
@@ -197,15 +207,16 @@ function SportSection({ sport, athletes, insights, injuryRisks, checkins, onNavi
                     ))}
                   </div>
                 ) : (
-                  <div className="bg-gray-900/50 rounded-xl px-5 py-3 mb-5 border border-dashed border-gray-700 flex items-center gap-3">
+                  <div className="bg-gray-900/50 rounded-xl px-4 py-3 mb-4 border border-dashed border-gray-700 flex items-center gap-3">
                     <span className="text-gray-600">⏳</span>
-                    <p className="text-gray-500 text-xs">No check-in today — remind {athlete.name.split(' ')[0]} to submit.</p>
+                    <p className="text-gray-500 text-xs">No check-in today — remind {athlete.name.split(' ')[0]}.</p>
                   </div>
                 )}
+
                 <div className="flex flex-col gap-3">
                   {injuryData?.acwr != null && (
-                    <div className="flex items-center gap-3 text-xs font-bold">
-                      <span className="text-gray-500 uppercase tracking-widest text-[10px]">ACWR Balance</span>
+                    <div className="flex items-center gap-3 text-xs font-bold flex-wrap">
+                      <span className="text-gray-500 uppercase tracking-widest text-[10px]">ACWR</span>
                       <span className={`px-2 py-0.5 rounded bg-gray-900 border border-gray-700 ${injuryData.acwr > 1.5 ? 'text-rose-400'
                         : injuryData.acwr > 1.3 ? 'text-amber-400'
                           : injuryData.acwr < 0.8 ? 'text-blue-400'
@@ -220,7 +231,7 @@ function SportSection({ sport, athletes, insights, injuryRisks, checkins, onNavi
                   )}
                   {insight?.insight && insight.insight !== 'No data yet' && (
                     <div className="bg-gray-900/80 rounded-xl p-4 border border-gray-700">
-                      <p className="text-[10px] text-blue-400 uppercase font-black mb-2">🤖 Today's AI Insight</p>
+                      <p className="text-[10px] text-blue-400 uppercase font-black mb-2">🤖 AI Insight</p>
                       <p className="text-gray-300 text-sm leading-relaxed">{insight.insight}</p>
                     </div>
                   )}
@@ -242,6 +253,7 @@ function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [showBulkModal, setShowBulkModal] = useState(false);
   const [lastUpdated, setLastUpdated] = useState(null);
+  const [menuOpen, setMenuOpen] = useState(false);
   const navigate = useNavigate();
   const prevCheckinsRef = useRef(null);
   const coachSport = getCoachSport();
@@ -328,74 +340,101 @@ function Dashboard() {
   );
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white p-6 md:p-10">
+    <div className="min-h-screen bg-gray-900 text-white p-4 sm:p-6 md:p-10">
       <div className="max-w-6xl mx-auto">
-        <div className="flex justify-between items-start mb-10 flex-wrap gap-6">
-          <div>
-            <div className="flex items-center gap-4 mb-2 flex-wrap">
-              <h1 className="text-4xl font-black tracking-tight">AthleteIQ</h1>
-              <LiveIndicator lastUpdated={lastUpdated} />
-              {coachSport ? (
-                <span className="bg-blue-500/10 border border-blue-500/20 text-blue-400 text-xs font-black uppercase tracking-wider px-3 py-1 rounded-full">
-                  {coachSport} Coach
+
+        {/* ── Header ── */}
+        <div className="mb-8">
+          {/* Top row: title + live + tags + hamburger */}
+          <div className="flex items-start justify-between gap-3 mb-3">
+            <div>
+              <div className="flex items-center gap-3 flex-wrap mb-1">
+                <h1 className="text-2xl sm:text-4xl font-black tracking-tight">AthleteIQ</h1>
+                <LiveIndicator lastUpdated={lastUpdated} />
+              </div>
+              <div className="flex items-center gap-2 flex-wrap">
+                {coachSport ? (
+                  <span className="bg-blue-500/10 border border-blue-500/20 text-blue-400 text-xs font-black uppercase tracking-wider px-3 py-1 rounded-full">
+                    {coachSport} Coach
+                  </span>
+                ) : (
+                  <span className="bg-purple-500/10 border border-purple-500/20 text-purple-400 text-xs font-black uppercase tracking-wider px-3 py-1 rounded-full">
+                    Admin
+                  </span>
+                )}
+                <span className="bg-gray-800 border border-gray-700 text-gray-400 text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded-full">
+                  {localStorage.getItem('academyName') || 'Academy'}
                 </span>
-              ) : (
-                <span className="bg-purple-500/10 border border-purple-500/20 text-purple-400 text-xs font-black uppercase tracking-wider px-3 py-1 rounded-full">
-                  Admin
-                </span>
-              )}
-              <span className="bg-gray-800 border border-gray-700 text-gray-400 text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded-full">
-                {localStorage.getItem('academyName') || 'Academy'}
-              </span>
+              </div>
+              <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mt-1">
+                {new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' })}
+              </p>
             </div>
-            <p className="text-gray-500 text-sm font-bold uppercase tracking-widest">
-              Coach Hub · {new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' })}
-            </p>
+
+            {/* Hamburger — mobile only */}
+            <button
+              onClick={() => setMenuOpen(o => !o)}
+              className="sm:hidden flex flex-col gap-1.5 p-2 rounded-xl bg-gray-800 border border-gray-700 shrink-0 mt-1">
+              <span className={`block w-5 h-0.5 bg-gray-400 transition-transform ${menuOpen ? 'rotate-45 translate-y-2' : ''}`} />
+              <span className={`block w-5 h-0.5 bg-gray-400 transition-opacity ${menuOpen ? 'opacity-0' : ''}`} />
+              <span className={`block w-5 h-0.5 bg-gray-400 transition-transform ${menuOpen ? '-rotate-45 -translate-y-2' : ''}`} />
+            </button>
           </div>
-          <div className="flex gap-2 flex-wrap">
-            <Link to="/athletes"
-              className="bg-gray-800 text-white px-5 py-2.5 rounded-xl text-xs font-bold hover:bg-gray-700 transition-all">
-              Manage Athletes
-            </Link>
-            <Link to="/drills"
-              className="bg-gray-800 text-white px-5 py-2.5 rounded-xl text-xs font-bold hover:bg-gray-700 transition-all">
-              Drill Centre
-            </Link>
-            <Link to="/meditation"
-              className="bg-gray-800 text-white px-5 py-2.5 rounded-xl text-xs font-bold hover:bg-gray-700 transition-all">
-              🧘 Meditate
-            </Link>
+
+          {/* Desktop nav buttons */}
+          <div className="hidden sm:flex gap-2 flex-wrap">
+            <Link to="/athletes" className="bg-gray-800 text-white px-5 py-2.5 rounded-xl text-xs font-bold hover:bg-gray-700 transition-all">Manage Athletes</Link>
+            <Link to="/drills" className="bg-gray-800 text-white px-5 py-2.5 rounded-xl text-xs font-bold hover:bg-gray-700 transition-all">Drill Centre</Link>
+            <Link to="/meditation" className="bg-gray-800 text-white px-5 py-2.5 rounded-xl text-xs font-bold hover:bg-gray-700 transition-all">🧘 Meditate</Link>
             <button onClick={() => setShowBulkModal(true)} disabled={visibleAthletes.length === 0}
               className="bg-emerald-600 text-white px-6 py-2.5 rounded-xl text-xs font-bold hover:bg-emerald-500 disabled:bg-gray-700 disabled:text-gray-500 transition-all">
-              + Log Today's Session
+              + Log Session
             </button>
-            <button onClick={handleLogout}
-              className="text-rose-500 font-bold px-4 py-2.5 rounded-xl text-xs hover:bg-rose-500/10 transition-all">
+            <button onClick={handleLogout} className="text-rose-500 font-bold px-4 py-2.5 rounded-xl text-xs hover:bg-rose-500/10 transition-all">
               Logout
             </button>
           </div>
+
+          {/* Mobile dropdown menu */}
+          {menuOpen && (
+            <div className="sm:hidden mt-3 flex flex-col gap-2">
+              <Link to="/athletes" className="bg-gray-800 text-white px-5 py-3 rounded-xl text-sm font-bold text-center" onClick={() => setMenuOpen(false)}>Manage Athletes</Link>
+              <Link to="/drills" className="bg-gray-800 text-white px-5 py-3 rounded-xl text-sm font-bold text-center" onClick={() => setMenuOpen(false)}>Drill Centre</Link>
+              <Link to="/meditation" className="bg-gray-800 text-white px-5 py-3 rounded-xl text-sm font-bold text-center" onClick={() => setMenuOpen(false)}>🧘 Meditate</Link>
+              <button onClick={() => { setShowBulkModal(true); setMenuOpen(false); }}
+                disabled={visibleAthletes.length === 0}
+                className="bg-emerald-600 text-white px-5 py-3 rounded-xl text-sm font-bold disabled:bg-gray-700 disabled:text-gray-500">
+                + Log Today's Session
+              </button>
+              <button onClick={handleLogout}
+                className="text-rose-500 font-bold px-5 py-3 rounded-xl text-sm border border-rose-500/20 hover:bg-rose-500/10">
+                Logout
+              </button>
+            </div>
+          )}
         </div>
 
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-12">
+        {/* ── Stat Cards ── */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-10">
           <StatCard label={coachSport ? `${coachSport} Athletes` : 'Total Athletes'} value={visibleAthletes.length} color="text-white" />
           <StatCard label="Active Today" value={checkedInToday} color="text-emerald-400" />
           <StatCard label="High Risk" value={highRiskCount} color="text-rose-400" />
           <StatCard label="Caution" value={cautionCount} color="text-amber-400" />
         </div>
 
+        {/* ── Athletes ── */}
         {visibleAthletes.length === 0 ? (
-          <div className="bg-gray-800 rounded-2xl p-16 text-center border border-dashed border-gray-700">
-            <h2 className="text-2xl font-black text-white mb-2">
+          <div className="bg-gray-800 rounded-2xl p-10 sm:p-16 text-center border border-dashed border-gray-700">
+            <h2 className="text-xl sm:text-2xl font-black text-white mb-2">
               {coachSport ? `No ${coachSport} athletes found` : 'No athletes found'}
             </h2>
-            <p className="text-gray-500 mb-6 font-medium">
+            <p className="text-gray-500 mb-6 font-medium text-sm">
               {coachSport
-                ? `No athletes are assigned to ${coachSport} yet. Ask an admin to add them.`
+                ? `No athletes assigned to ${coachSport} yet. Ask an admin to add them.`
                 : 'Get started by adding your athlete profiles.'}
             </p>
             {!coachSport && (
-              <Link to="/athletes"
-                className="inline-block bg-blue-600 hover:bg-blue-500 text-white px-8 py-3 rounded-xl font-bold transition-all">
+              <Link to="/athletes" className="inline-block bg-blue-600 hover:bg-blue-500 text-white px-8 py-3 rounded-xl font-bold transition-all">
                 Add Athletes
               </Link>
             )}

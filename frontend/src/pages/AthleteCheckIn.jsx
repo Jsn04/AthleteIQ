@@ -6,13 +6,13 @@ import API_BASE_URL from '../config';
 const getAcademyId = () => localStorage.getItem('academyId') || '';
 
 const SliderField = ({ label, name, value, onChange, color, trackColor }) => (
-  <div className="bg-gray-800 rounded-2xl p-5 border border-gray-700 hover:border-gray-600 transition-all">
+  <div className="bg-gray-800 rounded-2xl p-4 sm:p-5 border border-gray-700 hover:border-gray-600 transition-all">
     <div className="flex justify-between items-center mb-4">
       <p className="text-gray-400 text-xs font-black uppercase tracking-widest">{label}</p>
-      <span className={`text-3xl font-black ${color}`}>{value}<span className="text-gray-600 text-sm font-bold">/10</span></span>
+      <span className={`text-2xl sm:text-3xl font-black ${color}`}>{value}<span className="text-gray-600 text-sm font-bold">/10</span></span>
     </div>
     <input type="range" name={name} min="1" max="10" value={value} onChange={onChange}
-      className="w-full accent-current h-2 bg-gray-900 rounded-lg appearance-none cursor-pointer"
+      className="w-full h-2 bg-gray-900 rounded-lg appearance-none cursor-pointer"
       style={{ accentColor: trackColor }}
     />
     <div className="flex justify-between text-[10px] font-bold text-gray-600 mt-2 uppercase tracking-widest">
@@ -121,7 +121,7 @@ function AthleteCheckIn() {
 
   if (showComparison && todayData) {
     return (
-      <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center p-6 sm:p-12">
+      <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center p-4 sm:p-12">
         <div className="w-full max-w-sm">
           <div className="text-center mb-8">
             <div className="text-5xl mb-4">✅</div>
@@ -130,7 +130,7 @@ function AthleteCheckIn() {
               Hey {athleteName.split(' ')[0]}, here's how today compares to yesterday
             </p>
           </div>
-          <div className="bg-gray-800 rounded-2xl border border-gray-700 p-6 mb-4">
+          <div className="bg-gray-800 rounded-2xl border border-gray-700 p-5 mb-4">
             <div className="grid grid-cols-3 text-[10px] font-black text-gray-500 uppercase tracking-widest mb-4">
               <span className="text-left">Metric</span>
               <span className="text-center">Today</span>
@@ -166,32 +166,40 @@ function AthleteCheckIn() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white p-6 md:p-12">
+    <div className="min-h-screen bg-gray-900 text-white p-4 sm:p-6 md:p-12">
       <div className="max-w-xl mx-auto">
-        <div className="flex justify-between items-start mb-10 flex-wrap gap-6">
-          <div>
-            <h1 className="text-3xl font-black tracking-tight">Daily Wellness Check-in</h1>
-            <p className="text-gray-500 text-sm mt-1">Hey {athleteName.split(' ')[0]} 👋 How are you feeling today?</p>
-            {athleteSport && (
-              <p className="text-gray-600 text-[10px] uppercase font-bold tracking-widest mt-1 opacity-70 italic">{athleteSport}</p>
-            )}
+
+        {/* Header */}
+        <div className="mb-8">
+          <div className="flex items-start justify-between gap-3 mb-1">
+            <div className="min-w-0">
+              <h1 className="text-2xl sm:text-3xl font-black tracking-tight">Daily Check-in</h1>
+              <p className="text-gray-500 text-sm mt-1">Hey {athleteName.split(' ')[0]} 👋 How are you feeling?</p>
+              {athleteSport && (
+                <p className="text-gray-600 text-[10px] uppercase font-bold tracking-widest mt-1 opacity-70 italic">{athleteSport}</p>
+              )}
+            </div>
+            {/* Logout always visible */}
+            <button onClick={handleLogout}
+              className="border border-gray-600 text-gray-500 px-3 py-2 rounded-xl text-xs hover:border-red-500 hover:text-red-400 font-bold transition shrink-0">
+              Logout
+            </button>
           </div>
-          <div className="flex gap-2">
+
+          {/* Nav buttons — full width row on mobile */}
+          <div className="flex gap-2 mt-4">
             <button onClick={() => navigate('/athlete-dashboard')}
-              className="border border-gray-600 text-gray-500 px-4 py-2 rounded-xl text-xs hover:border-blue-500 hover:text-blue-400 font-bold transition">
+              className="flex-1 border border-gray-600 text-gray-500 py-2.5 rounded-xl text-xs hover:border-blue-500 hover:text-blue-400 font-bold transition text-center">
               Dashboard
             </button>
             <button onClick={() => navigate('/meditation')}
-              className="border border-gray-600 text-gray-500 px-4 py-2 rounded-xl text-xs hover:border-indigo-500 hover:text-indigo-400 font-bold transition">
+              className="flex-1 border border-gray-600 text-gray-500 py-2.5 rounded-xl text-xs hover:border-indigo-500 hover:text-indigo-400 font-bold transition text-center">
               🧘 Meditate
-            </button>
-            <button onClick={handleLogout}
-              className="border border-gray-600 text-gray-500 px-4 py-2 rounded-xl text-xs hover:border-red-500 hover:text-red-400 font-bold transition">
-              Logout
             </button>
           </div>
         </div>
 
+        {/* Sliders */}
         <div className="space-y-3 mb-6">
           {metrics.map(m => (
             <SliderField key={m.key} label={`${m.emoji} ${m.label} Level`} name={m.key}
@@ -199,9 +207,10 @@ function AthleteCheckIn() {
           ))}
         </div>
 
-        <div className="bg-gray-800 rounded-2xl p-5 border border-gray-700 mb-6">
+        {/* Notes */}
+        <div className="bg-gray-800 rounded-2xl p-4 sm:p-5 border border-gray-700 mb-6">
           <label className="block text-gray-400 text-xs font-black uppercase tracking-widest mb-3">
-            Anything else to add? (Optional)
+            Anything else? (Optional)
           </label>
           <textarea name="notes" value={form.notes} onChange={handleChange} rows="3"
             placeholder="Injuries, concerns, or comments..."
@@ -209,9 +218,10 @@ function AthleteCheckIn() {
           />
         </div>
 
+        {/* Submit */}
         <button onClick={handleSubmit} disabled={loading}
           className="w-full bg-blue-600 hover:bg-blue-500 disabled:bg-gray-700 disabled:text-gray-500 text-white py-4 rounded-xl font-black text-lg transition shadow-lg active:scale-95">
-          {loading ? 'Submitting...' : 'Confirm Check-in'}
+          {loading ? 'Submitting...' : 'Confirm Check-in ✓'}
         </button>
       </div>
     </div>
