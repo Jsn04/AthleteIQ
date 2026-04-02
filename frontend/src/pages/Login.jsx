@@ -39,6 +39,7 @@ function Login() {
   const [password, setPassword] = useState('');
   const [athleteName, setAthleteName] = useState('');
   const [error, setError] = useState('');
+  const [menuOpen, setMenuOpen] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => { }, []);
@@ -98,6 +99,14 @@ function Login() {
     }
   };
 
+  const openRole = (r) => {
+    setRole(r);
+    setError('');
+    setPassword('');
+    setAthleteName('');
+    setMenuOpen(false);
+  };
+
   return (
     <div style={{ fontFamily: "'Bebas Neue', 'Arial Black', sans-serif" }}
       className="min-h-screen bg-gray-950 text-white overflow-x-hidden">
@@ -106,6 +115,7 @@ function Login() {
         @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600&display=swap');
         * { box-sizing: border-box; }
         .body-font { font-family: 'DM Sans', sans-serif; }
+
         @keyframes fadeUp { from { opacity: 0; transform: translateY(30px); } to { opacity: 1; transform: translateY(0); } }
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
         @keyframes float { 0%, 100% { transform: translateY(0px); } 50% { transform: translateY(-20px); } }
@@ -114,6 +124,7 @@ function Login() {
         @keyframes particle-float { 0% { transform: translateY(0px) translateX(0px); opacity: 0; } 10% { opacity: 1; } 90% { opacity: 1; } 100% { transform: translateY(-100px) translateX(20px); opacity: 0; } }
         @keyframes shimmer { 0% { background-position: -200% center; } 100% { background-position: 200% center; } }
         @keyframes modal-in { from { opacity: 0; transform: scale(0.95) translateY(10px); } to { opacity: 1; transform: scale(1) translateY(0); } }
+
         .hero-title { animation: fadeUp 0.8s ease forwards; }
         .hero-sub { animation: fadeUp 0.8s ease 0.2s both; }
         .hero-cta { animation: fadeUp 0.8s ease 0.4s both; }
@@ -140,8 +151,51 @@ function Login() {
         .gradient-orb-1 { position: fixed; width: 600px; height: 600px; border-radius: 50%; background: radial-gradient(circle, rgba(59,130,246,0.08) 0%, transparent 70%); top: -200px; right: -100px; pointer-events: none; animation: float 12s ease-in-out infinite; }
         .gradient-orb-2 { position: fixed; width: 400px; height: 400px; border-radius: 50%; background: radial-gradient(circle, rgba(52,211,153,0.06) 0%, transparent 70%); bottom: -100px; left: -100px; pointer-events: none; animation: float 15s ease-in-out infinite reverse; }
         .diagonal-line { position: absolute; width: 1px; background: linear-gradient(to bottom, transparent, rgba(255,255,255,0.05), transparent); top: 0; bottom: 0; }
+
+        /* ── Mobile menu ── */
+        .mobile-menu {
+          display: none;
+          position: absolute;
+          top: 100%;
+          right: 0;
+          left: 0;
+          background: #030712;
+          border-bottom: 1px solid rgba(255,255,255,0.06);
+          padding: 1rem 1.25rem;
+          flex-direction: column;
+          gap: 0.75rem;
+          z-index: 50;
+        }
+        .mobile-menu.open { display: flex; }
+
+        /* ── Responsive overrides ── */
+        @media (max-width: 768px) {
+          .desktop-nav-links { display: none !important; }
+          .hamburger { display: flex !important; }
+
+          .hero-grid { grid-template-columns: 1fr !important; gap: 2rem !important; }
+          .hero-title-text { font-size: 4.5rem !important; line-height: 1 !important; }
+          .hero-card { display: none; }
+
+          .stats-grid { grid-template-columns: repeat(2, 1fr) !important; gap: 1.5rem !important; }
+          .features-grid { grid-template-columns: 1fr !important; }
+          .roles-grid { grid-template-columns: 1fr !important; }
+
+          .section-px { padding-left: 1.25rem !important; padding-right: 1.25rem !important; }
+          .hero-pt { padding-top: 5rem !important; }
+          .hero-pb { padding-bottom: 3rem !important; }
+
+          .modal-box { padding: 1.5rem !important; border-radius: 1.25rem !important; }
+          .modal-title { font-size: 1.75rem !important; }
+        }
+
+        @media (min-width: 769px) {
+          .hamburger { display: none !important; }
+          .mobile-menu { display: none !important; }
+        }
       `}</style>
 
+      {/* Background */}
       <div className="noise-bg">
         <div className="gradient-orb-1" />
         <div className="gradient-orb-2" />
@@ -159,41 +213,75 @@ function Login() {
         ))}
       </div>
 
-      <nav className="relative z-10 flex justify-between items-center px-10 py-5 border-b border-white/5">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 bg-blue-500 rounded-lg flex items-center justify-center glow-blue">
-            <span className="text-sm">⚡</span>
+      {/* ── NAV ── */}
+      <nav className="relative z-10 border-b border-white/5" style={{ position: 'relative' }}>
+        <div className="flex justify-between items-center px-5 py-4" style={{ paddingLeft: '1.25rem', paddingRight: '1.25rem' }}>
+          {/* Logo + Switch Academy */}
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 bg-blue-500 rounded-lg flex items-center justify-center glow-blue">
+              <span className="text-sm">⚡</span>
+            </div>
+            <span className="text-xl tracking-wider">ATHLETEIQ</span>
+            <button
+              onClick={() => {
+                localStorage.removeItem('role');
+                localStorage.removeItem('athleteName');
+                localStorage.removeItem('athleteSport');
+                localStorage.removeItem('coachSport');
+                localStorage.removeItem('parentChildName');
+                navigate('/');
+              }}
+              className="body-font text-xs text-gray-600 hover:text-red-400 border border-gray-800 hover:border-red-500/40 px-3 py-1.5 rounded-lg transition ml-2">
+              ← Switch Academy
+            </button>
           </div>
-          <span className="text-2xl tracking-wider">ATHLETEIQ</span>
+
+          {/* Desktop nav links */}
+          <div className="desktop-nav-links flex items-center gap-4 body-font">
+            <button onClick={() => openRole('parent')}
+              className="text-gray-400 text-sm hover:text-purple-400 transition-colors duration-200">
+              Parent View
+            </button>
+            <button onClick={() => openRole('athlete')}
+              className="text-gray-400 text-sm hover:text-white transition-colors duration-200">
+              Athlete Portal
+            </button>
+            <button onClick={() => openRole('coach')}
+              className="btn-primary bg-blue-600 text-white px-5 py-2 rounded-xl text-sm font-semibold">
+              Coach Login
+            </button>
+          </div>
+
+          {/* Hamburger */}
           <button
-            onClick={() => { 
-              localStorage.removeItem('role');
-              localStorage.removeItem('athleteName');
-              localStorage.removeItem('athleteSport');
-              localStorage.removeItem('coachSport');
-              localStorage.removeItem('parentChildName');
-              navigate('/'); 
-            }}
-            className="body-font text-xs text-gray-600 hover:text-red-400 border border-gray-800 hover:border-red-500/40 px-3 py-1.5 rounded-lg transition ml-2">
-            ← Switch Academy
+            className="hamburger flex-col gap-1.5 p-2"
+            style={{ display: 'none' }}
+            onClick={() => setMenuOpen(o => !o)}
+            aria-label="Menu">
+            <span style={{ width: 22, height: 2, background: menuOpen ? '#60a5fa' : '#9ca3af', display: 'block', borderRadius: 2, transition: 'all 0.2s' }} />
+            <span style={{ width: 22, height: 2, background: menuOpen ? '#60a5fa' : '#9ca3af', display: 'block', borderRadius: 2, transition: 'all 0.2s' }} />
+            <span style={{ width: 22, height: 2, background: menuOpen ? '#60a5fa' : '#9ca3af', display: 'block', borderRadius: 2, transition: 'all 0.2s' }} />
           </button>
         </div>
-        <div className="flex items-center gap-4 body-font">
-          <button onClick={() => { setRole('parent'); setError(''); setPassword(''); setAthleteName(''); }}
-            className="text-gray-400 text-sm hover:text-purple-400 transition-colors duration-200">
-            Parent View
+
+        {/* Mobile dropdown */}
+        <div className={`mobile-menu body-font${menuOpen ? ' open' : ''}`}>
+          <button onClick={() => openRole('coach')}
+            className="btn-primary bg-blue-600 text-white px-5 py-3 rounded-xl text-sm font-semibold w-full text-center">
+            🧑‍💼 Coach Login
           </button>
-          <button onClick={() => { setRole('athlete'); setError(''); setPassword(''); }}
-            className="text-gray-400 text-sm hover:text-white transition-colors duration-200">
-            Athlete Portal
+          <button onClick={() => openRole('athlete')}
+            className="border border-white/10 text-gray-300 px-5 py-3 rounded-xl text-sm w-full text-center hover:border-green-500/40 hover:text-green-400 transition">
+            🏃 Athlete Portal
           </button>
-          <button onClick={() => { setRole('coach'); setError(''); setPassword(''); }}
-            className="btn-primary bg-blue-600 text-white px-5 py-2 rounded-xl text-sm font-semibold">
-            Coach Login
+          <button onClick={() => openRole('parent')}
+            className="border border-white/10 text-gray-300 px-5 py-3 rounded-xl text-sm w-full text-center hover:border-purple-500/40 hover:text-purple-400 transition">
+            👨‍👩‍👧 Parent View
           </button>
         </div>
       </nav>
 
+      {/* Marquee */}
       <div className="relative z-10 border-b border-white/5 py-2 overflow-hidden">
         <div className="marquee-track text-xs text-gray-600 uppercase tracking-widest" style={{ display: 'flex', gap: '3rem' }}>
           {['Daily Wellness Tracking', 'AI Powered Insights', 'Injury Prevention', 'Match Readiness', 'Performance Analytics', 'Real-time Monitoring', 'Squad Management', 'Recovery Optimization',
@@ -206,14 +294,18 @@ function Login() {
         </div>
       </div>
 
-      <div className="relative z-10 max-w-7xl mx-auto px-10 pt-28 pb-20">
-        <div className="grid grid-cols-2 gap-16 items-center">
+      {/* ── HERO ── */}
+      <div className="relative z-10 max-w-7xl mx-auto section-px hero-pt hero-pb"
+        style={{ paddingLeft: '2.5rem', paddingRight: '2.5rem', paddingTop: '7rem', paddingBottom: '5rem' }}>
+        <div className="hero-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4rem', alignItems: 'center' }}>
+          {/* Left */}
           <div>
             <div className="hero-title inline-flex items-center gap-2 bg-blue-500/10 border border-blue-500/20 text-blue-400 px-3 py-1 rounded-full text-xs uppercase tracking-widest mb-8 body-font font-semibold">
               <span className="w-1.5 h-1.5 bg-blue-400 rounded-full animate-pulse" />
               AI Sports Performance Platform
             </div>
-            <h1 className="text-8xl leading-none tracking-wider mb-6">
+            <h1 className="hero-title-text leading-none tracking-wider mb-6"
+              style={{ fontSize: '5rem' }}>
               <span className="block hero-title">TRAIN</span>
               <span className="block shimmer-text">SMARTER.</span>
               <span className="block hero-title">WIN MORE.</span>
@@ -221,19 +313,20 @@ function Login() {
             <p className="hero-sub body-font text-gray-400 text-lg leading-relaxed mb-10 max-w-md font-light">
               The AI-powered wellness platform built for serious coaches. Track your squad's readiness in real-time and get actionable insights before every session.
             </p>
-            <div className="hero-cta flex gap-4">
-              <button onClick={() => { setRole('coach'); setError(''); setPassword(''); }}
+            <div className="hero-cta flex gap-4 flex-wrap">
+              <button onClick={() => openRole('coach')}
                 className="btn-primary bg-blue-600 text-white px-8 py-4 rounded-2xl font-semibold body-font text-sm">
                 Start as Coach →
               </button>
-              <button onClick={() => { setRole('athlete'); setError(''); setPassword(''); }}
+              <button onClick={() => openRole('athlete')}
                 className="border border-white/10 text-gray-300 px-8 py-4 rounded-2xl text-sm body-font hover:border-green-500/50 hover:text-green-400 transition-all duration-300">
                 Athlete Check-in ↗
               </button>
             </div>
           </div>
 
-          <div className="relative" style={{ animation: 'float 6s ease-in-out infinite' }}>
+          {/* Right — hidden on mobile via CSS */}
+          <div className="hero-card relative" style={{ animation: 'float 6s ease-in-out infinite' }}>
             <div className="bg-gray-900 border border-white/10 rounded-3xl p-6 shadow-2xl">
               <div className="flex items-center justify-between mb-5">
                 <div>
@@ -277,8 +370,10 @@ function Login() {
         </div>
       </div>
 
+      {/* ── STATS ── */}
       <div className="stats-bar relative z-10 border-t border-b border-white/5 py-10 mb-20">
-        <div className="max-w-7xl mx-auto px-10 grid grid-cols-4 gap-8 text-center">
+        <div className="max-w-7xl mx-auto section-px stats-grid"
+          style={{ paddingLeft: '2.5rem', paddingRight: '2.5rem', display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '2rem', textAlign: 'center' }}>
           {[
             { val: '2x', label: 'Faster Recovery', color: 'text-blue-400' },
             { val: '98%', label: 'Check-in Rate', color: 'text-green-400' },
@@ -286,19 +381,21 @@ function Login() {
             { val: '0', label: 'Preventable Injuries', color: 'text-yellow-400' },
           ].map(({ val, label, color }) => (
             <div key={label}>
-              <p className={`text-5xl tracking-wider ${color}`}>{val}</p>
+              <p className={`text-4xl tracking-wider ${color}`}>{val}</p>
               <p className="text-gray-500 text-xs uppercase tracking-widest body-font mt-2">{label}</p>
             </div>
           ))}
         </div>
       </div>
 
-      <div className="relative z-10 max-w-7xl mx-auto px-10 mb-24">
+      {/* ── FEATURES ── */}
+      <div className="relative z-10 max-w-7xl mx-auto section-px mb-24"
+        style={{ paddingLeft: '2.5rem', paddingRight: '2.5rem' }}>
         <div className="text-center mb-14">
           <p className="text-xs text-blue-400 uppercase tracking-widest body-font mb-3">Platform Features</p>
-          <h2 className="text-5xl tracking-wider">BUILT FOR CHAMPIONS</h2>
+          <h2 className="text-4xl tracking-wider">BUILT FOR CHAMPIONS</h2>
         </div>
-        <div className="grid grid-cols-3 gap-5">
+        <div className="features-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1.25rem' }}>
           {[
             { icon: '📊', title: 'REAL-TIME DASHBOARD', desc: "See every athlete's wellness the moment they check in. Energy, sleep, soreness — all in one view." },
             { icon: '🤖', title: 'AI COACHING INSIGHTS', desc: "Claude AI analyzes your squad and tells you who needs rest and who's ready to go hard." },
@@ -316,12 +413,14 @@ function Login() {
         </div>
       </div>
 
-      <div className="relative z-10 max-w-7xl mx-auto px-10 mb-24">
-        <div className="grid grid-cols-3 gap-6">
+      {/* ── ROLE CARDS ── */}
+      <div className="relative z-10 max-w-7xl mx-auto section-px mb-24"
+        style={{ paddingLeft: '2.5rem', paddingRight: '2.5rem' }}>
+        <div className="roles-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1.5rem' }}>
           <div className="card-hover bg-gradient-to-br from-blue-950/50 to-gray-900 border border-blue-500/20 rounded-3xl p-8 cursor-pointer"
-            onClick={() => { setRole('coach'); setError(''); setPassword(''); }}>
+            onClick={() => openRole('coach')}>
             <div className="text-4xl mb-5">🧑‍💼</div>
-            <h3 className="text-3xl tracking-wider mb-3">FOR COACHES</h3>
+            <h3 className="text-2xl tracking-wider mb-3">FOR COACHES</h3>
             <p className="text-gray-400 body-font text-sm leading-relaxed mb-5 font-light">
               Track your entire squad. Get AI-powered recommendations before every session and match day.
             </p>
@@ -336,9 +435,9 @@ function Login() {
           </div>
 
           <div className="card-hover bg-gradient-to-br from-green-950/50 to-gray-900 border border-green-500/20 rounded-3xl p-8 cursor-pointer"
-            onClick={() => { setRole('athlete'); setError(''); setPassword(''); }}>
+            onClick={() => openRole('athlete')}>
             <div className="text-4xl mb-5">🏃</div>
-            <h3 className="text-3xl tracking-wider mb-3">FOR ATHLETES</h3>
+            <h3 className="text-2xl tracking-wider mb-3">FOR ATHLETES</h3>
             <p className="text-gray-400 body-font text-sm leading-relaxed mb-5 font-light">
               Check in daily in 30 seconds. Let your coach know how your body feels every day.
             </p>
@@ -353,9 +452,9 @@ function Login() {
           </div>
 
           <div className="card-hover bg-gradient-to-br from-purple-950/50 to-gray-900 border border-purple-500/20 rounded-3xl p-8 cursor-pointer"
-            onClick={() => { setRole('parent'); setError(''); setPassword(''); setAthleteName(''); }}>
+            onClick={() => openRole('parent')}>
             <div className="text-4xl mb-5">👨‍👩‍👧</div>
-            <h3 className="text-3xl tracking-wider mb-3">FOR PARENTS</h3>
+            <h3 className="text-2xl tracking-wider mb-3">FOR PARENTS</h3>
             <p className="text-gray-400 body-font text-sm leading-relaxed mb-5 font-light">
               Stay informed about your child's training wellness and get the AI coach's message for them.
             </p>
@@ -371,21 +470,24 @@ function Login() {
         </div>
       </div>
 
+      {/* Footer */}
       <div className="relative z-10 border-t border-white/5 py-8 text-center">
         <p className="text-2xl tracking-wider mb-2">ATHLETEIQ</p>
         <p className="text-gray-600 text-xs body-font">Built for serious coaches and athletes · © 2026</p>
       </div>
 
+      {/* ── LOGIN MODAL ── */}
       {role && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-50 p-6"
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-50 p-4"
           onClick={(e) => e.target === e.currentTarget && (setRole(null), setError(''), setPassword(''), setAthleteName(''))}>
-          <div className="modal-animate bg-gray-950 border border-white/10 rounded-3xl p-8 w-full max-w-md shadow-2xl">
+          <div className="modal-animate modal-box bg-gray-950 border border-white/10 rounded-3xl w-full shadow-2xl"
+            style={{ maxWidth: '28rem', padding: '2rem' }}>
             <div className="flex justify-between items-center mb-8">
               <div>
                 <p className="text-xs text-gray-500 uppercase tracking-widest body-font mb-1">
                   {role === 'coach' ? 'Coach Portal' : role === 'athlete' ? 'Athlete Portal' : 'Parent View'}
                 </p>
-                <h2 className="text-3xl tracking-wider">
+                <h2 className="modal-title tracking-wider" style={{ fontSize: '2rem' }}>
                   {role === 'coach' ? 'WELCOME BACK' : role === 'athlete' ? 'CHECK IN' : 'VIEW PROGRESS'}
                 </h2>
               </div>
