@@ -164,23 +164,28 @@ export default function BulkLogModal({ athletes, duration, onClose, onSuccess })
 
     const handleSubmit = async () => {
         setSubmitting(true);
+        const academyId = localStorage.getItem('academyId') || '';
+
         try {
-            await axios.post(`${API_BASE_URL}/wellness/bulk-training-log`, {
-                duration: parseInt(duration_),
-                logs: athletes.map(a => {
-                    const d = athleteData[a.id];
-                    return {
-                        athlete_name: a.name.trim(),
-                        intensity: d.sat_out ? 'Low' : d.intensity,
-                        duration: d.sat_out ? 0 : parseInt(duration_),
-                        rpe: d.sat_out ? 0 : d.rpe,
-                        coach_notes: d.sat_out
-                            ? `Sat out. ${d.note || ''}`.trim()
-                            : d.note || '',
-                        attended: !d.sat_out,
-                    };
-                }),
-            });
+            await axios.post(
+                `${API_BASE_URL}/wellness/bulk-training-log?academy_id=${academyId}`,
+                {
+                    duration: parseInt(duration_),
+                    logs: athletes.map(a => {
+                        const d = athleteData[a.id];
+                        return {
+                            athlete_name: a.name.trim(),
+                            intensity: d.sat_out ? 'Low' : d.intensity,
+                            duration: d.sat_out ? 0 : parseInt(duration_),
+                            rpe: d.sat_out ? 0 : d.rpe,
+                            coach_notes: d.sat_out
+                                ? `Sat out. ${d.note || ''}`.trim()
+                                : d.note || '',
+                            attended: !d.sat_out,
+                        };
+                    }),
+                }
+            );
             setStep('done');
             setTimeout(() => { onSuccess(); onClose(); }, 1800);
         } catch (err) {
