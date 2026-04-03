@@ -64,21 +64,26 @@ def calculate_acwr(training_logs: list) -> dict:
     intensity_map = {"Low": 0.6, "Medium": 1.0, "High": 1.4}
 
     def session_load(log):
-        return (log.get("duration") or 0) * (log.get("rpe") or 5) * intensity_map.get(log.get("intensity", "Medium"), 1.0)
+        duration = log.get("duration") or 0
+        if duration == 0:
+            return 0
+        rpe = log.get("rpe") or 5
+        multiplier = intensity_map.get(log.get("intensity", "Medium"), 1.0)
+        return duration * rpe * multiplier
 
-    now = datetime.now(timezone.utc)
+    all_loads = [session_load(l) for l in training_logs]
+    all_loads = [l for l in all_loads if l > 0]  # remove sat-out sessions
 
-    def days_ago(log):
-        try:
-            return (now - datetime.fromisoformat(log.get("created_at", "").replace("Z", "+00:00"))).days
-        except Exception:
-            return 999
+    if not all_loads:
+        return {"acwr": 0.0, "acute_load": 0, "chronic_load": 0, "risk_tier": "No Data", "readiness": 50}
 
-    acute_logs   = [l for l in training_logs if days_ago(l) <= 7]
-    chronic_logs = [l for l in training_logs if days_ago(l) <= 28]
-    acute_load   = sum(session_load(l) for l in acute_logs)
-    chronic_load = (sum(session_load(l) for l in chronic_logs) / 4) if chronic_logs else 1
-    acwr         = round(acute_load / chronic_load, 2) if chronic_load else 0.0
+    # Acute = last 3 sessions (most recent load)
+    # Chronic = average session load across all available data
+    acute_count  = min(3, len(all_loads))
+    acute_load   = sum(all_loads[:acute_count])
+    chronic_load = sum(all_loads) / len(all_loads) * acute_count
+
+    acwr = round(acute_load / chronic_load, 2) if chronic_load else 0.0
 
     if acwr < 0.8:
         risk_tier, readiness = "Undertraining", 65

@@ -130,10 +130,23 @@ function AthleteProfile() {
         </div>
 
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-          <StatCard label="Avg Readiness" value={insight?.score ?? '—'} color="text-emerald-400" />
+          <StatCard 
+            label="Avg Readiness" 
+            value={insight?.metrics?.readiness ?? insight?.score ?? '—'} 
+            color="text-emerald-400" 
+          />
           <StatCard label="Injury Risk" value={injuryRisk?.injury_risk_score ?? '—'}
             color={injuryRisk?.risk_level === 'red' ? 'text-rose-400' : 'text-amber-400'} />
-          <StatCard label="ACWR" value={injuryRisk?.acwr ?? '—'} color="text-blue-400" />
+          <StatCard 
+            label="ACWR" 
+            value={
+              injuryRisk?.acwr && injuryRisk.acwr > 0 
+                ? injuryRisk.acwr 
+                : '—'
+            }
+            color="text-blue-400"
+            subtitle={!injuryRisk?.acwr || injuryRisk.acwr === 0 ? "7+ days needed" : null}
+          />
           <StatCard label="Active Days" value={history.length} color="text-white" />
         </div>
 
@@ -179,8 +192,10 @@ function AthleteProfile() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="bg-gray-800 rounded-2xl p-6 border border-gray-700">
                 <p className="text-blue-400 text-[10px] font-black uppercase mb-3 px-1">🤖 Recovery Insight</p>
-                {insight?.athlete_message ? (
-                  <p className="text-gray-200 text-sm leading-relaxed italic px-1">"{insight.athlete_message}"</p>
+                {insight?.insight || insight?.athlete_message ? (
+                  <p className="text-gray-200 text-sm leading-relaxed italic px-1">
+                    "{insight.insight || insight.athlete_message}"
+                  </p>
                 ) : (
                   <p className="text-gray-500 text-sm italic">Gathering wellness patterns...</p>
                 )}

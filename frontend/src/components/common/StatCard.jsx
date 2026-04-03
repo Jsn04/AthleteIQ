@@ -1,6 +1,6 @@
 import React from 'react';
 
-const StatCard = ({ label, value, color, sub, icon }) => (
+const StatCard = ({ label, value, color, sub, icon, subtitle }) => (
   <div className="bg-gray-800 rounded-2xl p-5 border border-gray-700 hover:border-gray-600 transition-all">
     <div className="flex flex-col gap-1">
       <div className="flex items-center justify-between mb-1">
@@ -9,6 +9,7 @@ const StatCard = ({ label, value, color, sub, icon }) => (
       </div>
       <p className={`text-4xl font-black ${color}`}>{value}</p>
       {sub && <p className="text-gray-500 text-[10px] uppercase font-bold mt-1 tracking-widest">{sub}</p>}
+      {subtitle && <p className="text-rose-400 text-[10px] font-bold mt-1 uppercase italic">{subtitle}</p>}
     </div>
   </div>
 );
