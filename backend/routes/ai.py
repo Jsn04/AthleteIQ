@@ -1,23 +1,30 @@
+import asyncio
+import os
+from datetime import datetime, timezone
+
 from fastapi import APIRouter
 from supabase import create_client
-import os
 
 from config import AI_PROVIDER, AI_MODEL, GROQ_API_KEY, OPENAI_API_KEY, ANTHROPIC_API_KEY
 
 router = APIRouter()
 
+
 def get_supabase():
     return create_client(os.getenv("SUPABASE_URL"), os.getenv("SUPABASE_KEY"))
 
 
-def call_llm(prompt: str, max_tokens: int = 300) -> str:
+def _call_llm_sync(prompt: str, max_tokens: int = 250) -> str:
+    max_tokens = min(max_tokens, 250)
+
     if AI_PROVIDER == "groq":
         from groq import Groq
         client = Groq(api_key=GROQ_API_KEY)
         response = client.chat.completions.create(
             model=AI_MODEL,
             max_tokens=max_tokens,
-            messages=[{"role": "user", "content": prompt}]
+            temperature=0.7,
+            messages=[{"role": "user", "content": prompt}],
         )
         return response.choices[0].message.content.strip()
 
@@ -27,7 +34,8 @@ def call_llm(prompt: str, max_tokens: int = 300) -> str:
         response = client.chat.completions.create(
             model=AI_MODEL,
             max_tokens=max_tokens,
-            messages=[{"role": "user", "content": prompt}]
+            temperature=0.7,
+            messages=[{"role": "user", "content": prompt}],
         )
         return response.choices[0].message.content.strip()
 
@@ -37,63 +45,151 @@ def call_llm(prompt: str, max_tokens: int = 300) -> str:
         response = client.messages.create(
             model=AI_MODEL,
             max_tokens=max_tokens,
-            messages=[{"role": "user", "content": prompt}]
+            messages=[{"role": "user", "content": prompt}],
         )
         return response.content[0].text.strip()
 
     else:
-        raise ValueError(f"Unknown AI_PROVIDER: '{AI_PROVIDER}'. Use 'groq', 'openai', or 'anthropic'.")
+        raise ValueError(f"Unknown AI_PROVIDER: '{AI_PROVIDER}'.")
 
 
-# ─── Athlete Insights ─────────────────────────────────────────────────────────
+async def call_llm(prompt: str, max_tokens: int = 250) -> str:
+    return await asyncio.to_thread(_call_llm_sync, prompt, max_tokens)
+
+
+def calculate_acwr(training_logs: list) -> dict:
+    if not training_logs:
+        return {"acwr": 0.0, "acute_load": 0, "chronic_load": 0, "risk_tier": "No Data", "readiness": 50}
+
+    intensity_map = {"Low": 0.6, "Medium": 1.0, "High": 1.4}
+
+    def session_load(log):
+        return (log.get("duration") or 0) * (log.get("rpe") or 5) * intensity_map.get(log.get("intensity", "Medium"), 1.0)
+
+    now = datetime.now(timezone.utc)
+
+    def days_ago(log):
+        try:
+            return (now - datetime.fromisoformat(log.get("created_at", "").replace("Z", "+00:00"))).days
+        except Exception:
+            return 999
+
+    acute_logs   = [l for l in training_logs if days_ago(l) <= 7]
+    chronic_logs = [l for l in training_logs if days_ago(l) <= 28]
+    acute_load   = sum(session_load(l) for l in acute_logs)
+    chronic_load = (sum(session_load(l) for l in chronic_logs) / 4) if chronic_logs else 1
+    acwr         = round(acute_load / chronic_load, 2) if chronic_load else 0.0
+
+    if acwr < 0.8:
+        risk_tier, readiness = "Undertraining", 65
+    elif acwr <= 1.3:
+        risk_tier, readiness = "Optimal", 88
+    elif acwr <= 1.5:
+        risk_tier, readiness = "Caution", 55
+    else:
+        risk_tier, readiness = "High Risk", 25
+
+    return {
+        "acwr": acwr,
+        "acute_load": round(acute_load),
+        "chronic_load": round(chronic_load),
+        "risk_tier": risk_tier,
+        "readiness": readiness,
+    }
+
+
+async def _get_cached_insight(supabase, athlete_name: str, academy_id: str):
+    try:
+        result = await asyncio.to_thread(
+            lambda: supabase.table("ai_insights_cache")
+            .select("insight, metrics, created_at")
+            .eq("athlete_name", athlete_name)
+            .eq("academy_id", academy_id)
+            .execute()
+        )
+        if not result.data:
+            return None
+        cached    = result.data[0]
+        cached_at = datetime.fromisoformat(cached["created_at"].replace("Z", "+00:00"))
+        age_hours = (datetime.now(timezone.utc) - cached_at).total_seconds() / 3600
+        if age_hours < 12:
+            return {"insight": cached["insight"], "metrics": cached["metrics"],
+                    "cached": True, "cache_age_mins": round(age_hours * 60)}
+        return None
+    except Exception:
+        return None
+
+
+async def _save_insight_cache(supabase, athlete_name: str, academy_id: str, insight: str, metrics: dict):
+    try:
+        await asyncio.to_thread(
+            lambda: supabase.table("ai_insights_cache")
+            .upsert(
+                {"athlete_name": athlete_name, "academy_id": academy_id,
+                 "insight": insight, "metrics": metrics,
+                 "created_at": datetime.now(timezone.utc).isoformat()},
+                on_conflict="athlete_name,academy_id",
+            )
+            .execute()
+        )
+    except Exception:
+        pass
+
 
 @router.get("/insights/{athlete_name}")
-def get_athlete_insight(athlete_name: str, academy_id: str = ""):
+async def get_athlete_insight(athlete_name: str, academy_id: str = ""):
     supabase = get_supabase()
 
-    q = supabase.table("checkins").select("*").eq("athlete_name", athlete_name)
-    if academy_id:
-        q = q.eq("academy_id", academy_id)
-    checkins = q.order("created_at", desc=True).limit(7).execute().data
+    cached = await _get_cached_insight(supabase, athlete_name, academy_id)
+    if cached:
+        return cached
 
-    q = supabase.table("training_logs").select("*").eq("athlete_name", athlete_name)
-    if academy_id:
-        q = q.eq("academy_id", academy_id)
-    training = q.order("created_at", desc=True).limit(7).execute().data
+    checkins_result = await asyncio.to_thread(
+        lambda: supabase.table("checkins").select("*")
+        .eq("athlete_name", athlete_name).eq("academy_id", academy_id)
+        .order("created_at", desc=True).limit(7).execute()
+    )
+    training_result = await asyncio.to_thread(
+        lambda: supabase.table("training_logs").select("*")
+        .eq("athlete_name", athlete_name).eq("academy_id", academy_id)
+        .order("created_at", desc=True).limit(28).execute()
+    )
+
+    checkins = checkins_result.data or []
+    training = training_result.data or []
 
     if not checkins and not training:
-        return {"insight": "No data yet", "risk": "unknown", "score": None}
+        return {"insight": "No data yet", "risk": "unknown", "score": None, "cached": False}
 
-    checkin_summary = "\n".join([
-        f"- Energy {c['energy']}/10, Sleep {c['sleep']}/10, Soreness {c['soreness']}/10, Mood {c['mood']}/10"
-        for c in checkins
-    ]) if checkins else "No wellness check-ins submitted yet by athlete"
+    metrics        = calculate_acwr(training)
+    latest_checkin = checkins[0] if checkins else {}
 
-    training_summary = "\n".join([
-        f"- Intensity: {t['intensity']}, Duration: {t['duration']} mins, RPE: {t.get('rpe', 'N/A')}/10, Notes: {t.get('coach_notes','none')}"
-        for t in training
-    ]) if training else "No training logs yet"
+    checkin_summary = (
+        "\n".join([
+            f"- Energy {c['energy']}/10, Sleep {c['sleep']}/10, Soreness {c['soreness']}/10, Mood {c['mood']}/10"
+            for c in checkins
+        ]) if checkins else "No wellness check-ins submitted yet"
+    )
 
     prompt = f"""You are an elite sports physiotherapist and performance coach.
 
 Athlete: {athlete_name}
-Recent wellness check-ins (most recent first):
+Readiness Score: {metrics['readiness']}/100
+Workload Status: {metrics['risk_tier']} (ACWR: {metrics['acwr']})
+Today — Energy: {latest_checkin.get('energy', 'N/A')}/10, Sleep: {latest_checkin.get('sleep', 'N/A')}/10, Soreness: {latest_checkin.get('soreness', 'N/A')}/10
+
+Recent wellness check-ins:
 {checkin_summary}
 
-Recent training logs from coach (most recent first):
-{training_summary}
-
-Note: If wellness check-in data is missing, base your assessment only on training load and RPE data provided by the coach.
-
-Respond in EXACTLY this format, nothing else:
-INSIGHT: [one practical sentence for the coach about this athlete today]
+Respond in EXACTLY this format:
+INSIGHT: [one practical sentence for the coach]
 RISK: [green or yellow or red]
 SCORE: [readiness number 0-100]
-ATHLETE_MESSAGE: [one motivating sentence sent directly to the athlete based on their data]"""
+ATHLETE_MESSAGE: [one motivating sentence for the athlete]"""
 
-    text = call_llm(prompt, max_tokens=200)
+    text   = await call_llm(prompt, max_tokens=200)
+    result = {"cached": False, "cache_age_mins": 0}
 
-    result = {}
     for line in text.split("\n"):
         if line.startswith("INSIGHT:"):
             result["insight"] = line.replace("INSIGHT:", "").strip()
@@ -102,46 +198,57 @@ ATHLETE_MESSAGE: [one motivating sentence sent directly to the athlete based on 
         elif line.startswith("SCORE:"):
             try:
                 result["score"] = int(line.replace("SCORE:", "").strip())
-            except:
-                result["score"] = 50
+            except Exception:
+                result["score"] = metrics["readiness"]
         elif line.startswith("ATHLETE_MESSAGE:"):
             result["athlete_message"] = line.replace("ATHLETE_MESSAGE:", "").strip()
 
+    result["metrics"] = metrics
+    await _save_insight_cache(supabase, athlete_name, academy_id, result.get("insight", ""), metrics)
     return result
 
 
-# ─── Squad Insights ───────────────────────────────────────────────────────────
-
 @router.get("/squad-insights")
-def get_squad_insights(academy_id: str = ""):
+async def get_squad_insights(academy_id: str = ""):
     supabase = get_supabase()
 
-    q = supabase.table("athletes").select("*")
-    if academy_id:
-        q = q.eq("academy_id", academy_id)
-    athletes = q.execute().data
+    athletes_result = await asyncio.to_thread(
+        lambda: supabase.table("athletes").select("*").eq("academy_id", academy_id).execute()
+    )
+    checkins_result = await asyncio.to_thread(
+        lambda: supabase.table("checkins").select("*").eq("academy_id", academy_id)
+        .order("created_at", desc=True).execute()
+    )
+    training_result = await asyncio.to_thread(
+        lambda: supabase.table("training_logs").select("*").eq("academy_id", academy_id)
+        .order("created_at", desc=True).execute()
+    )
 
-    q = supabase.table("checkins").select("*").order("created_at", desc=True)
-    if academy_id:
-        q = q.eq("academy_id", academy_id)
-    checkins = q.execute().data
-
-    q = supabase.table("training_logs").select("*").order("created_at", desc=True)
-    if academy_id:
-        q = q.eq("academy_id", academy_id)
-    training = q.execute().data
+    athletes_data = athletes_result.data or []
+    checkins      = checkins_result.data or []
+    training      = training_result.data or []
 
     squad_summary = ""
-    for athlete in athletes:
+    for athlete in athletes_data:
         latest_checkin  = next((c for c in checkins if c["athlete_name"] == athlete["name"]), None)
         latest_training = next((t for t in training if t["athlete_name"] == athlete["name"]), None)
 
         if latest_checkin:
-            squad_summary += f"\n{athlete['name']} ({athlete['sport']}): Energy {latest_checkin['energy']}, Sleep {latest_checkin['sleep']}, Soreness {latest_checkin['soreness']}"
+            squad_summary += (
+                f"\n{athlete['name']} ({athlete['sport']}): "
+                f"Energy {latest_checkin['energy']}, Sleep {latest_checkin['sleep']}, Soreness {latest_checkin['soreness']}"
+            )
             if latest_training:
-                squad_summary += f", Last training: {latest_training['intensity']} intensity for {latest_training['duration']} mins, RPE: {latest_training.get('rpe', 'N/A')}/10"
+                squad_summary += (
+                    f", Last training: {latest_training['intensity']} for {latest_training['duration']} mins"
+                    f", RPE: {latest_training.get('rpe', 'N/A')}/10"
+                )
         elif latest_training:
-            squad_summary += f"\n{athlete['name']} ({athlete['sport']}): No check-in, Last training: {latest_training['intensity']} intensity for {latest_training['duration']} mins, RPE: {latest_training.get('rpe', 'N/A')}/10"
+            squad_summary += (
+                f"\n{athlete['name']} ({athlete['sport']}): No check-in, "
+                f"Last training: {latest_training['intensity']} for {latest_training['duration']} mins"
+                f", RPE: {latest_training.get('rpe', 'N/A')}/10"
+            )
 
     if not squad_summary:
         return {"squad_insight": "No data available yet for the squad."}
@@ -151,121 +258,102 @@ def get_squad_insights(academy_id: str = ""):
 Squad data:
 {squad_summary}
 
-Give a coaching effectiveness insight in EXACTLY this format:
-SQUAD_INSIGHT: [2 sentences — one observation about the squad's overall state, one actionable recommendation for today's session]"""
+Respond in EXACTLY this format:
+SQUAD_INSIGHT: [2 sentences — one observation about squad state, one actionable recommendation for today]"""
 
-    text = call_llm(prompt, max_tokens=150)
-    squad_insight = text.replace("SQUAD_INSIGHT:", "").strip()
+    text = await call_llm(prompt, max_tokens=150)
+    return {"squad_insight": text.replace("SQUAD_INSIGHT:", "").strip()}
 
-    return {"squad_insight": squad_insight}
-
-
-# ─── Weekly Summary ───────────────────────────────────────────────────────────
 
 @router.get("/weekly-summary/{athlete_name}")
-def get_weekly_summary(athlete_name: str, academy_id: str = ""):
+async def get_weekly_summary(athlete_name: str, academy_id: str = ""):
     supabase = get_supabase()
 
-    q = supabase.table("checkins").select("*").eq("athlete_name", athlete_name)
-    if academy_id:
-        q = q.eq("academy_id", academy_id)
-    checkins = q.order("created_at", desc=True).limit(7).execute().data
+    checkins_result = await asyncio.to_thread(
+        lambda: supabase.table("checkins").select("*")
+        .eq("athlete_name", athlete_name).eq("academy_id", academy_id)
+        .order("created_at", desc=True).limit(7).execute()
+    )
+    training_result = await asyncio.to_thread(
+        lambda: supabase.table("training_logs").select("*")
+        .eq("athlete_name", athlete_name).eq("academy_id", academy_id)
+        .order("created_at", desc=True).limit(7).execute()
+    )
 
-    q = supabase.table("training_logs").select("*").eq("athlete_name", athlete_name)
-    if academy_id:
-        q = q.eq("academy_id", academy_id)
-    training = q.order("created_at", desc=True).limit(7).execute().data
+    checkins = checkins_result.data or []
+    training = training_result.data or []
 
     if not checkins and not training:
         return {"summary": "No data available yet to generate a weekly summary."}
 
-    checkin_summary = "\n".join([
-        f"- {c['created_at'][:10]}: Energy {c['energy']}/10, Sleep {c['sleep']}/10, Soreness {c['soreness']}/10, Mood {c['mood']}/10"
-        + (f", Notes: {c['notes']}" if c.get('notes') else "")
-        for c in checkins
-    ]) if checkins else "No wellness check-ins this week"
+    metrics = calculate_acwr(training)
 
-    training_summary = "\n".join([
-        f"- {t['created_at'][:10]}: {t['intensity']} intensity, {t['duration']} mins, RPE {t.get('rpe', 'N/A')}/10"
-        + (f", Coach notes: {t['coach_notes']}" if t.get('coach_notes') else "")
-        for t in training
-    ]) if training else "No training logs this week"
+    checkin_summary = (
+        "\n".join([
+            f"- {c['created_at'][:10]}: Energy {c['energy']}/10, Sleep {c['sleep']}/10, "
+            f"Soreness {c['soreness']}/10, Mood {c['mood']}/10"
+            + (f", Notes: {c['notes']}" if c.get("notes") else "")
+            for c in checkins
+        ]) if checkins else "No wellness check-ins this week"
+    )
+
+    training_summary = (
+        "\n".join([
+            f"- {t['created_at'][:10]}: {t['intensity']} intensity, {t['duration']} mins, RPE {t.get('rpe', 'N/A')}/10"
+            + (f", Notes: {t['coach_notes']}" if t.get("coach_notes") else "")
+            for t in training
+        ]) if training else "No training logs this week"
+    )
 
     prompt = f"""You are an elite sports performance coach writing a weekly progress report.
 
 Athlete: {athlete_name}
+Workload: {metrics['risk_tier']} (ACWR {metrics['acwr']}) — Readiness {metrics['readiness']}/100
 
-Wellness check-ins this week:
+Wellness this week:
 {checkin_summary}
 
-Training logs this week:
+Training this week:
 {training_summary}
 
-Write a concise 3-4 sentence weekly summary covering:
-1. Overall wellness trend this week
-2. Training load assessment based on RPE and intensity
-3. One specific recommendation for next week
+Write a concise 3-sentence summary: wellness trend, training load assessment, one recommendation for next week. Speak directly to a coach."""
 
-Be direct and practical. Write as if speaking to a coach."""
-
-    text = call_llm(prompt, max_tokens=300)
+    text = await call_llm(prompt, max_tokens=250)
     return {"summary": text}
 
 
-# ─── Injury Risk ──────────────────────────────────────────────────────────────
-
 @router.get("/injury-risk/{athlete_name}")
-def get_injury_risk(athlete_name: str, academy_id: str = ""):
+async def get_injury_risk(athlete_name: str, academy_id: str = ""):
     supabase = get_supabase()
 
-    q = supabase.table("checkins").select("*").eq("athlete_name", athlete_name)
-    if academy_id:
-        q = q.eq("academy_id", academy_id)
-    checkins = q.order("created_at", desc=True).limit(28).execute().data
+    checkins_result = await asyncio.to_thread(
+        lambda: supabase.table("checkins").select("*")
+        .eq("athlete_name", athlete_name).eq("academy_id", academy_id)
+        .order("created_at", desc=True).limit(28).execute()
+    )
+    training_result = await asyncio.to_thread(
+        lambda: supabase.table("training_logs").select("*")
+        .eq("athlete_name", athlete_name).eq("academy_id", academy_id)
+        .order("created_at", desc=True).limit(28).execute()
+    )
 
-    q = supabase.table("training_logs").select("*").eq("athlete_name", athlete_name)
-    if academy_id:
-        q = q.eq("academy_id", academy_id)
-    training = q.order("created_at", desc=True).limit(28).execute().data
+    checkins = checkins_result.data or []
+    training = training_result.data or []
 
     if not checkins and not training:
-        return {
-            "injury_risk_score": None,
-            "acwr": None,
-            "signals": [],
-            "verdict": "No data available yet",
-            "risk_level": "unknown",
-            "deception_flag": False
-        }
+        return {"injury_risk_score": None, "acwr": None, "signals": [],
+                "verdict": "No data available yet", "risk_level": "unknown", "deception_flag": False}
 
-    intensity_map = {"Low": 0.6, "Medium": 1.0, "High": 1.4}
-
-    def session_load(log):
-        duration   = log.get("duration") or 0
-        rpe        = log.get("rpe") or 5
-        multiplier = intensity_map.get(log.get("intensity", "Medium"), 1.0)
-        return duration * rpe * multiplier
-
-    all_loads   = [session_load(t) for t in training]
-    acute_load  = sum(all_loads[:7]) if all_loads else 0
-
-    if len(all_loads) >= 28:
-        chronic_load = sum(all_loads[:28]) / 4
-    elif len(all_loads) >= 7:
-        chronic_load = sum(all_loads) / (len(all_loads) / 7)
-    else:
-        chronic_load = acute_load
-
-    acwr = round(acute_load / chronic_load, 2) if chronic_load > 0 else None
+    metrics = calculate_acwr(training)
+    acwr    = metrics["acwr"]
 
     coach_notes_combined = " ".join([
-        t.get("coach_notes", "").lower() for t in training[:7]
-        if t.get("coach_notes")
+        t.get("coach_notes", "").lower() for t in training[:7] if t.get("coach_notes")
     ])
 
-    notes_score, notes_signals = 0, []
-    athlete_score, athlete_signals = 0, []
-    acwr_score, acwr_signals = 0, []
+    notes_score, notes_signals       = 0, []
+    athlete_score, athlete_signals   = 0, []
+    acwr_score, acwr_signals         = 0, []
     deception_flag, mismatch_signals = False, []
 
     subtle_keywords = ["tired", "flat", "sluggish", "heavy legs", "looked off",
@@ -275,9 +363,8 @@ def get_injury_risk(athlete_name: str, academy_id: str = ""):
         notes_score += 8
         notes_signals.append("Coach noted subtle fatigue or low energy signs")
 
-    load_keywords = ["reduced load", "modified session", "light work only",
-                     "kept it easy", "held back", "limited reps", "sat out drills",
-                     "reduced intensity", "short session"]
+    load_keywords = ["reduced load", "modified session", "light work only", "kept it easy",
+                     "held back", "limited reps", "sat out drills", "reduced intensity", "short session"]
     if any(w in coach_notes_combined for w in load_keywords):
         notes_score += 12
         notes_signals.append("Coach already modified or reduced training load")
@@ -288,16 +375,14 @@ def get_injury_risk(athlete_name: str, academy_id: str = ""):
         notes_score += 15
         notes_signals.append("Coach notes mention pain or discomfort")
 
-    compensation_keywords = ["limping", "favoring", "protecting", "guarding",
-                             "compensating", "altered gait", "not moving right",
-                             "avoiding", "one-sided", "uneven"]
+    compensation_keywords = ["limping", "favoring", "protecting", "guarding", "compensating",
+                              "altered gait", "not moving right", "avoiding", "one-sided", "uneven"]
     if any(w in coach_notes_combined for w in compensation_keywords):
         notes_score += 20
         notes_signals.append("Coach observed movement compensation or altered gait")
 
     stoppage_keywords = ["pulled out", "stopped early", "sat out", "couldn't finish",
-                         "left session", "withdrew", "pulled up", "had to stop",
-                         "taken off", "subbed off"]
+                         "left session", "withdrew", "pulled up", "had to stop", "taken off", "subbed off"]
     if any(w in coach_notes_combined for w in stoppage_keywords):
         notes_score += 25
         notes_signals.append("Athlete stopped session early or was withdrawn")
@@ -336,15 +421,14 @@ def get_injury_risk(athlete_name: str, academy_id: str = ""):
                 athlete_signals.append(f"Below average sleep: avg {round(avg_sleep, 1)}/10")
 
     if training and recent_checkins:
-        latest_training = training[0]
-        latest_checkin  = recent_checkins[0]
-        coach_rpe       = latest_training.get("rpe")
-        athlete_energy  = latest_checkin.get("energy")
-        athlete_soreness= latest_checkin.get("soreness")
+        latest_training  = training[0]
+        latest_checkin   = recent_checkins[0]
+        coach_rpe        = latest_training.get("rpe")
+        athlete_energy   = latest_checkin.get("energy")
+        athlete_soreness = latest_checkin.get("soreness")
 
         if coach_rpe is not None and athlete_energy is not None:
-            athlete_fatigue = 10 - athlete_energy
-            mismatch = coach_rpe - athlete_fatigue
+            mismatch = coach_rpe - (10 - athlete_energy)
             if mismatch >= 5:
                 athlete_score += 20
                 deception_flag = True
@@ -353,56 +437,47 @@ def get_injury_risk(athlete_name: str, academy_id: str = ""):
                 athlete_score += 10
                 mismatch_signals.append(f"Moderate mismatch — coach RPE {coach_rpe}/10 vs athlete energy {athlete_energy}/10")
 
-        if athlete_soreness is not None and athlete_soreness <= 2:
-            if latest_training.get("intensity") == "High":
-                athlete_score += 10
-                deception_flag = True
-                mismatch_signals.append("Suspicious — athlete reports near-zero soreness after a High intensity session")
+        if athlete_soreness is not None and athlete_soreness <= 2 and latest_training.get("intensity") == "High":
+            athlete_score += 10
+            deception_flag = True
+            mismatch_signals.append("Suspicious — near-zero soreness reported after High intensity session")
 
-    if acwr is not None:
+    if acwr:
         if acwr > 1.5:
             acwr_score += 20
-            acwr_signals.append(f"Training spike — ACWR {acwr} is above danger threshold of 1.5")
+            acwr_signals.append(f"Training spike — ACWR {acwr} above danger threshold of 1.5")
         elif acwr > 1.3:
             acwr_score += 10
             acwr_signals.append(f"Elevated training load — ACWR {acwr} in caution zone")
         elif acwr < 0.8:
             acwr_score += 5
-            acwr_signals.append(f"Undertraining detected — ACWR {acwr} below 0.8")
+            acwr_signals.append(f"Undertraining — ACWR {acwr} below 0.8")
 
     total_score = min(notes_score + athlete_score + acwr_score, 100)
     risk_level  = "red" if total_score >= 70 else ("yellow" if total_score >= 40 else "green")
     all_signals = acwr_signals + notes_signals + mismatch_signals + athlete_signals
 
     deception_context = (
-        "IMPORTANT: Deception risk detected. Athlete self-report appears inconsistent with coach observations. Flag this to the coach."
+        "IMPORTANT: Deception risk detected. Athlete self-report inconsistent with coach data. Flag to coach."
         if deception_flag else ""
     )
 
     signals_text = "\n".join([f"- {s}" for s in all_signals]) if all_signals else "No major risk signals detected"
 
-    prompt = f"""You are a sports physiotherapist reviewing injury risk data for an athlete.
+    prompt = f"""You are a sports physiotherapist reviewing injury risk data.
 
 Athlete: {athlete_name}
-Injury risk score: {total_score}/100
-ACWR: {acwr if acwr else 'insufficient data'}
-Risk level: {risk_level}
+Risk score: {total_score}/100 | ACWR: {acwr} | Risk level: {risk_level}
+Workload: {metrics['risk_tier']}
 
-Signals detected:
+Signals:
 {signals_text}
-
-Coach notes from recent sessions:
-{coach_notes_combined if coach_notes_combined else 'No coach notes recorded'}
 
 {deception_context}
 
-Write a 2-sentence verdict for the coach:
-- Sentence 1: what the main risk is and why
-- Sentence 2: one specific action the coach should take today
-If deception risk is flagged, mention it directly in your verdict.
-Be direct. Do not repeat numbers back, interpret them."""
+Write a 2-sentence verdict: sentence 1 is the main risk and why, sentence 2 is one specific action for today. If deception is flagged, mention it directly."""
 
-    verdict = call_llm(prompt, max_tokens=150)
+    verdict = await call_llm(prompt, max_tokens=150)
 
     return {
         "injury_risk_score": total_score,
@@ -410,33 +485,36 @@ Be direct. Do not repeat numbers back, interpret them."""
         "signals":           all_signals,
         "verdict":           verdict,
         "risk_level":        risk_level,
-        "deception_flag":    deception_flag
+        "deception_flag":    deception_flag,
+        "metrics":           metrics,
     }
 
 
-# ─── Drill Suggestions ────────────────────────────────────────────────────────
-
 @router.get("/drills/{athlete_name}")
-def get_drill_suggestions(athlete_name: str, academy_id: str = ""):
+async def get_drill_suggestions(athlete_name: str, academy_id: str = ""):
     supabase = get_supabase()
 
-    q = supabase.table("checkins").select("*").eq("athlete_name", athlete_name)
-    if academy_id:
-        q = q.eq("academy_id", academy_id)
-    checkins = q.order("created_at", desc=True).limit(3).execute().data
+    checkins_result = await asyncio.to_thread(
+        lambda: supabase.table("checkins").select("*")
+        .eq("athlete_name", athlete_name).eq("academy_id", academy_id)
+        .order("created_at", desc=True).limit(3).execute()
+    )
+    training_result = await asyncio.to_thread(
+        lambda: supabase.table("training_logs").select("*")
+        .eq("athlete_name", athlete_name).eq("academy_id", academy_id)
+        .order("created_at", desc=True).limit(3).execute()
+    )
+    athletes_result = await asyncio.to_thread(
+        lambda: supabase.table("athletes").select("*")
+        .eq("name", athlete_name).eq("academy_id", academy_id).limit(1).execute()
+    )
 
-    q = supabase.table("training_logs").select("*").eq("athlete_name", athlete_name)
-    if academy_id:
-        q = q.eq("academy_id", academy_id)
-    training = q.order("created_at", desc=True).limit(3).execute().data
+    checkins      = checkins_result.data or []
+    training      = training_result.data or []
+    athletes_data = athletes_result.data or []
 
-    q = supabase.table("athletes").select("*").eq("name", athlete_name)
-    if academy_id:
-        q = q.eq("academy_id", academy_id)
-    athletes = q.limit(1).execute().data
-
-    sport = athletes[0]["sport"] if athletes else "General"
-    age   = athletes[0].get("age") if athletes else None
+    sport = athletes_data[0]["sport"] if athletes_data else "General"
+    age   = athletes_data[0].get("age") if athletes_data else None
 
     if not checkins and not training:
         return {"drills": [], "context": "No data available yet — drills will generate after first check-in."}
@@ -448,51 +526,41 @@ def get_drill_suggestions(athlete_name: str, academy_id: str = ""):
         if latest else "No wellness data"
     )
 
-    training_context = "\n".join([
-        f"- {t['intensity']} intensity, {t['duration']} mins, RPE {t.get('rpe','N/A')}/10"
-        + (f", Notes: {t['coach_notes']}" if t.get('coach_notes') else "")
-        for t in training
-    ]) if training else "No recent training logs"
+    training_context = (
+        "\n".join([
+            f"- {t['intensity']} intensity, {t['duration']} mins, RPE {t.get('rpe', 'N/A')}/10"
+            + (f", Notes: {t['coach_notes']}" if t.get("coach_notes") else "")
+            for t in training
+        ]) if training else "No recent training logs"
+    )
 
     age_context = f"Age: {age}" if age else ""
 
-    prompt = f"""You are an elite {sport} coach with 20+ years of experience training competitive {sport} athletes.
+    prompt = f"""You are an elite {sport} coach with 20+ years experience.
 
-Athlete: {athlete_name}
-Sport: {sport}
-{age_context}
+Athlete: {athlete_name} | Sport: {sport} | {age_context}
+Wellness today: {wellness_context}
+Recent training (last 3): {training_context}
 
-Today's wellness snapshot:
-{wellness_context}
+Design exactly 3 {sport}-specific drills for today. Real {sport} terminology only. No generic exercises.
 
-Recent training load (last 3 sessions):
-{training_context}
+Rules:
+- Soreness >= 7 or energy <= 4: low-intensity skill refinement and active recovery only
+- Soreness 5-6 or energy 5-6: moderate drills, one recovery element
+- Soreness <= 4 and energy >= 7: match-intensity, advanced combinations
+- Mood <= 4: include one fun game-based drill
 
-Design exactly 3 session drills for this {sport} athlete for today's training. Every single drill MUST use real {sport}-specific techniques, movements, and terminology.
-
-Condition-based rules:
-- If soreness >= 7 or energy <= 4: prescribe ONLY low-intensity {sport} skill refinement, active recovery stretches specific to {sport} muscle groups, and light technical work. NO conditioning or strength.
-- If soreness is 5-6 or energy is 5-6: prescribe moderate {sport} drills mixing skill work with controlled intensity. Include one recovery element.
-- If soreness <= 4 and energy >= 7: prescribe match-intensity {sport} drills, advanced skill combinations, and sport-specific conditioning.
-- If mood <= 4: include at least one fun, game-based {sport} drill to boost engagement.
-
-CRITICAL RULES:
-- NEVER suggest generic exercises like "squats", "planks", "jogging", or "stretching". Every drill must be a real {sport} drill that a professional {sport} coach would recognise.
-- Name drills using proper {sport} terminology.
-- Each drill reason must reference the athlete's specific wellness numbers.
-- Keep durations realistic: 8–20 mins per drill.
-
-Respond in EXACTLY this format, repeat it 3 times with no extra text:
-DRILL: [specific {sport} drill name using proper terminology]
-CATEGORY: [one of: Warmup / Skill / Strength / Recovery / Conditioning]
-DURATION: [e.g. 12 mins]
-INTENSITY: [Low / Medium / High]
-REASON: [one sentence referencing the athlete's current wellness data and why this drill fits]
+Format (repeat 3 times):
+DRILL: [name]
+CATEGORY: [Warmup/Skill/Strength/Recovery/Conditioning]
+DURATION: [mins]
+INTENSITY: [Low/Medium/High]
+REASON: [one sentence referencing today's wellness numbers]
 ---"""
 
-    raw = call_llm(prompt, max_tokens=600)
-
+    raw    = await call_llm(prompt, max_tokens=250)
     drills = []
+
     for block in raw.split("---"):
         block = block.strip()
         if not block:
@@ -500,16 +568,11 @@ REASON: [one sentence referencing the athlete's current wellness data and why th
         drill = {}
         for line in block.split("\n"):
             line = line.strip()
-            if line.startswith("DRILL:"):
-                drill["name"]      = line.replace("DRILL:", "").strip()
-            elif line.startswith("CATEGORY:"):
-                drill["category"]  = line.replace("CATEGORY:", "").strip()
-            elif line.startswith("DURATION:"):
-                drill["duration"]  = line.replace("DURATION:", "").strip()
-            elif line.startswith("INTENSITY:"):
-                drill["intensity"] = line.replace("INTENSITY:", "").strip()
-            elif line.startswith("REASON:"):
-                drill["reason"]    = line.replace("REASON:", "").strip()
+            if line.startswith("DRILL:"):      drill["name"]      = line.replace("DRILL:", "").strip()
+            elif line.startswith("CATEGORY:"): drill["category"]  = line.replace("CATEGORY:", "").strip()
+            elif line.startswith("DURATION:"): drill["duration"]  = line.replace("DURATION:", "").strip()
+            elif line.startswith("INTENSITY:"): drill["intensity"] = line.replace("INTENSITY:", "").strip()
+            elif line.startswith("REASON:"):   drill["reason"]    = line.replace("REASON:", "").strip()
         if drill.get("name"):
             drills.append(drill)
 
@@ -521,25 +584,25 @@ REASON: [one sentence referencing the athlete's current wellness data and why th
     }
 
 
-# ─── Parent Recovery Advice ───────────────────────────────────────────────────
-
 @router.get("/parent-recovery/{athlete_name}")
-def get_parent_recovery(athlete_name: str, academy_id: str = ""):
+async def get_parent_recovery(athlete_name: str, academy_id: str = ""):
     supabase = get_supabase()
 
-    q = supabase.table("athletes").select("*").eq("name", athlete_name)
-    if academy_id:
-        q = q.eq("academy_id", academy_id)
-    athletes = q.limit(1).execute().data
+    athletes_result = await asyncio.to_thread(
+        lambda: supabase.table("athletes").select("*")
+        .eq("name", athlete_name).eq("academy_id", academy_id).limit(1).execute()
+    )
+    checkins_result = await asyncio.to_thread(
+        lambda: supabase.table("checkins").select("*")
+        .eq("athlete_name", athlete_name).eq("academy_id", academy_id)
+        .order("created_at", desc=True).limit(7).execute()
+    )
 
-    sport = athletes[0]["sport"] if athletes else "General"
-    age   = athletes[0].get("age") if athletes else None
+    athletes_data = athletes_result.data or []
+    checkins      = checkins_result.data or []
 
-    q = supabase.table("checkins").select("*").eq("athlete_name", athlete_name)
-    if academy_id:
-        q = q.eq("academy_id", academy_id)
-    checkins = q.order("created_at", desc=True).limit(7).execute().data
-
+    sport  = athletes_data[0]["sport"] if athletes_data else "General"
+    age    = athletes_data[0].get("age") if athletes_data else None
     latest = checkins[0] if checkins else None
 
     risk_level, risk_signals = "green", []
@@ -567,59 +630,53 @@ def get_parent_recovery(athlete_name: str, academy_id: str = ""):
     if risk_level == "green":
         return {
             "risk_level":    "green",
-            "coach_message": f"{athlete_name.split(' ')[0]} is in good shape! Their wellness numbers look healthy. Keep encouraging regular sleep, hydration, and balanced meals.",
-            "exercises":     [],
-            "athlete":       athlete_name,
-            "sport":         sport,
+            "coach_message": (
+                f"{athlete_name.split(' ')[0]} is in good shape! "
+                "Wellness numbers look healthy. Keep encouraging regular sleep, hydration, and balanced meals."
+            ),
+            "exercises": [],
+            "athlete":   athlete_name,
+            "sport":     sport,
         }
 
     age_text = f"Age: {age}" if age else ""
     severity = "HIGH RISK" if risk_level == "red" else "MODERATE CONCERN"
 
-    prompt = f"""You are a sports physiotherapist writing a recovery plan for a parent to help their child at home.
+    prompt = f"""You are a sports physiotherapist writing a home recovery plan for a parent. The parent has no sports background.
 
-Athlete: {athlete_name}
-Sport: {sport}
-{age_text}
-Risk Level: {severity}
-
-Current wellness:
-{wellness_text}
-
-Concern signals: {', '.join(risk_signals)}
-
-Write a parent-friendly home recovery plan. The parent has NO sports training background.
+Athlete: {athlete_name} | Sport: {sport} | {age_text}
+Risk: {severity}
+Wellness: {wellness_text}
+Concerns: {', '.join(risk_signals)}
 
 Rules:
-- Suggest exactly 3 simple exercises/activities the parent can help with at home
-- NO gym equipment needed — only bodyweight, towels, ice packs, foam rollers
-- Use simple language a non-sports parent would understand
-- Each exercise should target the specific concern
-- Include one general wellness tip (sleep, nutrition, or hydration)
-- Also write a short reassuring coach message (2 sentences) to the parent
+- Exactly 3 exercises, no gym equipment needed
+- Simple language a non-sports parent understands
+- One general wellness tip (sleep, nutrition, or hydration)
+- 2-sentence reassuring coach message to parent
 
-Respond in EXACTLY this format:
-COACH_MESSAGE: [2-sentence message to parent]
+Format:
+COACH_MESSAGE: [2 sentences]
 ---
-EXERCISE: [simple name]
+EXERCISE: [name]
 HOW: [1 sentence]
 DURATION: [e.g. 10 minutes]
 WHY: [1 sentence]
 ---
-EXERCISE: [simple name]
+EXERCISE: [name]
 HOW: [1 sentence]
 DURATION: [e.g. 10 minutes]
 WHY: [1 sentence]
 ---
-EXERCISE: [simple name]
+EXERCISE: [name]
 HOW: [1 sentence]
 DURATION: [e.g. 10 minutes]
 WHY: [1 sentence]
 ---"""
 
-    raw = call_llm(prompt, max_tokens=500)
-
-    coach_message, exercises = "", []
+    raw           = await call_llm(prompt, max_tokens=250)
+    coach_message = ""
+    exercises     = []
 
     for block in raw.split("---"):
         block = block.strip()
@@ -631,14 +688,10 @@ WHY: [1 sentence]
         exercise = {}
         for line in block.split("\n"):
             line = line.strip()
-            if line.startswith("EXERCISE:"):
-                exercise["name"]     = line.replace("EXERCISE:", "").strip()
-            elif line.startswith("HOW:"):
-                exercise["how"]      = line.replace("HOW:", "").strip()
-            elif line.startswith("DURATION:"):
-                exercise["duration"] = line.replace("DURATION:", "").strip()
-            elif line.startswith("WHY:"):
-                exercise["why"]      = line.replace("WHY:", "").strip()
+            if line.startswith("EXERCISE:"):  exercise["name"]     = line.replace("EXERCISE:", "").strip()
+            elif line.startswith("HOW:"):     exercise["how"]      = line.replace("HOW:", "").strip()
+            elif line.startswith("DURATION:"): exercise["duration"] = line.replace("DURATION:", "").strip()
+            elif line.startswith("WHY:"):     exercise["why"]      = line.replace("WHY:", "").strip()
         if exercise.get("name"):
             exercises.append(exercise)
 

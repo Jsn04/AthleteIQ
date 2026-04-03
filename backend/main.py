@@ -1,8 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from routes import athletes, wellness, ai
+from routes import athletes, wellness, ai, auth
 from dotenv import load_dotenv
-from routes import athletes, wellness, ai, auth 
 
 load_dotenv()
 
@@ -23,7 +22,11 @@ app.add_middleware(
 app.include_router(athletes.router, prefix="/athletes")
 app.include_router(wellness.router, prefix="/wellness")
 app.include_router(ai.router, prefix="/ai")
-app.include_router(auth.router, prefix='/auth')
+app.include_router(auth.router, prefix="/auth")
+
+@app.get("/health")
+async def health():
+    return {"status": "ok"}
 
 @app.get("/")
 def root():
