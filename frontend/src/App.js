@@ -9,7 +9,7 @@ import AthleteProfile from './pages/AthleteProfile';
 import ParentView from './pages/ParentView';
 import SportDashboard from './pages/SportDashboard';
 import AthleteDashboard from './pages/AthleteDashboard';
-import DrillsPage from './pages/DrillsPage';
+import SessionPlannerPage from './pages/SessionPlannerPage';  // ← changed
 import MeditationPage from './pages/MeditationPage';
 
 const ProtectedRoute = ({ children, allowedRole }) => {
@@ -50,9 +50,9 @@ function App() {
         <Route path="/sport/:sport" element={
           <ProtectedRoute allowedRole="coach"><SportDashboard /></ProtectedRoute>
         } />
-        <Route path="/drills" element={
-          <ProtectedRoute allowedRole="coach"><DrillsPage /></ProtectedRoute>
-        } />
+        <Route path="/session-planner" element={
+          <ProtectedRoute allowedRole="coach"><SessionPlannerPage /></ProtectedRoute>
+        } />  {/* ← changed from /drills */}
 
         <Route path="/checkin" element={
           <ProtectedRoute allowedRole="athlete"><AthleteCheckIn /></ProtectedRoute>

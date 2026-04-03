@@ -81,7 +81,6 @@ function SportSection({ sport, athletes, insights, injuryRisks, checkins, onNavi
 
   return (
     <div className="mb-10">
-      {/* Sport section header */}
       <div className="flex flex-col gap-3 mb-6 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3 flex-wrap">
           <h2 className="text-xl font-black text-white tracking-tight uppercase">{sport}</h2>
@@ -154,7 +153,6 @@ function SportSection({ sport, athletes, insights, injuryRisks, checkins, onNavi
                   }`}
                 onClick={() => onNavigate(`/athlete/${encodeURIComponent(athlete.name)}`)}>
 
-                {/* Athlete header row */}
                 <div className="flex items-start justify-between mb-4 gap-3">
                   <div className="flex items-center gap-3 min-w-0">
                     <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400 font-black text-lg shrink-0">
@@ -167,7 +165,6 @@ function SportSection({ sport, athletes, insights, injuryRisks, checkins, onNavi
                       </p>
                     </div>
                   </div>
-                  {/* Scores — stacked on mobile */}
                   <div className="flex items-center gap-2 shrink-0">
                     {insight?.score != null && isCheckedIn && (
                       <div className="text-center bg-gray-900 rounded-xl px-3 py-1.5 border border-gray-700">
@@ -182,7 +179,6 @@ function SportSection({ sport, athletes, insights, injuryRisks, checkins, onNavi
                   </div>
                 </div>
 
-                {/* Injury pill — below header on mobile */}
                 {injuryData?.injury_risk_score != null && (
                   <div className="mb-4">
                     <InjuryScorePill score={injuryData.injury_risk_score} riskLevel={injuryData.risk_level} />
@@ -345,7 +341,6 @@ function Dashboard() {
 
         {/* ── Header ── */}
         <div className="mb-8">
-          {/* Top row: title + live + tags + hamburger */}
           <div className="flex items-start justify-between gap-3 mb-3">
             <div>
               <div className="flex items-center gap-3 flex-wrap mb-1">
@@ -381,32 +376,59 @@ function Dashboard() {
             </button>
           </div>
 
-          {/* Desktop nav buttons */}
+          {/* Desktop nav — ← ONLY CHANGE IS HERE: /drills → /session-planner */}
           <div className="hidden sm:flex gap-2 flex-wrap">
-            <Link to="/athletes" className="bg-gray-800 text-white px-5 py-2.5 rounded-xl text-xs font-bold hover:bg-gray-700 transition-all">Manage Athletes</Link>
-            <Link to="/drills" className="bg-gray-800 text-white px-5 py-2.5 rounded-xl text-xs font-bold hover:bg-gray-700 transition-all">Drill Centre</Link>
-            <Link to="/meditation" className="bg-gray-800 text-white px-5 py-2.5 rounded-xl text-xs font-bold hover:bg-gray-700 transition-all">🧘 Meditate</Link>
-            <button onClick={() => setShowBulkModal(true)} disabled={visibleAthletes.length === 0}
+            <Link to="/athletes"
+              className="bg-gray-800 text-white px-5 py-2.5 rounded-xl text-xs font-bold hover:bg-gray-700 transition-all">
+              Manage Athletes
+            </Link>
+            <Link to="/session-planner"
+              className="bg-gray-800 text-white px-5 py-2.5 rounded-xl text-xs font-bold hover:bg-gray-700 transition-all">
+              📋 Session Planner
+            </Link>
+            <Link to="/meditation"
+              className="bg-gray-800 text-white px-5 py-2.5 rounded-xl text-xs font-bold hover:bg-gray-700 transition-all">
+              🧘 Meditate
+            </Link>
+            <button
+              onClick={() => setShowBulkModal(true)}
+              disabled={visibleAthletes.length === 0}
               className="bg-emerald-600 text-white px-6 py-2.5 rounded-xl text-xs font-bold hover:bg-emerald-500 disabled:bg-gray-700 disabled:text-gray-500 transition-all">
               + Log Session
             </button>
-            <button onClick={handleLogout} className="text-rose-500 font-bold px-4 py-2.5 rounded-xl text-xs hover:bg-rose-500/10 transition-all">
+            <button
+              onClick={handleLogout}
+              className="text-rose-500 font-bold px-4 py-2.5 rounded-xl text-xs hover:bg-rose-500/10 transition-all">
               Logout
             </button>
           </div>
 
-          {/* Mobile dropdown menu */}
+          {/* Mobile dropdown — ← SAME CHANGE HERE */}
           {menuOpen && (
             <div className="sm:hidden mt-3 flex flex-col gap-2">
-              <Link to="/athletes" className="bg-gray-800 text-white px-5 py-3 rounded-xl text-sm font-bold text-center" onClick={() => setMenuOpen(false)}>Manage Athletes</Link>
-              <Link to="/drills" className="bg-gray-800 text-white px-5 py-3 rounded-xl text-sm font-bold text-center" onClick={() => setMenuOpen(false)}>Drill Centre</Link>
-              <Link to="/meditation" className="bg-gray-800 text-white px-5 py-3 rounded-xl text-sm font-bold text-center" onClick={() => setMenuOpen(false)}>🧘 Meditate</Link>
-              <button onClick={() => { setShowBulkModal(true); setMenuOpen(false); }}
+              <Link to="/athletes"
+                className="bg-gray-800 text-white px-5 py-3 rounded-xl text-sm font-bold text-center"
+                onClick={() => setMenuOpen(false)}>
+                Manage Athletes
+              </Link>
+              <Link to="/session-planner"
+                className="bg-gray-800 text-white px-5 py-3 rounded-xl text-sm font-bold text-center"
+                onClick={() => setMenuOpen(false)}>
+                📋 Session Planner
+              </Link>
+              <Link to="/meditation"
+                className="bg-gray-800 text-white px-5 py-3 rounded-xl text-sm font-bold text-center"
+                onClick={() => setMenuOpen(false)}>
+                🧘 Meditate
+              </Link>
+              <button
+                onClick={() => { setShowBulkModal(true); setMenuOpen(false); }}
                 disabled={visibleAthletes.length === 0}
                 className="bg-emerald-600 text-white px-5 py-3 rounded-xl text-sm font-bold disabled:bg-gray-700 disabled:text-gray-500">
                 + Log Today's Session
               </button>
-              <button onClick={handleLogout}
+              <button
+                onClick={handleLogout}
                 className="text-rose-500 font-bold px-5 py-3 rounded-xl text-sm border border-rose-500/20 hover:bg-rose-500/10">
                 Logout
               </button>
@@ -434,7 +456,8 @@ function Dashboard() {
                 : 'Get started by adding your athlete profiles.'}
             </p>
             {!coachSport && (
-              <Link to="/athletes" className="inline-block bg-blue-600 hover:bg-blue-500 text-white px-8 py-3 rounded-xl font-bold transition-all">
+              <Link to="/athletes"
+                className="inline-block bg-blue-600 hover:bg-blue-500 text-white px-8 py-3 rounded-xl font-bold transition-all">
                 Add Athletes
               </Link>
             )}
@@ -442,16 +465,27 @@ function Dashboard() {
         ) : (
           <div className="space-y-4">
             {Object.entries(sportGroups).map(([sport, sportAthletes]) => (
-              <SportSection key={sport} sport={sport} athletes={sportAthletes}
-                insights={insights} injuryRisks={injuryRisks} checkins={checkins}
-                onNavigate={navigate} skipLock={!!coachSport} />
+              <SportSection
+                key={sport}
+                sport={sport}
+                athletes={sportAthletes}
+                insights={insights}
+                injuryRisks={injuryRisks}
+                checkins={checkins}
+                onNavigate={navigate}
+                skipLock={!!coachSport}
+              />
             ))}
           </div>
         )}
       </div>
 
       {showBulkModal && (
-        <BulkLogModal athletes={visibleAthletes} onClose={() => setShowBulkModal(false)} onSuccess={() => fetchData(true)} />
+        <BulkLogModal
+          athletes={visibleAthletes}
+          onClose={() => setShowBulkModal(false)}
+          onSuccess={() => fetchData(true)}
+        />
       )}
     </div>
   );
