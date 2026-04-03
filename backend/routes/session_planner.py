@@ -323,12 +323,13 @@ def save_plan(coach_id: str, academy_id: str, coach_input: dict, plan: dict):
 @router.post("/generate")
 async def generate_session_plan(payload: dict):
 
-    coach_id    = payload.get("coach_id")
     academy_id  = payload.get("academy_id")
     coach_input = payload.get("coach_input")
+    # Generate coach_id server-side if frontend didn't send one
+    coach_id = payload.get("coach_id") or f"coach_{academy_id}"
 
-    # Validate
-    if not all([coach_id, academy_id, coach_input]):
+    # Validate — only academy_id and coach_input are truly required
+    if not all([academy_id, coach_input]):
         return {"status": "error", "message": "Missing required fields"}
 
     for f in ["focus", "duration", "match_proximity"]:
