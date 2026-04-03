@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from supabase import create_client
+from datetime import datetime, timezone, timedelta
 import os
 
 router = APIRouter()
@@ -16,9 +17,13 @@ class AcademyLoginRequest(BaseModel):
 def academy_login(body: AcademyLoginRequest):
     supabase = get_supabase()
 
-    result = supabase.table("academies").select("*")\
-        .ilike("name", body.name.strip())\
-        .execute().data
+    result = (
+        supabase.table("academies")
+        .select("*")
+        .ilike("name", body.name.strip())
+        .execute()
+        .data
+    )
 
     if not result:
         raise HTTPException(status_code=401, detail="Academy not found")
@@ -29,35 +34,52 @@ def academy_login(body: AcademyLoginRequest):
         raise HTTPException(status_code=401, detail="Incorrect password")
 
     return {
-        "academy_id":   academy["id"],
-        "academy_name": academy["name"],
-        "plan":         academy["plan"]
+        "academy_id":    academy["id"],
+        "academy_name":  academy["name"],
+        "plan":          academy["plan"],
+        "trial_ends_at": academy.get("trial_ends_at")   # ← send to frontend
     }
 
 @router.post("/register-academy")
 def register_academy(body: AcademyLoginRequest):
     supabase = get_supabase()
 
-    # Check by name (case-insensitive)
-    existing_name = supabase.table("academies").select("id")\
-        .ilike("name", body.name.strip()).execute().data
+    existing_name = (
+        supabase.table("academies")
+        .select("id")
+        .ilike("name", body.name.strip())
+        .execute()
+        .data
+    )
 
     if existing_name:
         raise HTTPException(status_code=400, detail="Academy name already taken")
 
-    # Generate slug and check that too
     slug = body.name.lower().strip().replace(" ", "-")
-    existing_slug = supabase.table("academies").select("id")\
-        .eq("slug", slug).execute().data
+    existing_slug = (
+        supabase.table("academies")
+        .select("id")
+        .eq("slug", slug)
+        .execute()
+        .data
+    )
 
     if existing_slug:
         raise HTTPException(status_code=400, detail="Academy name already taken")
 
+    # ← Set 14-day trial from the moment they register
+    trial_ends_at = (datetime.now(timezone.utc) + timedelta(days=14)).isoformat()
+
     result = supabase.table("academies").insert({
-        "name":     body.name.strip(),
-        "slug":     slug,
-        "password": body.password,
-        "plan":     "free"
+        "name":          body.name.strip(),
+        "slug":          slug,
+        "password":      body.password,
+        "plan":          "free",
+        "trial_ends_at": trial_ends_at        # ← stamp trial expiry
     }).execute().data
 
-    return {"message": "Academy created", "academy_id": result[0]["id"]}
+    return {
+        "message":       "Academy created",
+        "academy_id":    result[0]["id"],
+        "trial_ends_at": trial_ends_at        # ← send to frontend
+    }

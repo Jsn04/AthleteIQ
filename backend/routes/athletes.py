@@ -16,16 +16,21 @@ def require_academy(academy_id: str):
 def get_athletes(academy_id: str = Query(...)):
     require_academy(academy_id)
     supabase = get_supabase()
-    response = supabase.table("athletes").select("*")\
-        .eq("academy_id", academy_id)\
+    response = (
+        supabase.table("athletes")
+        .select("*")
+        .eq("academy_id", academy_id)
+        .eq("is_deleted", False)
         .execute()
+    )
     return response.data
 
 @router.post("/")
 def add_athlete(athlete: dict, academy_id: str = Query(...)):
     require_academy(academy_id)
     supabase = get_supabase()
-    athlete["academy_id"] = academy_id          # always stamp academy on insert
+    athlete["academy_id"] = academy_id
+    athlete["is_deleted"] = False
     response = supabase.table("athletes").insert(athlete).execute()
     return response.data
 
@@ -33,9 +38,11 @@ def add_athlete(athlete: dict, academy_id: str = Query(...)):
 def delete_athlete(athlete_id: str, academy_id: str = Query(...)):
     require_academy(academy_id)
     supabase = get_supabase()
-    # Safety: only delete if it belongs to this academy
-    supabase.table("athletes").delete()\
-        .eq("id", athlete_id)\
-        .eq("academy_id", academy_id)\
+    (
+        supabase.table("athletes")
+        .update({"is_deleted": True})
+        .eq("id", athlete_id)
+        .eq("academy_id", academy_id)
         .execute()
+    )
     return {"message": "Athlete deleted"}

@@ -1,4 +1,4 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from groq import Groq
 import asyncio, json, os
 from datetime import datetime, timezone, date
@@ -10,7 +10,44 @@ SUPABASE_URL = os.environ.get("SUPABASE_URL")
 SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
 
 
-# ─── Hardcoded recovery plan (used when avg readiness < 45) ───────────────────
+# ─── Trial gate helper ────────────────────────────────────────────────────────
+
+def check_trial_access(academy_id: str):
+    """
+    Returns (allowed: bool, reason: str)
+    - paid plan → always allowed
+    - free plan, trial active → allowed
+    - free plan, trial expired → blocked
+    """
+    supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+    result = (
+        supabase.table("academies")
+        .select("plan, trial_ends_at")
+        .eq("id", academy_id)
+        .execute()
+        .data
+    )
+
+    if not result:
+        return False, "Academy not found"
+
+    academy = result[0]
+
+    if academy["plan"] == "paid":
+        return True, "ok"
+
+    trial_ends_at = academy.get("trial_ends_at")
+    if not trial_ends_at:
+        return False, "Trial not configured. Contact support."
+
+    expiry = datetime.fromisoformat(trial_ends_at.replace("Z", "+00:00"))
+    if datetime.now(timezone.utc) > expiry:
+        return False, "Your 14-day trial has expired. Upgrade to continue."
+
+    return True, "ok"
+
+
+# ─── Hardcoded recovery plan ──────────────────────────────────────────────────
 
 def hardcoded_recovery_plan(sport: str, squad_size: int):
     return {
@@ -79,7 +116,7 @@ def hardcoded_recovery_plan(sport: str, squad_size: int):
     }
 
 
-# ─── Process squad data in Python (never send raw data to Groq) ───────────────
+# ─── Process squad data ───────────────────────────────────────────────────────
 
 def process_squad_data(athletes: list, recent_sessions: list, sport: str, age_group: str):
     if not athletes:
@@ -95,26 +132,11 @@ def process_squad_data(athletes: list, recent_sessions: list, sport: str, age_gr
         name = a.get("name", "Unknown")
 
         if r < 45 or acwr == "High Risk":
-            flagged.append({
-                "athlete_name": name,
-                "readiness": r,
-                "acwr_status": acwr,
-                "flag": "REST"
-            })
+            flagged.append({"athlete_name": name, "readiness": r, "acwr_status": acwr, "flag": "REST"})
         elif r < 62 or acwr == "Caution":
-            flagged.append({
-                "athlete_name": name,
-                "readiness": r,
-                "acwr_status": acwr,
-                "flag": "MODIFIED"
-            })
+            flagged.append({"athlete_name": name, "readiness": r, "acwr_status": acwr, "flag": "MODIFIED"})
         elif r >= 85 and acwr == "Optimal":
-            flagged.append({
-                "athlete_name": name,
-                "readiness": r,
-                "acwr_status": acwr,
-                "flag": "PUSH"
-            })
+            flagged.append({"athlete_name": name, "readiness": r, "acwr_status": acwr, "flag": "PUSH"})
 
     return {
         "sport": sport,
@@ -126,7 +148,7 @@ def process_squad_data(athletes: list, recent_sessions: list, sport: str, age_gr
     }
 
 
-# ─── Build the Groq prompt ────────────────────────────────────────────────────
+# ─── Build Groq prompt ────────────────────────────────────────────────────────
 
 def build_session_prompt(coach_input: dict, squad: dict) -> str:
     if squad["flagged_athletes"]:
@@ -140,10 +162,7 @@ def build_session_prompt(coach_input: dict, squad: dict) -> str:
     else:
         flagged_text = "None — full squad cleared for normal training"
 
-    if squad["recent_sessions"]:
-        recent = "\n".join(f"  - {s}" for s in squad["recent_sessions"])
-    else:
-        recent = "  - No recent sessions logged"
+    recent = "\n".join(f"  - {s}" for s in squad["recent_sessions"]) if squad["recent_sessions"] else "  - No recent sessions logged"
 
     return f"""You are a professional sports performance coach.
 Generate a complete structured training session plan.
@@ -206,34 +225,33 @@ Return ONLY raw JSON. No markdown. No explanation. This exact structure:
 }}"""
 
 
-# ─── Fetch squad data from Supabase ───────────────────────────────────────────
+# ─── Fetch squad data ─────────────────────────────────────────────────────────
 
 def fetch_squad_data(academy_id: str):
     supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-    # Get athletes — only columns that actually exist
-    athletes_res = supabase.table("athletes") \
-        .select("id, name, sport") \
-        .eq("academy_id", academy_id) \
+    athletes_res = (
+        supabase.table("athletes")
+        .select("id, name, sport")
+        .eq("academy_id", academy_id)
+        .eq("is_deleted", False)
         .execute()
+    )
 
     athletes = athletes_res.data
-
-    # Derive sport from most common sport in squad
     sports = [a.get("sport") for a in athletes if a.get("sport")]
     sport = max(set(sports), key=sports.count) if sports else "General"
 
-    # Get today's check-ins to compute readiness
     today = date.today().isoformat()
-
     try:
-        checkins_res = supabase.table("checkins") \
-            .select("athlete_name, energy, sleep, soreness, mood") \
-            .eq("academy_id", academy_id) \
-            .gte("created_at", today) \
+        checkins_res = (
+            supabase.table("checkins")
+            .select("athlete_name, energy, sleep, soreness, mood")
+            .eq("academy_id", academy_id)
+            .gte("created_at", today)
             .execute()
+        )
 
-        # Build lookup: athlete_name (lowercased) -> readiness score 0-100
         checkin_map = {}
         for c in checkins_res.data:
             name = (c.get("athlete_name") or "").lower().strip()
@@ -241,26 +259,22 @@ def fetch_squad_data(academy_id: str):
             sleep    = c.get("sleep", 5) or 5
             soreness = c.get("soreness", 5) or 5
             mood     = c.get("mood", 5) or 5
-            # Soreness is inverted — high soreness = lower readiness
             score = round(((energy + sleep + (10 - soreness) + mood) / 40) * 100)
             checkin_map[name] = score
-
     except Exception:
         checkin_map = {}
 
-    # Attach computed readiness to each athlete
     for a in athletes:
         key = (a.get("name") or "").lower().strip()
-        a["readiness"] = checkin_map.get(key, 50)  # 50 = neutral if no check-in today
-        a["acwr_status"] = "Optimal"               # default; ACWR lives in ai route
+        a["readiness"] = checkin_map.get(key, 50)
+        a["acwr_status"] = "Optimal"
 
-    # Get last 3 training logs
     try:
-        sessions_res = supabase.table("training_logs") \
-            .select("*") \
-            .eq("academy_id", academy_id) \
-            .order("created_at", desc=True) \
-            .limit(3) \
+        sessions_res = supabase.table("training_logs")\
+            .select("*")\
+            .eq("academy_id", academy_id)\
+            .order("created_at", desc=True)\
+            .limit(3)\
             .execute()
 
         recent = []
@@ -273,12 +287,7 @@ def fetch_squad_data(academy_id: str):
     except Exception:
         recent = []
 
-    return {
-        "sport": sport,
-        "age_group": "Senior",
-        "athletes": athletes,
-        "recent_sessions": recent
-    }
+    return {"sport": sport, "age_group": "Senior", "athletes": athletes, "recent_sessions": recent}
 
 
 # ─── Rate limit check ─────────────────────────────────────────────────────────
@@ -287,17 +296,17 @@ def check_rate_limit(coach_id: str):
     supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
     now = datetime.now(timezone.utc)
 
-    result = supabase.table("session_plans") \
-        .select("created_at") \
-        .eq("coach_id", coach_id) \
-        .order("created_at", desc=True) \
-        .limit(1) \
+    result = (
+        supabase.table("session_plans")
+        .select("created_at")
+        .eq("coach_id", coach_id)
+        .order("created_at", desc=True)
+        .limit(1)
         .execute()
+    )
 
     if result.data:
-        last = datetime.fromisoformat(
-            result.data[0]["created_at"].replace("Z", "+00:00")
-        )
+        last = datetime.fromisoformat(result.data[0]["created_at"].replace("Z", "+00:00"))
         diff = (now - last).total_seconds()
         if diff < 120:
             return False, int(120 - diff)
@@ -305,16 +314,16 @@ def check_rate_limit(coach_id: str):
     return True, 0
 
 
-# ─── Save plan to Supabase ────────────────────────────────────────────────────
+# ─── Save plan ────────────────────────────────────────────────────────────────
 
 def save_plan(coach_id: str, academy_id: str, coach_input: dict, plan: dict):
     supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
     supabase.table("session_plans").insert({
-        "coach_id": coach_id,
-        "academy_id": academy_id,
-        "coach_input": coach_input,
+        "coach_id":      coach_id,
+        "academy_id":    academy_id,
+        "coach_input":   coach_input,
         "generated_plan": plan,
-        "created_at": datetime.now(timezone.utc).isoformat()
+        "created_at":    datetime.now(timezone.utc).isoformat()
     }).execute()
 
 
@@ -325,10 +334,8 @@ async def generate_session_plan(payload: dict):
 
     academy_id  = payload.get("academy_id")
     coach_input = payload.get("coach_input")
-    # Generate coach_id server-side if frontend didn't send one
-    coach_id = payload.get("coach_id") or f"coach_{academy_id}"
+    coach_id    = payload.get("coach_id") or f"coach_{academy_id}"
 
-    # Validate — only academy_id and coach_input are truly required
     if not all([academy_id, coach_input]):
         return {"status": "error", "message": "Missing required fields"}
 
@@ -336,35 +343,28 @@ async def generate_session_plan(payload: dict):
         if f not in coach_input:
             return {"status": "error", "message": f"Missing coach_input field: {f}"}
 
-    # Rate limit check
+    # ← Trial gate — checked before anything else
+    allowed, reason = await asyncio.to_thread(check_trial_access, academy_id)
+    if not allowed:
+        return {"status": "trial_expired", "message": reason}
+
+    # Rate limit
     allowed, wait_seconds = await asyncio.to_thread(check_rate_limit, coach_id)
     if not allowed:
-        return {
-            "status": "rate_limited",
-            "message": f"Please wait {wait_seconds} seconds before generating again"
-        }
+        return {"status": "rate_limited", "message": f"Please wait {wait_seconds} seconds before generating again"}
 
-    # Fetch + process squad data
     raw = await asyncio.to_thread(fetch_squad_data, academy_id)
-    squad = process_squad_data(
-        raw["athletes"],
-        raw["recent_sessions"],
-        raw["sport"],
-        raw["age_group"]
-    )
+    squad = process_squad_data(raw["athletes"], raw["recent_sessions"], raw["sport"], raw["age_group"])
 
     if not squad:
         return {"status": "error", "message": "No athletes found for this academy"}
 
-    # Skip Groq entirely if squad is critically fatigued
     if squad["avg_readiness"] < 45:
         plan = hardcoded_recovery_plan(squad["sport"], squad["squad_size"])
         await asyncio.to_thread(save_plan, coach_id, academy_id, coach_input, plan)
         return {"status": "success", "plan": plan, "source": "hardcoded"}
 
-    # Call Groq
     prompt = build_session_prompt(coach_input, squad)
-
     client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
     response = await asyncio.to_thread(
         lambda: client.chat.completions.create(
@@ -381,18 +381,12 @@ async def generate_session_plan(payload: dict):
     try:
         plan = json.loads(clean)
     except json.JSONDecodeError:
-        # Try to find JSON object within the response
         try:
             start = clean.index("{")
             end = clean.rindex("}") + 1
             plan = json.loads(clean[start:end])
         except (ValueError, json.JSONDecodeError):
-            return {
-                "status": "error",
-                "message": "AI returned malformed response. Please try again."
-            }
+            return {"status": "error", "message": "AI returned malformed response. Please try again."}
 
-    # Save to Supabase
     await asyncio.to_thread(save_plan, coach_id, academy_id, coach_input, plan)
-
     return {"status": "success", "plan": plan, "source": "groq"}
