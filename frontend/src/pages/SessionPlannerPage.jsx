@@ -6,7 +6,10 @@ import SessionPlanOutput from '../components/SessionPlanOutput';
 
 const API = API_BASE_URL;
 const getAcademyId = () => localStorage.getItem('academyId') || '';
-const getCoachId = () => localStorage.getItem('userId') || localStorage.getItem('coachId') || '';
+const getCoachId = () => 
+  localStorage.getItem('userId') || 
+  localStorage.getItem('coachId') || 
+  'coach_' + (localStorage.getItem('academyId') || 'default');
 const getCoachSport = () => localStorage.getItem('coachSport') || null;
 
 const FOCUS_OPTIONS = ['Fitness', 'Skill', 'Tactical', 'Match Prep', 'Recovery'];
