@@ -4,8 +4,7 @@ import os
 
 router = APIRouter()
 
-def get_supabase():
-    return create_client(os.getenv("SUPABASE_URL"), os.getenv("SUPABASE_KEY"))
+supabase = create_client(os.getenv("SUPABASE_URL"), os.getenv("SUPABASE_KEY"))
 
 def require_academy(academy_id: str):
     if not academy_id:
@@ -15,7 +14,6 @@ def require_academy(academy_id: str):
 @router.get("/")
 def get_athletes(academy_id: str = Query(...)):
     require_academy(academy_id)
-    supabase = get_supabase()
     response = (
         supabase.table("athletes")
         .select("*")
@@ -28,7 +26,6 @@ def get_athletes(academy_id: str = Query(...)):
 @router.post("/")
 def add_athlete(athlete: dict, academy_id: str = Query(...)):
     require_academy(academy_id)
-    supabase = get_supabase()
     athlete["academy_id"] = academy_id
     athlete["is_deleted"] = False
     response = supabase.table("athletes").insert(athlete).execute()
@@ -37,7 +34,6 @@ def add_athlete(athlete: dict, academy_id: str = Query(...)):
 @router.delete("/{athlete_id}")
 def delete_athlete(athlete_id: str, academy_id: str = Query(...)):
     require_academy(academy_id)
-    supabase = get_supabase()
     (
         supabase.table("athletes")
         .update({"is_deleted": True})
@@ -50,7 +46,6 @@ def delete_athlete(athlete_id: str, academy_id: str = Query(...)):
 @router.patch("/{athlete_id}")
 def update_athlete(athlete_id: str, updates: dict, academy_id: str = Query(...)):
     require_academy(academy_id)
-    supabase = get_supabase()
     supabase.table("athletes").update(updates)\
         .eq("id", athlete_id)\
         .eq("academy_id", academy_id)\

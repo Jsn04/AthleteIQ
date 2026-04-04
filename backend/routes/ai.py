@@ -10,12 +10,10 @@ from config import AI_PROVIDER, AI_MODEL, GROQ_API_KEY, OPENAI_API_KEY, ANTHROPI
 router = APIRouter()
 
 
-def get_supabase():
-    return create_client(os.getenv("SUPABASE_URL"), os.getenv("SUPABASE_KEY"))
+supabase = create_client(os.getenv("SUPABASE_URL"), os.getenv("SUPABASE_KEY"))
 
 
 def check_trial_access(academy_id: str):
-    supabase = get_supabase()
     result = supabase.table("academies")\
         .select("plan, trial_ends_at")\
         .eq("id", academy_id)\
@@ -165,8 +163,6 @@ async def get_athlete_insight(athlete_name: str, academy_id: str = ""):
     if not await asyncio.to_thread(check_trial_access, academy_id):
         return {"status": "trial_expired", "message": "Your 14-day trial has expired."}
 
-    supabase = get_supabase()
-
     cached = await _get_cached_insight(supabase, athlete_name, academy_id)
     if cached:
         return cached
@@ -237,8 +233,6 @@ ATHLETE_MESSAGE: [one motivating sentence for the athlete]"""
 
 @router.get("/squad-insights")
 async def get_squad_insights(academy_id: str = ""):
-    supabase = get_supabase()
-
     athletes_result = await asyncio.to_thread(
         lambda: supabase.table("athletes").select("*").eq("academy_id", academy_id).execute()
     )
@@ -294,8 +288,6 @@ SQUAD_INSIGHT: [2 sentences — one observation about squad state, one actionabl
 
 @router.get("/weekly-summary/{athlete_name}")
 async def get_weekly_summary(athlete_name: str, academy_id: str = ""):
-    supabase = get_supabase()
-
     checkins_result = await asyncio.to_thread(
         lambda: supabase.table("checkins").select("*")
         .eq("athlete_name", athlete_name).eq("academy_id", academy_id)
@@ -351,8 +343,6 @@ Write a concise 3-sentence summary: wellness trend, training load assessment, on
 
 @router.get("/injury-risk/{athlete_name}")
 async def get_injury_risk(athlete_name: str, academy_id: str = ""):
-    supabase = get_supabase()
-
     checkins_result = await asyncio.to_thread(
         lambda: supabase.table("checkins").select("*")
         .eq("athlete_name", athlete_name).eq("academy_id", academy_id)
@@ -519,8 +509,6 @@ Write a 2-sentence verdict: sentence 1 is the main risk and why, sentence 2 is o
 
 @router.get("/drills/{athlete_name}")
 async def get_drill_suggestions(athlete_name: str, academy_id: str = ""):
-    supabase = get_supabase()
-
     checkins_result = await asyncio.to_thread(
         lambda: supabase.table("checkins").select("*")
         .eq("athlete_name", athlete_name).eq("academy_id", academy_id)
@@ -613,8 +601,6 @@ REASON: [one sentence referencing today's wellness numbers]
 
 @router.get("/parent-recovery/{athlete_name}")
 async def get_parent_recovery(athlete_name: str, academy_id: str = ""):
-    supabase = get_supabase()
-
     athletes_result = await asyncio.to_thread(
         lambda: supabase.table("athletes").select("*")
         .eq("name", athlete_name).eq("academy_id", academy_id).limit(1).execute()

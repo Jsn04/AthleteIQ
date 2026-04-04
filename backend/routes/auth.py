@@ -6,8 +6,7 @@ import os
 
 router = APIRouter()
 
-def get_supabase():
-    return create_client(os.getenv("SUPABASE_URL"), os.getenv("SUPABASE_KEY"))
+supabase = create_client(os.getenv("SUPABASE_URL"), os.getenv("SUPABASE_KEY"))
 
 class AcademyLoginRequest(BaseModel):
     name: str
@@ -15,8 +14,6 @@ class AcademyLoginRequest(BaseModel):
 
 @router.post("/academy-login")
 def academy_login(body: AcademyLoginRequest):
-    supabase = get_supabase()
-
     result = (
         supabase.table("academies")
         .select("*")
@@ -42,8 +39,6 @@ def academy_login(body: AcademyLoginRequest):
 
 @router.post("/register-academy")
 def register_academy(body: AcademyLoginRequest):
-    supabase = get_supabase()
-
     existing_name = (
         supabase.table("academies")
         .select("id")

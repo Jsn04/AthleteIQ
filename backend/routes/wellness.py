@@ -5,8 +5,7 @@ import os
 
 router = APIRouter()
 
-def get_supabase():
-    return create_client(os.getenv("SUPABASE_URL"), os.getenv("SUPABASE_KEY"))
+supabase = create_client(os.getenv("SUPABASE_URL"), os.getenv("SUPABASE_KEY"))
 
 def require_academy(academy_id: str):
     if not academy_id:
@@ -16,7 +15,6 @@ def require_academy(academy_id: str):
 @router.get("/")
 def get_checkins(academy_id: str = Query(...)):
     require_academy(academy_id)
-    supabase = get_supabase()
     now         = datetime.now(timezone.utc)
     today_start = now.replace(hour=0,  minute=0,  second=0,  microsecond=0).isoformat()
     today_end   = now.replace(hour=23, minute=59, second=59, microsecond=0).isoformat()
@@ -32,7 +30,6 @@ def get_checkins(academy_id: str = Query(...)):
 @router.post("/")
 def submit_checkin(checkin: dict, academy_id: str = Query(...)):
     require_academy(academy_id)
-    supabase = get_supabase()
     if "athlete_name" in checkin:
         checkin["athlete_name"] = checkin["athlete_name"].strip()
     checkin["academy_id"] = academy_id          # stamp academy on every check-in
@@ -42,7 +39,6 @@ def submit_checkin(checkin: dict, academy_id: str = Query(...)):
 @router.post("/training-log")
 def log_training(data: dict, academy_id: str = Query(...)):
     require_academy(academy_id)
-    supabase = get_supabase()
     result = supabase.table("training_logs").insert({
         "athlete_name": data["athlete_name"].strip(),
         "intensity":    data["intensity"],
@@ -57,7 +53,6 @@ def log_training(data: dict, academy_id: str = Query(...)):
 @router.post("/bulk-training-log")
 def bulk_log_training(data: dict, academy_id: str = Query(...)):
     require_academy(academy_id)
-    supabase = get_supabase()
     logs = data.get("logs", [])
 
     if not logs:
@@ -85,7 +80,6 @@ def bulk_log_training(data: dict, academy_id: str = Query(...)):
 @router.get("/training-log/{athlete_name}")
 def get_training_logs(athlete_name: str, academy_id: str = Query(...)):
     require_academy(academy_id)
-    supabase = get_supabase()
     logs = supabase.table("training_logs")\
         .select("*")\
         .eq("athlete_name", athlete_name.strip())\
@@ -98,7 +92,6 @@ def get_training_logs(athlete_name: str, academy_id: str = Query(...)):
 @router.get("/history/{athlete_name}")
 def get_athlete_history(athlete_name: str, academy_id: str = Query(...), days: int = 7):
     require_academy(academy_id)
-    supabase = get_supabase()
     limit_count = min(days, 90) if days > 0 else 500
     logs = supabase.table("checkins")\
         .select("*")\

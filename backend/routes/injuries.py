@@ -3,7 +3,7 @@ from supabase import create_client
 import os
 
 router = APIRouter()
-supabase = create_client(os.environ.get("SUPABASE_URL"), os.environ.get("SUPABASE_KEY"))
+supabase = create_client(os.getenv("SUPABASE_URL"), os.getenv("SUPABASE_KEY"))
 
 @router.post("/")
 async def log_injury(payload: dict):
