@@ -8,6 +8,7 @@ router = APIRouter()
 
 SUPABASE_URL = os.environ.get("SUPABASE_URL")
 SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
+supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 
 # ─── Trial gate helper ────────────────────────────────────────────────────────
@@ -19,7 +20,6 @@ def check_trial_access(academy_id: str):
     - free plan, trial active → allowed
     - free plan, trial expired → blocked
     """
-    supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
     result = (
         supabase.table("academies")
         .select("plan, trial_ends_at")
@@ -228,8 +228,6 @@ Return ONLY raw JSON. No markdown. No explanation. This exact structure:
 # ─── Fetch squad data ─────────────────────────────────────────────────────────
 
 def fetch_squad_data(academy_id: str):
-    supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
-
     athletes_res = (
         supabase.table("athletes")
         .select("id, name, sport")
@@ -293,7 +291,6 @@ def fetch_squad_data(academy_id: str):
 # ─── Rate limit check ─────────────────────────────────────────────────────────
 
 def check_rate_limit(coach_id: str):
-    supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
     now = datetime.now(timezone.utc)
 
     result = (
@@ -317,7 +314,6 @@ def check_rate_limit(coach_id: str):
 # ─── Save plan ────────────────────────────────────────────────────────────────
 
 def save_plan(coach_id: str, academy_id: str, coach_input: dict, plan: dict):
-    supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
     supabase.table("session_plans").insert({
         "coach_id":      coach_id,
         "academy_id":    academy_id,
