@@ -22,7 +22,7 @@ const KNOWN_SPORTS = [
 
 function detectSportCoach(password) {
   const lower = password.trim().toLowerCase();
-  if (lower === 'coach123') return null;
+  if (lower === 'admin123') return null;
   for (const sport of KNOWN_SPORTS) {
     if (lower === `${sport.toLowerCase()}coach123`) return sport;
   }
@@ -66,7 +66,7 @@ function Login() {
         localStorage.setItem('coachSport', sportCoach);
         navigate('/dashboard');
       } else {
-        setError('Wrong password. Use coach123 for admin, or sportcoach123 (e.g. skatingcoach123).');
+        setError('Wrong password. Use admin123 for admin, or sportcoach123 (e.g. skatingcoach123).');
       }
     } else if (role === 'athlete') {
       try {
