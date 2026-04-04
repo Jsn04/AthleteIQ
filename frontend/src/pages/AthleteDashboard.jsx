@@ -19,6 +19,12 @@ function AthleteDashboard() {
   const [injuryRisk, setInjuryRisk] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  const [athleteProfile, setAthleteProfile] = useState(null);
+  const [showProfile, setShowProfile] = useState(false);
+  const [showProfileForm, setShowProfileForm] = useState(false);
+  const [profileForm, setProfileForm] = useState({ age: '', parent_name: '', parent_phone: '' });
+  const [savingProfile, setSavingProfile] = useState(false);
+
   const fetchData = useCallback(async (isSilent = false) => {
     if (!isSilent) setLoading(true);
     try {
@@ -43,6 +49,13 @@ function AthleteDashboard() {
       setHistory(formatted);
       setInsight(insightRes.data);
       setInjuryRisk(injuryRes.data);
+
+      const profileRes = await axios.get(`${API_BASE_URL}/athletes`, { params: { academy_id: academyId } });
+      const found = profileRes.data.find(a => a.name.toLowerCase() === athleteName.toLowerCase());
+      if (found) {
+        setAthleteProfile(found);
+        if (!found.parent_phone) setShowProfileForm(true);
+      }
     } catch (err) {
       console.error('Error fetching athlete dashboard:', err);
     } finally {
@@ -65,6 +78,28 @@ function AthleteDashboard() {
     localStorage.removeItem('athleteName');
     localStorage.removeItem('athleteSport');
     navigate('/login');
+  };
+
+  const handleSaveProfile = async () => {
+    if (!profileForm.parent_phone.trim()) return;
+    setSavingProfile(true);
+    try {
+      const academyId = localStorage.getItem('academyId') || '';
+      await axios.patch(
+        `${API_BASE_URL}/athletes/${athleteProfile.id}?academy_id=${academyId}`,
+        {
+          age: profileForm.age ? parseInt(profileForm.age) : athleteProfile.age,
+          parent_name: profileForm.parent_name.trim(),
+          parent_phone: profileForm.parent_phone.trim(),
+        }
+      );
+      setShowProfileForm(false);
+      fetchData(true);
+    } catch (err) {
+      console.error('Error saving profile:', err);
+    } finally {
+      setSavingProfile(false);
+    }
   };
 
   const avgOf = (key) => {
@@ -105,12 +140,51 @@ function AthleteDashboard() {
               🧘 Meditate
             </button>
             <button
+              onClick={() => setShowProfile(true)}
+              className="border border-gray-600 text-gray-400 px-4 py-2.5 rounded-xl font-bold transition hover:border-blue-500 hover:text-blue-400 text-xs">
+              👤 My Profile
+            </button>
+            <button
               onClick={handleLogout}
               className="border border-gray-600 text-gray-400 px-4 py-2.5 rounded-xl font-bold transition hover:border-red-500 hover:text-red-400 text-xs">
               Logout
             </button>
           </div>
         </div>
+
+        {/* Profile completion banner */}
+        {showProfileForm && (
+          <div className="bg-indigo-500/10 border border-indigo-500/20 rounded-2xl p-5 mb-6">
+            <p className="text-indigo-400 text-xs font-black uppercase tracking-widest mb-1">Complete Your Profile</p>
+            <p className="text-gray-400 text-sm mb-4">Add your details so your coach can reach your parents.</p>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3">
+              <input
+                type="number" placeholder="Your age"
+                value={profileForm.age}
+                onChange={e => setProfileForm(f => ({ ...f, age: e.target.value }))}
+                className="bg-gray-900 border border-gray-700 rounded-xl px-4 py-2.5 text-white placeholder-gray-600 focus:outline-none focus:border-indigo-500 text-sm"
+              />
+              <input
+                type="text" placeholder="Parent's name"
+                value={profileForm.parent_name}
+                onChange={e => setProfileForm(f => ({ ...f, parent_name: e.target.value }))}
+                className="bg-gray-900 border border-gray-700 rounded-xl px-4 py-2.5 text-white placeholder-gray-600 focus:outline-none focus:border-indigo-500 text-sm"
+              />
+              <input
+                type="tel" placeholder="Parent's phone (10 digits)"
+                value={profileForm.parent_phone}
+                onChange={e => setProfileForm(f => ({ ...f, parent_phone: e.target.value }))}
+                className="bg-gray-900 border border-gray-700 rounded-xl px-4 py-2.5 text-white placeholder-gray-600 focus:outline-none focus:border-indigo-500 text-sm"
+              />
+            </div>
+            <button
+              onClick={handleSaveProfile}
+              disabled={savingProfile || !profileForm.parent_phone.trim()}
+              className="w-full bg-indigo-600 hover:bg-indigo-500 disabled:bg-gray-700 disabled:text-gray-500 text-white py-2.5 rounded-xl font-black text-sm transition">
+              {savingProfile ? 'Saving...' : 'Save Profile →'}
+            </button>
+          </div>
+        )}
 
         {history.length === 0 ? (
           <div className="bg-gray-800 rounded-2xl p-12 text-center border border-dashed border-gray-700">
@@ -209,6 +283,39 @@ function AthleteDashboard() {
                   </div>
                 ))}
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* Profile modal */}
+        {showProfile && athleteProfile && (
+          <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+            onClick={() => setShowProfile(false)}>
+            <div className="bg-gray-900 border border-gray-700 rounded-2xl p-6 w-full max-w-sm"
+              onClick={e => e.stopPropagation()}>
+              <div className="flex justify-between items-center mb-5">
+                <h3 className="text-lg font-black text-white">My Profile</h3>
+                <button onClick={() => setShowProfile(false)} className="text-gray-500 hover:text-white text-xl">✕</button>
+              </div>
+              <div className="space-y-3">
+                {[
+                  { label: 'Name', value: athleteProfile.name },
+                  { label: 'Sport', value: athleteProfile.sport || '—' },
+                  { label: 'Age', value: athleteProfile.age || '—' },
+                  { label: "Parent's Name", value: athleteProfile.parent_name || '—' },
+                  { label: "Parent's Phone", value: athleteProfile.parent_phone || '—' },
+                ].map(item => (
+                  <div key={item.label} className="flex justify-between items-center bg-gray-800 rounded-xl px-4 py-3 border border-gray-700">
+                    <p className="text-gray-500 text-xs font-bold uppercase tracking-widest">{item.label}</p>
+                    <p className="text-white text-sm font-bold">{item.value}</p>
+                  </div>
+                ))}
+              </div>
+              <button
+                onClick={() => { setShowProfile(false); setShowProfileForm(true); }}
+                className="w-full mt-4 border border-gray-600 text-gray-400 py-2.5 rounded-xl text-sm font-bold hover:border-indigo-500 hover:text-indigo-400 transition">
+                Edit Profile
+              </button>
             </div>
           </div>
         )}
