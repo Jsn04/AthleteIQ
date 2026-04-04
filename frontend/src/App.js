@@ -11,6 +11,8 @@ import SportDashboard from './pages/SportDashboard';
 import AthleteDashboard from './pages/AthleteDashboard';
 import SessionPlannerPage from './pages/SessionPlannerPage';  // ← changed
 import MeditationPage from './pages/MeditationPage';
+import AcademyProfile from './pages/AcademyProfile';
+
 
 const ProtectedRoute = ({ children, allowedRole }) => {
   const role = localStorage.getItem('role');
@@ -67,6 +69,9 @@ function App() {
 
         <Route path="/meditation" element={
           <AcademyRoute><MeditationPage /></AcademyRoute>
+        } />
+        <Route path="/academy-profile" element={
+          <AcademyRoute><AcademyProfile /></AcademyRoute>
         } />
       </Routes>
     </Router>

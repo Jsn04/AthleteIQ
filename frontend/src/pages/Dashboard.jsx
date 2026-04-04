@@ -390,6 +390,10 @@ function Dashboard() {
               className="bg-gray-800 text-white px-5 py-2.5 rounded-xl text-xs font-bold hover:bg-gray-700 transition-all">
               🧘 Meditate
             </Link>
+            <Link to="/academy-profile"
+              className="bg-gray-800 text-white px-5 py-2.5 rounded-xl text-xs font-bold hover:bg-gray-700 transition-all">
+              🏛️ Academy
+            </Link>
             <button
               onClick={() => setShowBulkModal(true)}
               disabled={visibleAthletes.length === 0}
@@ -420,6 +424,11 @@ function Dashboard() {
                 className="bg-gray-800 text-white px-5 py-3 rounded-xl text-sm font-bold text-center"
                 onClick={() => setMenuOpen(false)}>
                 🧘 Meditate
+              </Link>
+              <Link to="/academy-profile"
+                className="bg-gray-800 text-white px-5 py-3 rounded-xl text-sm font-bold text-center"
+                onClick={() => setMenuOpen(false)}>
+                🏛️ Academy
               </Link>
               <button
                 onClick={() => { setShowBulkModal(true); setMenuOpen(false); }}
