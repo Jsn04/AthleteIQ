@@ -545,12 +545,6 @@ function Login() {
               {role === 'coach' ? 'Access Dashboard →' : role === 'athlete' ? 'Submit Check-in →' : 'View My Child →'}
             </button>
 
-            {role === 'coach' && (
-              <div className="mt-4 space-y-1 text-center">
-                <p className="text-gray-700 text-xs body-font">Admin: <span className="text-gray-500">coach123</span></p>
-                <p className="text-gray-700 text-xs body-font">Sport coach: <span className="text-gray-500">skatingcoach123 · footballcoach123 · etc.</span></p>
-              </div>
-            )}
           </div>
         </div>
       )}
