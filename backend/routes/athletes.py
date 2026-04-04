@@ -46,3 +46,13 @@ def delete_athlete(athlete_id: str, academy_id: str = Query(...)):
         .execute()
     )
     return {"message": "Athlete deleted"}
+
+@router.patch("/{athlete_id}")
+def update_athlete(athlete_id: str, updates: dict, academy_id: str = Query(...)):
+    require_academy(academy_id)
+    supabase = get_supabase()
+    supabase.table("athletes").update(updates)\
+        .eq("id", athlete_id)\
+        .eq("academy_id", academy_id)\
+        .execute()
+    return {"status": "updated"}
