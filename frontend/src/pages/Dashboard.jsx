@@ -338,16 +338,17 @@ function Dashboard() {
 
   const buildMessage = (athlete) => {
     const insight = insights[athlete.name];
-    const readiness = insight?.score ?? '—';
     const aiText = insight?.insight;
-    const riskLevel = insight?.risk?.toUpperCase() ?? '';
 
-    let msg = `*${athlete.name} — Daily Update*\n`;
+    let msg = `*${athlete.name}*\n`;
     msg += `${localStorage.getItem('academyName') || 'Academy'}\n\n`;
-    msg += `*Readiness: ${readiness}/100*\n`;
-    if (riskLevel) msg += `Status: ${riskLevel}\n`;
-    if (aiText && aiText !== 'No data yet') msg += `\n*AI Insight:* ${aiText}\n`;
-    msg += `\n— AthleteIQ`;
+    if (aiText && aiText !== 'No data yet') {
+      msg += `${aiText}\n`;
+    } else {
+      msg += `No insights available yet for today.\n`;
+    }
+    msg += `\n🔗 View detailed stats: ${window.location.origin}/login\n`;
+    msg += `— AthleteIQ`;
     return msg;
   };
 
@@ -396,7 +397,8 @@ function Dashboard() {
         });
       }
 
-      msg += `\n— AthleteIQ`;
+      msg += `\n🔗 View detailed stats: ${window.location.origin}/login\n`;
+      msg += `— AthleteIQ`;
 
       const url = `https://wa.me/91${athlete.parent_phone.replace(/\D/g, '')}?text=${encodeURIComponent(msg)}`;
       window.open(url, '_blank');
