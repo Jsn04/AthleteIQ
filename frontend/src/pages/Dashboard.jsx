@@ -338,7 +338,7 @@ function Dashboard() {
 
   const buildMessage = (athlete) => {
     const insight = insights[athlete.name];
-    const aiText = insight?.insight;
+    const aiText = insight?.insight || insight?.athlete_message;
 
     let msg = `*${athlete.name}*\n`;
     msg += `${localStorage.getItem('academyName') || 'Academy'}\n\n`;
@@ -620,7 +620,10 @@ function Dashboard() {
                             risk === 'red' ? 'text-rose-400' :
                               risk === 'yellow' ? 'text-amber-400' : 'text-emerald-400'
                           }`}>
-                          {!checkedIn ? 'No check-in today' : `Readiness: ${readiness}/100`}
+                          {!checkedIn ? 'No check-in today' :
+                            (insight?.insight || insight?.athlete_message)
+                              ? `${(insight.insight || insight.athlete_message).slice(0, 50)}...`
+                              : 'No insight yet today'}
                         </p>
                       </div>
 
