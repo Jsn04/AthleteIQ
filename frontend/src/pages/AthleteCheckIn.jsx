@@ -37,6 +37,7 @@ function AthleteCheckIn() {
   const academyId = getAcademyId();
 
   const [form, setForm] = useState({ energy: 5, sleep: 5, soreness: 5, mood: 5, notes: '' });
+  const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [showComparison, setShowComparison] = useState(false);
   const [yesterdayData, setYesterdayData] = useState(null);
@@ -68,7 +69,7 @@ function AthleteCheckIn() {
 
   const handleSubmit = async () => {
     if (!isTrialActive()) {
-      alert('Your trial has expired. Upgrade to continue.');
+      setError('Your 14-day free trial has expired. Contact us to upgrade.');
       return;
     }
     setLoading(true);
@@ -225,6 +226,12 @@ function AthleteCheckIn() {
         </div>
 
         {/* Submit */}
+        {error && (
+          <div className="bg-red-500/10 border border-red-500/20 rounded-xl px-4 py-3 mb-4">
+            <p className="text-red-400 text-sm font-bold">⚠️ {error}</p>
+          </div>
+        )}
+
         <button onClick={handleSubmit} disabled={loading}
           className="w-full bg-blue-600 hover:bg-blue-500 disabled:bg-gray-700 disabled:text-gray-500 text-white py-4 rounded-xl font-black text-lg transition shadow-lg active:scale-95">
           {loading ? 'Submitting...' : 'Confirm Check-in ✓'}

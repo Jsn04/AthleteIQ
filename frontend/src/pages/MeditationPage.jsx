@@ -507,6 +507,8 @@ export default function MeditationPage() {
     const [secondsLeft, setSecondsLeft] = useState(0);
     const [round, setRound] = useState(1);
     const [done, setDone] = useState(false);
+    const [error, setError] = useState('');
+
     const [musicOn, setMusicOn] = useState(true);
     const [voiceOn, setVoiceOn] = useState(true);
     const [volume, setVolume] = useState(0.6);
@@ -578,7 +580,7 @@ export default function MeditationPage() {
 
     const handleStart = (ex) => {
         if (!isTrialActive()) {
-            alert('Your trial has expired. Upgrade to continue.');
+            setError('Your 14-day free trial has expired. Contact us to upgrade.');
             return;
         }
         setSelected(ex); setPhaseIndex(0); setRound(1);
@@ -772,6 +774,14 @@ export default function MeditationPage() {
                                 className="w-20 accent-indigo-500" />
                         )}
                     </div>
+                </div>
+
+                <div className="flex flex-col items-center justify-center">
+                    {error && (
+                        <div className="bg-red-500/10 border border-red-500/20 rounded-xl px-4 py-3 mb-4 w-full">
+                            <p className="text-red-400 text-sm font-bold text-center">⚠️ {error}</p>
+                        </div>
+                    )}
                 </div>
 
                 <div className="space-y-3">
