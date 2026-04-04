@@ -173,6 +173,15 @@ function AthleteProfile() {
           </div>
           <div className="flex items-center gap-3">
             {insight && <RiskBadge risk={insight.risk} />}
+            {injuries.filter(i => i.status === 'active').length > 0 && (
+              <span className="bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs font-black px-3 py-1 rounded-full">
+                🩹 {injuries.filter(i => i.status === 'active').length} Active {injuries.filter(i => i.status === 'active').length === 1 ? 'Injury' : 'Injuries'}
+              </span>
+            )}
+            <button onClick={() => setShowInjuryModal(true)}
+              className="bg-rose-600 hover:bg-rose-500 text-white px-4 py-2 rounded-xl text-xs font-bold transition">
+              🩹 Injury Log
+            </button>
             <button onClick={() => setShowBulkModal(true)}
               className="bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded-xl text-xs font-bold transition">
               + Log Session
