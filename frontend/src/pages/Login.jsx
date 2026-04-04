@@ -281,7 +281,10 @@ function Login() {
             className="border border-white/10 text-gray-300 px-5 py-3 rounded-xl text-sm w-full text-center hover:border-green-500/40 hover:text-green-400 transition">
             🏃 Athlete Portal
           </button>
-          <button onClick={() => openRole('parent')}
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); openRole('parent'); }}
+            style={{ pointerEvents: 'auto', zIndex: 100, position: 'relative' }}
             className="border border-white/10 text-gray-300 px-5 py-3 rounded-xl text-sm w-full text-center hover:border-purple-500/40 hover:text-purple-400 transition">
             👨‍👩‍👧 Parent View
           </button>
@@ -507,12 +510,12 @@ function Login() {
             {role === 'parent' ? (
               <div className="mb-5">
                 <label className="block text-gray-500 text-xs uppercase tracking-widest body-font mb-3">
-                  Your Child's Name
+                  Child's Name
                 </label>
                 <input type="text" value={athleteName}
                   onChange={(e) => { setAthleteName(e.target.value); setError(''); }}
                   onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
-                  placeholder="Enter your child's full name" autoFocus
+                  placeholder="Full name" autoFocus
                   className="w-full bg-gray-900 border border-white/10 rounded-2xl px-5 py-4 text-white placeholder-gray-600 focus:outline-none focus:border-purple-500/50 transition body-font text-sm"
                 />
 
@@ -523,7 +526,7 @@ function Login() {
                 <input type="password" value={password}
                   onChange={(e) => { setPassword(e.target.value); setError(''); }}
                   onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
-                  placeholder={role === 'athlete' ? 'e.g. jineshn123' : 'Enter password'} autoFocus
+                  placeholder="Enter password" autoFocus
                   className="w-full bg-gray-900 border border-white/10 rounded-2xl px-5 py-4 text-white placeholder-gray-600 focus:outline-none focus:border-blue-500/50 transition body-font text-sm"
                 />
 
