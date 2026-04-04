@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from routes import athletes, wellness, ai, auth, session_planner, injuries, attendance  # ← add
+from routes import athletes, wellness, ai, auth, session_planner, injuries, attendance, reports  # ← add
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -26,6 +26,7 @@ app.include_router(auth.router, prefix="/auth")
 app.include_router(session_planner.router, prefix="/session-planner") 
 app.include_router(injuries.router, prefix="/injuries") 
 app.include_router(attendance.router, prefix="/attendance")
+app.include_router(reports.router, prefix="/reports")
 
 @app.get("/health")
 async def health():
