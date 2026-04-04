@@ -6,6 +6,7 @@ import StatCard from '../components/common/StatCard';
 import RiskBadge from '../components/common/RiskBadge';
 import LoadingSkeleton from '../components/common/LoadingSkeleton';
 import BulkLogModal from './BulkLogModal';
+import WeeklyReport from './WeeklyReport';
 import {
   LineChart, Line, AreaChart, Area, XAxis, YAxis, CartesianGrid,
   Tooltip, Legend, ResponsiveContainer,
@@ -38,6 +39,7 @@ function AthleteProfile() {
     status: 'active',
   });
   const [savingInjury, setSavingInjury] = useState(false);
+  const [showWeeklyReport, setShowWeeklyReport] = useState(false);
 
   const prevCheckinsRef = useRef(null);
 
@@ -189,6 +191,10 @@ function AthleteProfile() {
                 🩹 {injuries.filter(i => i.status === 'active').length} Active {injuries.filter(i => i.status === 'active').length === 1 ? 'Injury' : 'Injuries'}
               </span>
             )}
+            <button onClick={() => setShowWeeklyReport(true)}
+              className="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-xl text-xs font-bold transition">
+              📊 Weekly Report
+            </button>
             <button onClick={() => setShowInjuryModal(true)}
               className="bg-rose-600 hover:bg-rose-500 text-white px-4 py-2 rounded-xl text-xs font-bold transition">
               🩹 Injury Log
@@ -561,6 +567,13 @@ function AthleteProfile() {
 
       {showBulkModal && (
         <BulkLogModal athletes={singleAthleteList} onClose={() => setShowBulkModal(false)} onSuccess={() => fetchData(false)} />
+      )}
+      {showWeeklyReport && (
+        <WeeklyReport
+          athleteName={name}
+          academyId={academyId}
+          onClose={() => setShowWeeklyReport(false)}
+        />
       )}
     </div>
   );
