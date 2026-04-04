@@ -250,6 +250,13 @@ function Dashboard() {
   const [showBulkModal, setShowBulkModal] = useState(false);
   const [lastUpdated, setLastUpdated] = useState(null);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [showBroadcast, setShowBroadcast] = useState(false);
+  const [sentToday, setSentToday] = useState(() => {
+    const key = `broadcast_sent_${new Date().toDateString()}`;
+    return JSON.parse(localStorage.getItem(key) || '[]');
+  });
+  const [recoveryData, setRecoveryData] = useState({});
+  const [loadingRecovery, setLoadingRecovery] = useState({});
   const navigate = useNavigate();
   const prevCheckinsRef = useRef(null);
   const coachSport = getCoachSport();
@@ -329,6 +336,79 @@ function Dashboard() {
     navigate('/login');
   };
 
+  const buildMessage = (athlete) => {
+    const insight = insights[athlete.name];
+    const readiness = insight?.score ?? '—';
+    const aiText = insight?.insight;
+    const riskLevel = insight?.risk?.toUpperCase() ?? '';
+
+    let msg = `*${athlete.name} — Daily Update*\n`;
+    msg += `${localStorage.getItem('academyName') || 'Academy'}\n\n`;
+    msg += `*Readiness: ${readiness}/100*\n`;
+    if (riskLevel) msg += `Status: ${riskLevel}\n`;
+    if (aiText && aiText !== 'No data yet') msg += `\n*AI Insight:* ${aiText}\n`;
+    msg += `\n— AthleteIQ`;
+    return msg;
+  };
+
+  const handleBroadcastSend = (athlete) => {
+    if (!athlete.parent_phone) return;
+    const msg = buildMessage(athlete);
+    const url = `https://wa.me/91${athlete.parent_phone.replace(/\D/g, '')}?text=${encodeURIComponent(msg)}`;
+    window.open(url, '_blank');
+
+    const key = `broadcast_sent_${new Date().toDateString()}`;
+    const updated = [...sentToday, athlete.name];
+    setSentToday(updated);
+    localStorage.setItem(key, JSON.stringify(updated));
+  };
+
+  const handleSendRecovery = async (athlete) => {
+    if (!athlete.parent_phone) return;
+
+    const recoveryKey = `recovery_sent_${athlete.name}_${new Date().toDateString()}`;
+    if (localStorage.getItem(recoveryKey)) {
+      alert(`Recovery message already sent to ${athlete.name.split(' ')[0]}'s parent today.`);
+      return;
+    }
+
+    setLoadingRecovery(prev => ({ ...prev, [athlete.name]: true }));
+    try {
+      const res = await axios.get(
+        `${API_BASE_URL}/ai/parent-recovery/${encodeURIComponent(athlete.name)}`,
+        { params: { academy_id: academyId } }
+      );
+      const data = res.data;
+      setRecoveryData(prev => ({ ...prev, [athlete.name]: data }));
+
+      let msg = `🚨 *Recovery Alert — ${athlete.name}*\n`;
+      msg += `${localStorage.getItem('academyName') || 'Academy'}\n\n`;
+
+      if (data.coach_message) {
+        msg += `*Coach's Note:*\n${data.coach_message}\n\n`;
+      }
+
+      if (data.exercises?.length > 0) {
+        msg += `*Home Recovery Exercises:*\n`;
+        data.exercises.forEach((ex, i) => {
+          msg += `${i + 1}. *${ex.name}* (${ex.duration})\n`;
+          if (ex.how) msg += `   ${ex.how}\n`;
+        });
+      }
+
+      msg += `\n— AthleteIQ`;
+
+      const url = `https://wa.me/91${athlete.parent_phone.replace(/\D/g, '')}?text=${encodeURIComponent(msg)}`;
+      window.open(url, '_blank');
+
+      localStorage.setItem(recoveryKey, 'true');
+    } catch (err) {
+      console.error('Recovery fetch failed:', err);
+    } finally {
+      setLoadingRecovery(prev => ({ ...prev, [athlete.name]: false }));
+    }
+  };
+
   if (loading && athletes.length === 0) return (
     <div className="min-h-screen bg-gray-950 p-6 flex items-center justify-center">
       <p className="text-gray-400">Loading dashboard...</p>
@@ -390,6 +470,11 @@ function Dashboard() {
               className="bg-gray-800 text-white px-5 py-2.5 rounded-xl text-xs font-bold hover:bg-gray-700 transition-all">
               🧘 Meditate
             </Link>
+            <button
+              onClick={() => setShowBroadcast(true)}
+              className="bg-green-700 hover:bg-green-600 text-white px-5 py-2.5 rounded-xl text-xs font-bold transition-all">
+              📲 Broadcast
+            </button>
 
             <button
               onClick={() => setShowBulkModal(true)}
@@ -422,6 +507,11 @@ function Dashboard() {
                 onClick={() => setMenuOpen(false)}>
                 🧘 Meditate
               </Link>
+              <button
+                onClick={() => { setShowBroadcast(true); setMenuOpen(false); }}
+                className="bg-green-700 text-white px-5 py-3 rounded-xl text-sm font-bold text-center">
+                📲 Broadcast
+              </button>
 
               <button
                 onClick={() => { setShowBulkModal(true); setMenuOpen(false); }}
@@ -488,6 +578,91 @@ function Dashboard() {
           onClose={() => setShowBulkModal(false)}
           onSuccess={() => fetchData(true)}
         />
+      )}
+
+      {showBroadcast && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+          onClick={() => setShowBroadcast(false)}>
+          <div className="bg-gray-900 border border-gray-700 rounded-2xl w-full max-w-lg max-h-[85vh] flex flex-col"
+            onClick={e => e.stopPropagation()}>
+
+            {/* Header */}
+            <div className="flex justify-between items-center p-6 border-b border-gray-700 shrink-0">
+              <div>
+                <h2 className="text-lg font-black text-white">📲 Parent Broadcast</h2>
+                <p className="text-gray-500 text-xs mt-0.5">
+                  {visibleAthletes.filter(a => checkins.find(c => norm(c.athlete_name) === norm(a.name))).length} athletes checked in today
+                </p>
+              </div>
+              <button onClick={() => setShowBroadcast(false)}
+                className="text-gray-500 hover:text-white text-xl">✕</button>
+            </div>
+
+            {/* List */}
+            <div className="overflow-y-auto flex-1 p-4 space-y-3">
+              {visibleAthletes.map(athlete => {
+                const checkedIn = !!checkins.find(c => norm(c.athlete_name) === norm(athlete.name));
+                const hasPhone = !!athlete.parent_phone;
+                const alreadySent = sentToday.includes(athlete.name);
+                const insight = insights[athlete.name];
+                const readiness = insight?.score ?? '—';
+                const risk = insight?.risk;
+
+                return (
+                  <div key={athlete.id}
+                    className="bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 gap-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-white font-black text-sm truncate">{athlete.name}</p>
+                        <p className={`text-xs font-bold mt-0.5 ${!checkedIn ? 'text-gray-600' :
+                            risk === 'red' ? 'text-rose-400' :
+                              risk === 'yellow' ? 'text-amber-400' : 'text-emerald-400'
+                          }`}>
+                          {!checkedIn ? 'No check-in today' : `Readiness: ${readiness}/100`}
+                        </p>
+                      </div>
+
+                      {alreadySent ? (
+                        <span className="text-emerald-400 text-xs font-black shrink-0">✅ Sent</span>
+                      ) : !hasPhone ? (
+                        <span className="text-gray-600 text-xs font-bold shrink-0">No phone</span>
+                      ) : !checkedIn ? (
+                        <span className="text-gray-600 text-xs font-bold shrink-0">Skipped</span>
+                      ) : risk === 'red' ? (
+                        <div className="flex flex-col gap-1.5 shrink-0">
+                          <button
+                            onClick={() => handleBroadcastSend(athlete)}
+                            className="bg-green-600 hover:bg-green-500 text-white text-xs font-black px-3 py-1.5 rounded-xl transition">
+                            Send update →
+                          </button>
+                          <button
+                            onClick={() => handleSendRecovery(athlete)}
+                            disabled={loadingRecovery[athlete.name]}
+                            className="bg-rose-600 hover:bg-rose-500 disabled:bg-gray-700 disabled:text-gray-500 text-white text-xs font-black px-3 py-1.5 rounded-xl transition">
+                            {loadingRecovery[athlete.name] ? 'Loading...' : '🚨 Send recovery'}
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => handleBroadcastSend(athlete)}
+                          className="bg-green-600 hover:bg-green-500 text-white text-xs font-black px-4 py-2 rounded-xl transition shrink-0">
+                          Send →
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Footer note */}
+            <div className="p-4 border-t border-gray-700 shrink-0">
+              <p className="text-gray-600 text-[10px] text-center">
+                Only athletes who checked in today are included · Sent status resets daily
+              </p>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
