@@ -27,6 +27,7 @@ function AthleteProfile() {
   const [error, setError] = useState(null);
   const [showBulkModal, setShowBulkModal] = useState(false);
   const [injuries, setInjuries] = useState([]);
+  const [attendanceLog, setAttendanceLog] = useState([]);
   const [showInjuryModal, setShowInjuryModal] = useState(false);
   const [injuryForm, setInjuryForm] = useState({
     body_part: 'Knee',
@@ -80,6 +81,16 @@ function AthleteProfile() {
         setInjuries(injuriesRes.data || []);
       } catch {
         setInjuries([]);
+      }
+
+      try {
+        const attRes = await axios.get(
+          `${API_BASE_URL}/attendance/${encodeURIComponent(name)}`,
+          { params: { academy_id: academyId } }
+        );
+        setAttendanceLog(attRes.data || []);
+      } catch {
+        setAttendanceLog([]);
       }
     } catch (err) {
       console.error('Error fetching athlete details:', err);
@@ -388,6 +399,40 @@ function AthleteProfile() {
             </div>
           )}
         </div>
+        {/* Attendance History */}
+        <div className="mt-10 bg-gray-800 rounded-2xl p-6 border border-gray-700">
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-xs font-black uppercase tracking-widest text-gray-500">📅 Attendance (Last 30 Days)</h2>
+            {attendanceLog.length > 0 && (
+              <span className="text-xs font-black text-emerald-400">
+                {Math.round((attendanceLog.filter(a => a.status === 'present').length / attendanceLog.length) * 100)}% attendance rate
+              </span>
+            )}
+          </div>
+
+          {attendanceLog.length === 0 ? (
+            <p className="text-gray-600 text-xs text-center py-4">No attendance logged yet.</p>
+          ) : (
+            <div className="flex flex-wrap gap-2">
+              {attendanceLog.map((a, i) => (
+                <div key={i}
+                  className={`flex flex-col items-center px-3 py-2 rounded-xl border text-center ${
+                    a.status === 'present'
+                      ? 'bg-emerald-500/10 border-emerald-500/20'
+                      : 'bg-rose-500/10 border-rose-500/20'
+                  }`}>
+                  <span className={`text-xs font-black ${a.status === 'present' ? 'text-emerald-400' : 'text-rose-400'}`}>
+                    {a.status === 'present' ? '✓' : '✗'}
+                  </span>
+                  <span className="text-gray-500 text-[9px] mt-0.5">
+                    {new Date(a.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
         {/* Injury History */}
         <div className="mt-10 bg-gray-800 rounded-2xl p-6 border border-gray-700 space-y-4">
           <div className="flex items-center justify-between">

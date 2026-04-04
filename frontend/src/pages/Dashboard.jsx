@@ -44,7 +44,7 @@ const LiveIndicator = ({ lastUpdated }) => (
   </div>
 );
 
-function SportSection({ sport, athletes, insights, injuryRisks, checkins, onNavigate, skipLock = false }) {
+function SportSection({ sport, athletes, insights, injuryRisks, checkins, onNavigate, skipLock = false, attendance = {}, onMarkAttendance, markingAttendance = {} }) {
   const sessionKey = `unlocked_${sport.toLowerCase()}`;
   const [unlocked, setUnlocked] = useState(() => skipLock || sessionStorage.getItem(sessionKey) === 'true');
   const [password, setPassword] = useState('');
@@ -209,6 +209,48 @@ function SportSection({ sport, athletes, insights, injuryRisks, checkins, onNavi
                   </div>
                 )}
 
+                {/* Attendance */}
+                <div className="flex items-center gap-2 mb-2 flex-wrap" onClick={e => e.stopPropagation()}>
+                  <span className="text-gray-500 text-[10px] font-bold uppercase tracking-widest">Attendance:</span>
+                  {(() => {
+                    const key = athlete.name.toLowerCase().trim();
+                    const status = attendance[key];
+                    const loading = markingAttendance[key];
+                    return (
+                      <>
+                        <button
+                          onClick={e => { e.stopPropagation(); onMarkAttendance(athlete, 'present'); }}
+                          disabled={loading}
+                          className={`text-[10px] font-black px-3 py-1 rounded-lg border transition ${
+                            status === 'present'
+                              ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-400'
+                              : 'border-gray-700 text-gray-600 hover:border-emerald-500/40 hover:text-emerald-400'
+                          }`}>
+                          ✓ Present
+                        </button>
+                        <button
+                          onClick={e => { e.stopPropagation(); onMarkAttendance(athlete, 'absent'); }}
+                          disabled={loading}
+                          className={`text-[10px] font-black px-3 py-1 rounded-lg border transition ${
+                            status === 'absent'
+                              ? 'bg-rose-500/20 border-rose-500/40 text-rose-400'
+                              : 'border-gray-700 text-gray-600 hover:border-rose-500/40 hover:text-rose-400'
+                          }`}>
+                          ✗ Absent
+                        </button>
+                        {status && (
+                          <span className={`text-[10px] font-black uppercase tracking-widest ${
+                            status === 'present' ? 'text-emerald-400' : 'text-rose-400'
+                          }`}>
+                            {status === 'present' ? '✓ Marked Present' : '✗ Marked Absent'}
+                          </span>
+                        )}
+                        {loading && <span className="text-gray-600 text-[10px]">saving...</span>}
+                      </>
+                    );
+                  })()}
+                </div>
+
                 <div className="flex flex-col gap-3">
                   {injuryData?.acwr != null && (
                     <div className="flex items-center gap-3 text-xs font-bold flex-wrap">
@@ -257,6 +299,8 @@ function Dashboard() {
   });
   const [recoveryData, setRecoveryData] = useState({});
   const [loadingRecovery, setLoadingRecovery] = useState({});
+  const [attendance, setAttendance] = useState({});
+  const [markingAttendance, setMarkingAttendance] = useState({});
   const navigate = useNavigate();
   const prevCheckinsRef = useRef(null);
   const coachSport = getCoachSport();
@@ -293,6 +337,19 @@ function Dashboard() {
         setInsights(insightResults);
         setInjuryRisks(injuryResults);
         prevCheckinsRef.current = newCheckinsRaw;
+      }
+
+      try {
+        const attendanceRes = await axios.get(`${API_BASE_URL}/attendance/today`, {
+          params: { academy_id: academyId }
+        });
+        const attendanceMap = {};
+        (attendanceRes.data || []).forEach(a => {
+          attendanceMap[a.athlete_name.toLowerCase().trim()] = a.status;
+        });
+        setAttendance(attendanceMap);
+      } catch {
+        // attendance fetch failure should not block dashboard
       }
     } catch (err) {
       console.error('Error fetching data:', err);
@@ -408,6 +465,24 @@ function Dashboard() {
       console.error('Recovery fetch failed:', err);
     } finally {
       setLoadingRecovery(prev => ({ ...prev, [athlete.name]: false }));
+    }
+  };
+
+  const handleMarkAttendance = async (athlete, status) => {
+    const key = athlete.name.toLowerCase().trim();
+    setMarkingAttendance(prev => ({ ...prev, [key]: true }));
+    try {
+      await axios.post(`${API_BASE_URL}/attendance/`, {
+        academy_id:   academyId,
+        athlete_name: athlete.name,
+        status:       status,
+        date:         new Date().toISOString().split('T')[0],
+      });
+      setAttendance(prev => ({ ...prev, [key]: status }));
+    } catch (err) {
+      console.error('Attendance mark failed:', err);
+    } finally {
+      setMarkingAttendance(prev => ({ ...prev, [key]: false }));
     }
   };
 
@@ -536,6 +611,11 @@ function Dashboard() {
           <StatCard label="Active Today" value={checkedInToday} color="text-emerald-400" />
           <StatCard label="High Risk" value={highRiskCount} color="text-rose-400" />
           <StatCard label="Caution" value={cautionCount} color="text-amber-400" />
+          <StatCard
+            label="Absent Today"
+            value={Object.values(attendance).filter(s => s === 'absent').length}
+            color="text-gray-400"
+          />
         </div>
 
         {/* ── Athletes ── */}
@@ -568,6 +648,9 @@ function Dashboard() {
                 checkins={checkins}
                 onNavigate={navigate}
                 skipLock={!!coachSport}
+                attendance={attendance}
+                onMarkAttendance={handleMarkAttendance}
+                markingAttendance={markingAttendance}
               />
             ))}
           </div>
