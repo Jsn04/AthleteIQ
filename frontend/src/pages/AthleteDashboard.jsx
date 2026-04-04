@@ -24,6 +24,7 @@ function AthleteDashboard() {
   const [showProfileForm, setShowProfileForm] = useState(false);
   const [profileForm, setProfileForm] = useState({ age: '', parent_name: '', parent_phone: '' });
   const [savingProfile, setSavingProfile] = useState(false);
+  const [injuries, setInjuries] = useState([]);
 
   const fetchData = useCallback(async (isSilent = false) => {
     if (!isSilent) setLoading(true);
@@ -55,6 +56,16 @@ function AthleteDashboard() {
       if (found) {
         setAthleteProfile(found);
         if (!found.parent_phone) setShowProfileForm(true);
+      }
+
+      try {
+        const injuriesRes = await axios.get(
+          `${API_BASE_URL}/injuries/${encodeURIComponent(athleteName)}`,
+          { params: { academy_id: academyId } }
+        );
+        setInjuries(injuriesRes.data || []);
+      } catch {
+        setInjuries([]);
       }
     } catch (err) {
       console.error('Error fetching athlete dashboard:', err);
@@ -284,6 +295,41 @@ function AthleteDashboard() {
                 ))}
               </div>
             </div>
+
+            {injuries.length > 0 && (
+              <div className="bg-gray-800 rounded-2xl p-6 border border-gray-700">
+                <h2 className="text-xs font-black text-gray-500 uppercase tracking-widest mb-4">🩹 My Injury History</h2>
+                <div className="space-y-3">
+                  {injuries.map(inj => (
+                    <div key={inj.id} className="bg-gray-900 border border-gray-700 rounded-xl p-4">
+                      <div className="flex items-center justify-between gap-3 flex-wrap">
+                        <div>
+                          <p className="text-white font-black text-sm">{inj.body_part} — {inj.injury_type}</p>
+                          <p className="text-gray-500 text-xs mt-0.5">{inj.date_occurred}</p>
+                          {inj.notes && <p className="text-gray-400 text-xs mt-1 italic">"{inj.notes}"</p>}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className={`text-xs font-black px-3 py-1 rounded-full border ${
+                            inj.severity === 'severe' ? 'bg-rose-500/10 border-rose-500/30 text-rose-400' :
+                            inj.severity === 'moderate' ? 'bg-amber-500/10 border-amber-500/30 text-amber-400' :
+                            'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
+                          }`}>
+                            {inj.severity.toUpperCase()}
+                          </span>
+                          <span className={`text-xs font-bold px-2 py-1 rounded-lg ${
+                            inj.status === 'active' ? 'text-rose-400 bg-rose-500/10' :
+                            inj.status === 'recovering' ? 'text-amber-400 bg-amber-500/10' :
+                            'text-emerald-400 bg-emerald-500/10'
+                          }`}>
+                            {inj.status.charAt(0).toUpperCase() + inj.status.slice(1)}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
 

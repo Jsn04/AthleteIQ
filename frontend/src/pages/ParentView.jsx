@@ -151,6 +151,7 @@ function ParentView() {
   });
   const [recoveryLoading, setRecoveryLoading] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [injuries, setInjuries] = useState([]);
   const [notFound, setNotFound] = useState(false);
   const navigate = useNavigate();
   const childName = localStorage.getItem('parentChildName') || '';
@@ -198,6 +199,20 @@ function ParentView() {
       }));
       setHistory(formatted);
       setInsight(insightRes.data);
+
+      try {
+        const injuryRes = await axios.get(
+          `${API_BASE_URL}/injuries/${encodeURIComponent(childName)}`,
+          { params: { academy_id: academyId } }
+        );
+        const activeInjuries = (injuryRes.data || []).filter(
+          i => i.status === 'active' || i.status === 'recovering'
+        );
+        setInjuries(activeInjuries);
+      } catch {
+        setInjuries([]);
+      }
+
       setNotFound(false);
     } catch {
       if (!isSilent) setNotFound(true);
@@ -284,6 +299,41 @@ function ParentView() {
               🤖 Coach Message for {childName}
             </p>
             <p className="text-gray-200 text-sm leading-relaxed">{insight.athlete_message}</p>
+          </div>
+        )}
+
+        {injuries.length > 0 && (
+          <div className="bg-rose-500/10 border border-rose-500/20 rounded-2xl p-4 sm:p-5 mb-5">
+            <p className="text-rose-400 text-xs font-bold uppercase tracking-widest mb-3">
+              🩹 Active Injuries — {childName}
+            </p>
+            <div className="space-y-2">
+              {injuries.map(inj => (
+                <div key={inj.id} className="flex items-center justify-between bg-gray-800/60 rounded-xl px-4 py-3 gap-3 flex-wrap">
+                  <div>
+                    <p className="text-white font-black text-sm">{inj.body_part} — {inj.injury_type}</p>
+                    <p className="text-gray-400 text-xs mt-0.5">
+                      Logged {inj.date_occurred}
+                      {inj.notes ? ` · ${inj.notes}` : ''}
+                    </p>
+                  </div>
+                  <div className="flex gap-2 items-center">
+                    <span className={`text-xs font-black px-2 py-1 rounded-full border ${
+                      inj.severity === 'severe' ? 'bg-rose-500/10 border-rose-500/30 text-rose-400' :
+                      inj.severity === 'moderate' ? 'bg-amber-500/10 border-amber-500/30 text-amber-400' :
+                      'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
+                    }`}>
+                      {inj.severity.toUpperCase()}
+                    </span>
+                    <span className={`text-xs font-bold px-2 py-1 rounded-lg ${
+                      inj.status === 'active' ? 'text-rose-400 bg-rose-500/10' : 'text-amber-400 bg-amber-500/10'
+                    }`}>
+                      {inj.status.charAt(0).toUpperCase() + inj.status.slice(1)}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         )}
 

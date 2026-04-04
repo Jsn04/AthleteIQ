@@ -26,6 +26,17 @@ function AthleteProfile() {
   const [timeRange, setTimeRange] = useState('7D');
   const [error, setError] = useState(null);
   const [showBulkModal, setShowBulkModal] = useState(false);
+  const [injuries, setInjuries] = useState([]);
+  const [showInjuryModal, setShowInjuryModal] = useState(false);
+  const [injuryForm, setInjuryForm] = useState({
+    body_part: 'Knee',
+    injury_type: 'Sprain',
+    severity: 'mild',
+    date_occurred: new Date().toISOString().split('T')[0],
+    notes: '',
+    status: 'active',
+  });
+  const [savingInjury, setSavingInjury] = useState(false);
 
   const prevCheckinsRef = useRef(null);
 
@@ -60,6 +71,16 @@ function AthleteProfile() {
       if (logsRes.status === 'fulfilled') setTrainingLogs([...logsRes.value.data.logs || []].reverse());
       if (insightRes.status === 'fulfilled') setInsight(insightRes.value.data);
       if (injuryRes.status === 'fulfilled') setInjuryRisk(injuryRes.value.data);
+
+      try {
+        const injuriesRes = await axios.get(
+          `${API_BASE_URL}/injuries/${encodeURIComponent(name)}`,
+          { params: { academy_id: academyId } }
+        );
+        setInjuries(injuriesRes.data || []);
+      } catch {
+        setInjuries([]);
+      }
     } catch (err) {
       console.error('Error fetching athlete details:', err);
       setError('Failed to load athlete data. Please refresh.');
@@ -67,6 +88,40 @@ function AthleteProfile() {
       setLoading(false);
     }
   }, [name, academyId]);
+
+  const handleLogInjury = async () => {
+    setSavingInjury(true);
+    try {
+      await axios.post(`${API_BASE_URL}/injuries/`, {
+        ...injuryForm,
+        athlete_name: name,
+        academy_id: academyId,
+      });
+      setShowInjuryModal(false);
+      setInjuryForm({
+        body_part: 'Knee', injury_type: 'Sprain', severity: 'mild',
+        date_occurred: new Date().toISOString().split('T')[0],
+        notes: '', status: 'active',
+      });
+      fetchData(true);
+    } catch (err) {
+      console.error('Injury log failed:', err);
+    } finally {
+      setSavingInjury(false);
+    }
+  };
+
+  const handleUpdateInjuryStatus = async (injuryId, newStatus, notes) => {
+    try {
+      await axios.patch(`${API_BASE_URL}/injuries/${injuryId}`, {
+        status: newStatus,
+        notes: notes,
+      });
+      fetchData(true);
+    } catch (err) {
+      console.error('Status update failed:', err);
+    }
+  };
 
   useEffect(() => {
     fetchData();
@@ -324,7 +379,131 @@ function AthleteProfile() {
             </div>
           )}
         </div>
+        {/* Injury History */}
+        <div className="mt-10 bg-gray-800 rounded-2xl p-6 border border-gray-700 space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-xs font-black uppercase tracking-widest text-gray-500">🩹 Injury History</h2>
+            <button
+              onClick={() => setShowInjuryModal(true)}
+              className="bg-rose-600 hover:bg-rose-500 text-white text-xs font-black px-4 py-2 rounded-xl transition">
+              + Log Injury
+            </button>
+          </div>
+
+          {injuries.length === 0 ? (
+            <p className="text-gray-600 text-xs text-center py-4">No injuries logged yet.</p>
+          ) : (
+            <div className="space-y-3">
+              {injuries.map(inj => (
+                <div key={inj.id} className="bg-gray-900 border border-gray-700 rounded-xl p-4">
+                  <div className="flex items-start justify-between gap-3 flex-wrap">
+                    <div>
+                      <p className="text-white font-black text-sm">{inj.body_part} — {inj.injury_type}</p>
+                      <p className="text-gray-500 text-xs mt-0.5">{inj.date_occurred}</p>
+                      {inj.notes && <p className="text-gray-400 text-xs mt-1 italic">"{inj.notes}"</p>}
+                    </div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className={`text-xs font-black px-3 py-1 rounded-full border ${
+                        inj.severity === 'severe' ? 'bg-rose-500/10 border-rose-500/30 text-rose-400' :
+                        inj.severity === 'moderate' ? 'bg-amber-500/10 border-amber-500/30 text-amber-400' :
+                        'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
+                      }`}>
+                        {inj.severity.toUpperCase()}
+                      </span>
+                      <select
+                        value={inj.status}
+                        onChange={e => handleUpdateInjuryStatus(inj.id, e.target.value, inj.notes)}
+                        className="bg-gray-800 border border-gray-700 text-gray-300 text-xs font-bold px-2 py-1 rounded-lg focus:outline-none">
+                        <option value="active">Active</option>
+                        <option value="recovering">Recovering</option>
+                        <option value="cleared">Cleared</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
+
+      {/* Log Injury Modal */}
+      {showInjuryModal && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+          onClick={() => setShowInjuryModal(false)}>
+          <div className="bg-gray-900 border border-gray-700 rounded-2xl w-full max-w-md p-6 space-y-4"
+            onClick={e => e.stopPropagation()}>
+            <div className="flex justify-between items-center">
+              <h2 className="text-white font-black text-lg">Log Injury</h2>
+              <button onClick={() => setShowInjuryModal(false)} className="text-gray-500 hover:text-white text-xl">✕</button>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <p className="text-gray-500 text-[10px] uppercase font-bold mb-1">Body Part</p>
+                <select value={injuryForm.body_part}
+                  onChange={e => setInjuryForm(f => ({ ...f, body_part: e.target.value }))}
+                  className="w-full bg-gray-800 border border-gray-700 text-white text-sm px-3 py-2.5 rounded-xl focus:outline-none focus:border-rose-500">
+                  {['Knee','Ankle','Shoulder','Hamstring','Back','Groin','Wrist','Other'].map(p => (
+                    <option key={p} value={p}>{p}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <p className="text-gray-500 text-[10px] uppercase font-bold mb-1">Injury Type</p>
+                <select value={injuryForm.injury_type}
+                  onChange={e => setInjuryForm(f => ({ ...f, injury_type: e.target.value }))}
+                  className="w-full bg-gray-800 border border-gray-700 text-white text-sm px-3 py-2.5 rounded-xl focus:outline-none focus:border-rose-500">
+                  {['Sprain','Strain','Fracture','Bruise','Overuse','Other'].map(t => (
+                    <option key={t} value={t}>{t}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <p className="text-gray-500 text-[10px] uppercase font-bold mb-2">Severity</p>
+              <div className="flex gap-2">
+                {['mild','moderate','severe'].map(s => (
+                  <button key={s}
+                    onClick={() => setInjuryForm(f => ({ ...f, severity: s }))}
+                    className={`flex-1 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition border ${
+                      injuryForm.severity === s
+                        ? s === 'severe' ? 'bg-rose-600 border-rose-500 text-white'
+                          : s === 'moderate' ? 'bg-amber-600 border-amber-500 text-white'
+                          : 'bg-emerald-600 border-emerald-500 text-white'
+                        : 'border-gray-700 text-gray-500 hover:border-gray-500'
+                    }`}>
+                    {s}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <p className="text-gray-500 text-[10px] uppercase font-bold mb-1">Date Occurred</p>
+              <input type="date" value={injuryForm.date_occurred}
+                onChange={e => setInjuryForm(f => ({ ...f, date_occurred: e.target.value }))}
+                className="w-full bg-gray-800 border border-gray-700 text-white text-sm px-3 py-2.5 rounded-xl focus:outline-none focus:border-rose-500"
+              />
+            </div>
+
+            <div>
+              <p className="text-gray-500 text-[10px] uppercase font-bold mb-1">Notes (optional)</p>
+              <textarea rows={2} value={injuryForm.notes}
+                onChange={e => setInjuryForm(f => ({ ...f, notes: e.target.value }))}
+                placeholder="Happened during sprint drill..."
+                className="w-full bg-gray-800 border border-gray-700 text-white text-sm px-3 py-2.5 rounded-xl focus:outline-none focus:border-rose-500 resize-none placeholder-gray-600"
+              />
+            </div>
+
+            <button onClick={handleLogInjury} disabled={savingInjury}
+              className="w-full bg-rose-600 hover:bg-rose-500 disabled:bg-gray-700 disabled:text-gray-500 text-white py-3 rounded-xl text-xs font-black uppercase tracking-widest transition">
+              {savingInjury ? 'Saving...' : 'Log Injury →'}
+            </button>
+          </div>
+        </div>
+      )}
 
       {showBulkModal && (
         <BulkLogModal athletes={singleAthleteList} onClose={() => setShowBulkModal(false)} onSuccess={() => fetchData(false)} />
