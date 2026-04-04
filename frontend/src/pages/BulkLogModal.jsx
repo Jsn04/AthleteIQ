@@ -142,6 +142,8 @@ export default function BulkLogModal({ athletes, duration, onClose, onSuccess })
     );
 
     const [submitting, setSubmitting] = useState(false);
+    const [submitError, setSubmitError] = useState('');
+
 
     const updateAthlete = (id, data) => {
         setAthleteData(prev => ({ ...prev, [id]: data }));
@@ -166,7 +168,7 @@ export default function BulkLogModal({ athletes, duration, onClose, onSuccess })
 
     const handleSubmit = async () => {
         if (!isTrialActive()) {
-            alert('Your trial has expired. Upgrade to continue logging sessions.');
+            setSubmitError('Your 14-day free trial has expired. Contact us to upgrade.');
             return;
         }
         setSubmitting(true);
@@ -357,6 +359,12 @@ export default function BulkLogModal({ athletes, duration, onClose, onSuccess })
                                     );
                                 })}
                             </div>
+
+                            {submitError && (
+                                <div className="bg-red-500/10 border border-red-500/20 rounded-xl px-4 py-3">
+                                    <p className="text-red-400 text-sm font-bold">⚠️ {submitError}</p>
+                                </div>
+                            )}
 
                             <div className="flex gap-3 pt-1">
                                 <button

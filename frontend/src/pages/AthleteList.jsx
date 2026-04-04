@@ -76,6 +76,7 @@ function AthleteList() {
   const [form, setForm] = useState({ name: '', sport: SPORTS[0], age: '' });
   const [loading, setLoading] = useState(true);
   const [adding, setAdding] = useState(false);
+  const [addError, setAddError] = useState('');
   const [confirmDelete, setConfirmDelete] = useState(null);
   const [deletingId, setDeletingId] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -120,7 +121,7 @@ function AthleteList() {
 
   const handleAdd = async () => {
     if (!isTrialActive()) {
-      alert('Your trial has expired. Upgrade to continue adding athletes.');
+      setAddError('Your 14-day free trial has expired. Contact us to upgrade.');
       return;
     }
     if (!form.name.trim() || !form.sport.trim()) return;
@@ -229,6 +230,11 @@ function AthleteList() {
               className="bg-gray-900 border border-gray-600 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-green-500 transition text-sm"
             />
           </div>
+          {addError && (
+            <div className="bg-red-500/10 border border-red-500/20 rounded-xl px-4 py-3 mb-2">
+              <p className="text-red-400 text-sm font-bold">⚠️ {addError}</p>
+            </div>
+          )}
           <button onClick={handleAdd} disabled={adding || !form.name.trim()}
             className="w-full bg-green-600 hover:bg-green-500 disabled:bg-gray-700 disabled:text-gray-500 text-white py-3 rounded-xl font-black transition text-sm">
             {adding ? 'Adding...' : '+ Add Athlete'}

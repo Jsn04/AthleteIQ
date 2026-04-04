@@ -37,7 +37,7 @@ function AthleteCheckIn() {
   const academyId = getAcademyId();
 
   const [form, setForm] = useState({ energy: 5, sleep: 5, soreness: 5, mood: 5, notes: '' });
-  const [error, setError] = useState('');
+  const [checkInError, setCheckInError] = useState('');
   const [loading, setLoading] = useState(false);
   const [showComparison, setShowComparison] = useState(false);
   const [yesterdayData, setYesterdayData] = useState(null);
@@ -69,7 +69,7 @@ function AthleteCheckIn() {
 
   const handleSubmit = async () => {
     if (!isTrialActive()) {
-      setError('Your 14-day free trial has expired. Contact us to upgrade.');
+      setCheckInError('Your 14-day free trial has expired. Contact us to upgrade.');
       return;
     }
     setLoading(true);
@@ -226,9 +226,9 @@ function AthleteCheckIn() {
         </div>
 
         {/* Submit */}
-        {error && (
+        {checkInError && (
           <div className="bg-red-500/10 border border-red-500/20 rounded-xl px-4 py-3 mb-4">
-            <p className="text-red-400 text-sm font-bold">⚠️ {error}</p>
+            <p className="text-red-400 text-sm font-bold">⚠️ {checkInError}</p>
           </div>
         )}
 
