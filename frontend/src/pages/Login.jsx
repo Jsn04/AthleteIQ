@@ -57,10 +57,12 @@ function Login() {
       const sportCoach = detectSportCoach(password);
       if (sportCoach === null) {
         localStorage.setItem('role', 'coach');
+        localStorage.setItem('coachId', 'coach_' + (localStorage.getItem('academyId') || 'default'));
         localStorage.removeItem('coachSport');
         navigate('/dashboard');
       } else if (sportCoach) {
         localStorage.setItem('role', 'coach');
+        localStorage.setItem('coachId', 'coach_' + (localStorage.getItem('academyId') || 'default'));
         localStorage.setItem('coachSport', sportCoach);
         navigate('/dashboard');
       } else {
@@ -233,6 +235,11 @@ function Login() {
               }}
               className="body-font text-xs text-gray-600 hover:text-red-400 border border-gray-800 hover:border-red-500/40 px-3 py-1.5 rounded-lg transition ml-2">
               ← Switch Academy
+            </button>
+            <button
+              onClick={() => navigate('/academy-profile')}
+              className="body-font text-xs text-gray-500 hover:text-indigo-400 border border-gray-800 hover:border-indigo-500/40 px-3 py-1.5 rounded-lg transition ml-1">
+              🏛️ {localStorage.getItem('academyName') || 'Academy'}
             </button>
           </div>
 
