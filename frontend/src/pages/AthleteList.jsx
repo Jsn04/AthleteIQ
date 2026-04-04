@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import API_BASE_URL from '../config';
+import { isTrialActive } from '../utils/trialUtils';
+
 
 const API = API_BASE_URL;
 const getAcademyId = () => localStorage.getItem('academyId') || '';
@@ -117,6 +119,10 @@ function AthleteList() {
   const handleChange = (e) => setForm({ ...form, [e.target.name]: e.target.value });
 
   const handleAdd = async () => {
+    if (!isTrialActive()) {
+      alert('Your trial has expired. Upgrade to continue adding athletes.');
+      return;
+    }
     if (!form.name.trim() || !form.sport.trim()) return;
     setAdding(true);
     try {

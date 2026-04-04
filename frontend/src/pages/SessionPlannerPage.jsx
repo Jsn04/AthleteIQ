@@ -6,9 +6,9 @@ import SessionPlanOutput from '../components/SessionPlanOutput';
 
 const API = API_BASE_URL;
 const getAcademyId = () => localStorage.getItem('academyId') || '';
-const getCoachId = () => 
-  localStorage.getItem('userId') || 
-  localStorage.getItem('coachId') || 
+const getCoachId = () =>
+  localStorage.getItem('userId') ||
+  localStorage.getItem('coachId') ||
   'coach_' + (localStorage.getItem('academyId') || 'default');
 const getCoachSport = () => localStorage.getItem('coachSport') || null;
 
@@ -29,7 +29,7 @@ function SquadBanner({ summary }) {
       <div className="flex items-center gap-2">
         <span className="text-gray-400 text-sm">Squad avg readiness today:</span>
         <span className={`text-lg font-black ${summary.avgReadiness >= 70 ? 'text-green-400' :
-            summary.avgReadiness >= 50 ? 'text-yellow-400' : 'text-red-400'
+          summary.avgReadiness >= 50 ? 'text-yellow-400' : 'text-red-400'
           }`}>{summary.avgReadiness}/100</span>
       </div>
       <div className="flex gap-2 flex-wrap">
@@ -64,8 +64,8 @@ function Chip({ label, active, onClick }) {
     <button
       onClick={onClick}
       className={`px-4 py-2 rounded-xl text-sm font-bold border transition ${active
-          ? 'bg-purple-600 border-purple-500 text-white'
-          : 'bg-gray-800 border-gray-700 text-gray-400 hover:border-purple-500/50 hover:text-purple-400'
+        ? 'bg-purple-600 border-purple-500 text-white'
+        : 'bg-gray-800 border-gray-700 text-gray-400 hover:border-purple-500/50 hover:text-purple-400'
         }`}
     >
       {label}
@@ -171,6 +171,10 @@ export default function SessionPlannerPage() {
 
       if (res.data.status === 'rate_limited') {
         setError(res.data.message);
+        return;
+      }
+      if (res.data.status === 'trial_expired') {
+        setError('Your 14-day free trial has expired. Contact us to upgrade.');
         return;
       }
       if (res.data.status === 'error') {

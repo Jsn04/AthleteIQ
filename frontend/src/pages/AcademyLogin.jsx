@@ -40,6 +40,7 @@ export default function AcademyLogin() {
             localStorage.setItem('academyId', res.data.academy_id);
             localStorage.setItem('academyName', res.data.academy_name);
             localStorage.setItem('plan', res.data.plan);
+            localStorage.setItem('trialEndsAt', res.data.trial_ends_at);
             navigate('/login');
         } catch (err) {
             setError(err.response?.data?.detail || 'Academy not found or incorrect password.');

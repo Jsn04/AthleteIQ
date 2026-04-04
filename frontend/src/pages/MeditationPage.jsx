@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { isTrialActive } from '../utils/trialUtils';
+
 
 const EXERCISES = [
     {
@@ -575,6 +577,10 @@ export default function MeditationPage() {
     }, [running, phaseIndex, round, selected]);
 
     const handleStart = (ex) => {
+        if (!isTrialActive()) {
+            alert('Your trial has expired. Upgrade to continue.');
+            return;
+        }
         setSelected(ex); setPhaseIndex(0); setRound(1);
         setDone(false); setRunning(true); startMusic();
     };

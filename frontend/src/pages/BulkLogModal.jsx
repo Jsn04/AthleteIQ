@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import axios from 'axios';
 import API_BASE_URL from '../config';
+import { isTrialActive } from '../utils/trialUtils';
+
 
 const EFFORT_OPTIONS = [
     {
@@ -163,6 +165,10 @@ export default function BulkLogModal({ athletes, duration, onClose, onSuccess })
     };
 
     const handleSubmit = async () => {
+        if (!isTrialActive()) {
+            alert('Your trial has expired. Upgrade to continue logging sessions.');
+            return;
+        }
         setSubmitting(true);
         const academyId = localStorage.getItem('academyId') || '';
 
