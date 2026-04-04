@@ -515,7 +515,7 @@ function Login() {
                   placeholder="Enter your child's full name" autoFocus
                   className="w-full bg-gray-900 border border-white/10 rounded-2xl px-5 py-4 text-white placeholder-gray-600 focus:outline-none focus:border-purple-500/50 transition body-font text-sm"
                 />
-                <p className="text-gray-700 text-xs body-font mt-2">Enter the name exactly as registered by the coach.</p>
+
               </div>
             ) : (
               <div className="mb-5">
@@ -526,11 +526,7 @@ function Login() {
                   placeholder={role === 'athlete' ? 'e.g. jineshn123' : 'Enter password'} autoFocus
                   className="w-full bg-gray-900 border border-white/10 rounded-2xl px-5 py-4 text-white placeholder-gray-600 focus:outline-none focus:border-blue-500/50 transition body-font text-sm"
                 />
-                {role === 'athlete' && (
-                  <p className="text-gray-700 text-xs body-font mt-2">
-                    Format: firstname + last initial + 123 · e.g. Jinesh Nadar → jineshn123
-                  </p>
-                )}
+
               </div>
             )}
 
