@@ -14,6 +14,25 @@ def get_supabase():
     return create_client(os.getenv("SUPABASE_URL"), os.getenv("SUPABASE_KEY"))
 
 
+def check_trial_access(academy_id: str):
+    supabase = get_supabase()
+    result = supabase.table("academies")\
+        .select("plan, trial_ends_at")\
+        .eq("id", academy_id)\
+        .execute().data
+    if not result:
+        return False
+    academy = result[0]
+    if academy["plan"] == "paid":
+        return True
+    trial_ends_at = academy.get("trial_ends_at")
+    if not trial_ends_at:
+        return False
+    expiry = datetime.fromisoformat(trial_ends_at.replace("Z", "+00:00"))
+    return datetime.now(timezone.utc) <= expiry
+
+
+
 def _call_llm_sync(prompt: str, max_tokens: int = 250) -> str:
     max_tokens = min(max_tokens, 250)
 
@@ -143,6 +162,9 @@ async def _save_insight_cache(supabase, athlete_name: str, academy_id: str, insi
 
 @router.get("/insights/{athlete_name}")
 async def get_athlete_insight(athlete_name: str, academy_id: str = ""):
+    if not await asyncio.to_thread(check_trial_access, academy_id):
+        return {"status": "trial_expired", "message": "Your 14-day trial has expired."}
+
     supabase = get_supabase()
 
     cached = await _get_cached_insight(supabase, athlete_name, academy_id)
