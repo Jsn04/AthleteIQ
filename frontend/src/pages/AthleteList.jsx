@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import API_BASE_URL from '../config';
 import { isTrialActive } from '../utils/trialUtils';
+import LoadingSkeleton from '../components/common/LoadingSkeleton';
 
 
 const API = API_BASE_URL;
@@ -273,7 +274,7 @@ function AthleteList() {
           </div>
 
           {loading ? (
-            <div className="p-10 text-center text-gray-500 text-sm">Loading athletes...</div>
+            <LoadingSkeleton type="athlete-list" />
           ) : filtered.length === 0 ? (
             <div className="p-10 text-center">
               <p className="text-gray-500 text-sm">

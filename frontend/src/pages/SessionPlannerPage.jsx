@@ -4,6 +4,7 @@ import axios from 'axios';
 import API_BASE_URL from '../config';
 import SessionPlanOutput from '../components/SessionPlanOutput';
 import TopLoader from '../components/common/TopLoader';
+import LoadingSkeleton from '../components/common/LoadingSkeleton';
 
 const API = API_BASE_URL;
 const getAcademyId = () => localStorage.getItem('academyId') || '';
@@ -194,12 +195,10 @@ export default function SessionPlannerPage() {
 
   // ── Loading state ─────────────────────────────────────────────────────────
   if (loadingSquad) return (
-    <div className="min-h-screen bg-gray-900 flex items-center justify-center">
+    <div className="min-h-screen bg-gray-900 text-white p-6 md:p-8">
       <TopLoader loading={loadingSquad} />
-      <div className="text-center">
-        <div className="text-5xl mb-4 animate-pulse">📋</div>
-        <p className="text-gray-400 text-lg mb-2">Loading Session Planner...</p>
-        <p className="text-gray-600 text-sm">Fetching squad readiness data</p>
+      <div className="max-w-4xl mx-auto">
+        <LoadingSkeleton type="session-planner" />
       </div>
     </div>
   );
