@@ -1,9 +1,9 @@
-﻿fastapi
+fastapi
 uvicorn
 supabase
 anthropic
 python-dotenv
 httpx
 pydantic
-
 groq
+razorpay
