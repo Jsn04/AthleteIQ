@@ -1,8 +1,10 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import UpgradeModal from './UpgradeModal';
 
 export default function AcademyProfile() {
     const navigate = useNavigate();
+    const [showUpgrade, setShowUpgrade] = useState(false);
 
     const academyName = localStorage.getItem('academyName') || 'Unknown Academy';
     const plan = localStorage.getItem('plan') || 'free';
@@ -119,13 +121,14 @@ export default function AcademyProfile() {
                                 ? 'Your data is safe. Contact us to continue coaching.'
                                 : 'Unlock unlimited access for your academy.'}
                         </p>
-                        <a href="mailto:support@athleteiq.in"
+                        <button onClick={() => setShowUpgrade(true)}
                             className="inline-block bg-indigo-600 hover:bg-indigo-500 text-white font-black px-6 py-3 rounded-xl text-sm transition">
-                            Contact Us to Upgrade →
-                        </a>
+                            View Plans & Upgrade →
+                        </button>
                     </div>
                 )}
 
+                {showUpgrade && <UpgradeModal onClose={() => setShowUpgrade(false)} />}
             </div>
         </div>
     );
