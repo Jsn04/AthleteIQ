@@ -20,25 +20,22 @@ function SportDashboard() {
       const athletesRes = await axios.get(`${API_BASE_URL}/athletes`, { params: { academy_id: academyId } });
       const filtered = athletesRes.data.filter(a => a.sport.toLowerCase() === sportName.toLowerCase());
       setAthletes(filtered);
+      setLoading(false); // ← show athletes immediately, don't wait for AI
 
-      const insightResults = {};
-      await Promise.all(
-        filtered.map(async (athlete) => {
-          try {
-            const res = await axios.get(`${API_BASE_URL}/ai/insights/${encodeURIComponent(athlete.name)}`, { params: { academy_id: academyId } });
-            insightResults[athlete.name] = res.data;
-          } catch {
-            insightResults[athlete.name] = null;
-          }
-        })
-      );
-      setInsights(insightResults);
+      // load insights in background one by one
+      filtered.forEach(async (athlete) => {
+        try {
+          const res = await axios.get(`${API_BASE_URL}/ai/insights/${encodeURIComponent(athlete.name)}`, { params: { academy_id: academyId } });
+          setInsights(prev => ({ ...prev, [athlete.name]: res.data }));
+        } catch {
+          setInsights(prev => ({ ...prev, [athlete.name]: null }));
+        }
+      });
     } catch (err) {
       console.error('Error fetching sport data:', err);
-    } finally {
       setLoading(false);
     }
-  }, [sportName]);
+  }, [sportName, academyId]);
 
   useEffect(() => {
     fetchData();
@@ -58,7 +55,7 @@ function SportDashboard() {
   return (
     <div className="min-h-screen bg-gray-900 text-white p-4 md:p-8">
       <div className="max-w-6xl mx-auto">
-        
+
         {/* Header */}
         <div className="flex justify-between items-center mb-8 flex-wrap gap-4">
           <div className="flex items-center gap-4">
@@ -99,7 +96,7 @@ function SportDashboard() {
                 </div>
                 <RiskBadge risk={insights[athlete.name]?.risk} />
               </div>
-              
+
               {insights[athlete.name]?.score != null ? (
                 <div className="flex items-center justify-between bg-gray-900 rounded-xl p-3 border border-gray-700">
                   <span className="text-xs font-bold text-gray-500 uppercase">Readiness</span>
