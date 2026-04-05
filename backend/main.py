@@ -13,6 +13,8 @@ app.add_middleware(
         "http://localhost:3000",
         "https://athlete-iq-git-main-jineshnanal04-gmailcoms-projects.vercel.app",
         "https://athlete-iq-dun.vercel.app",
+        "https://athleteiq.in",
+        "https://www.athleteiq.in",
     ],
     allow_credentials=True,
     allow_methods=["*"],
