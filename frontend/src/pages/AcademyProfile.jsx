@@ -109,17 +109,19 @@ export default function AcademyProfile() {
                 </div>
 
                 {/* Upgrade CTA */}
-                {plan === 'free' && (
+                {(plan === 'free' || plan === 'paid') && (
                     <div className={`rounded-2xl p-6 border text-center ${trialExpired
                         ? 'bg-red-500/10 border-red-500/20'
                         : 'bg-indigo-500/10 border-indigo-500/20'}`}>
                         <p className="font-black text-white text-lg mb-1">
-                            {trialExpired ? 'Your trial has ended' : 'Upgrade to Pro'}
+                            {plan === 'paid' ? 'Upgrade Your Plan' : trialExpired ? 'Your trial has ended' : 'Upgrade to Pro'}
                         </p>
                         <p className="text-gray-400 text-sm mb-4">
-                            {trialExpired
-                                ? 'Your data is safe. Contact us to continue coaching.'
-                                : 'Unlock unlimited access for your academy.'}
+                            {plan === 'paid'
+                                ? 'Move to a higher plan for more features and priority support.'
+                                : trialExpired
+                                    ? 'Your data is safe. Contact us to continue coaching.'
+                                    : 'Unlock unlimited access for your academy.'}
                         </p>
                         <button onClick={() => setShowUpgrade(true)}
                             className="inline-block bg-indigo-600 hover:bg-indigo-500 text-white font-black px-6 py-3 rounded-xl text-sm transition">
