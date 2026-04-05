@@ -394,16 +394,20 @@ function Dashboard() {
   const buildMessage = (athlete) => {
     const insight = insights[athlete.name];
     const aiText = insight?.insight || insight?.athlete_message;
+    const firstName = athlete.name.split(' ')[0];
+    const academyName = localStorage.getItem('academyName') || 'Academy';
 
-    let msg = `*${athlete.name}*\n`;
-    msg += `${localStorage.getItem('academyName') || 'Academy'}\n\n`;
+    let msg = `👋 Hello from *${academyName}*\n\n`;
+    msg += `Here's a quick update on *${athlete.name}* from today's session:\n\n`;
+
     if (aiText && aiText !== 'No data yet') {
-      msg += `${aiText}\n`;
-    } else {
-      msg += `No insights available yet for today.\n`;
+      msg += `📊 *Performance Note:*\n${aiText}\n\n`;
     }
-    msg += `\n🔗 View detailed stats: ${window.location.origin}/login\n`;
-    msg += `— AthleteIQ`;
+
+    msg += `✅ ${firstName} has been monitored today using AthleteIQ — our performance tracking system.\n\n`;
+    msg += `If you have any questions about ${firstName}'s training, feel free to reach out directly.\n\n`;
+    msg += `— Coach, ${academyName}`;
+
     return msg;
   };
 
