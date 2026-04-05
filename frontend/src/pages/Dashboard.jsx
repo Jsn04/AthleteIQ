@@ -659,7 +659,7 @@ function Dashboard() {
 
       {showBulkModal && (
         <BulkLogModal
-          athletes={visibleAthletes}
+          athletes={visibleAthletes.filter(a => attendance[a.name.toLowerCase().trim()] === 'present')}
           onClose={() => setShowBulkModal(false)}
           onSuccess={() => fetchData(true)}
         />
