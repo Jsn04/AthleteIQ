@@ -5,6 +5,7 @@ import API_BASE_URL from '../config';
 import StatCard from '../components/common/StatCard';
 import RiskBadge from '../components/common/RiskBadge';
 import LoadingSkeleton from '../components/common/LoadingSkeleton';
+import TopLoader from '../components/common/TopLoader';
 
 function SportDashboard() {
   const { sport: sportName } = useParams();
@@ -54,6 +55,7 @@ function SportDashboard() {
 
   return (
     <div className="min-h-screen bg-gray-900 text-white p-4 md:p-8">
+      <TopLoader loading={loading} />
       <div className="max-w-6xl mx-auto">
 
         {/* Header */}

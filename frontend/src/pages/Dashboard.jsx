@@ -6,6 +6,7 @@ import StatCard from '../components/common/StatCard';
 import RiskBadge from '../components/common/RiskBadge';
 import LoadingSkeleton from '../components/common/LoadingSkeleton';
 import BulkLogModal from './BulkLogModal';
+import TopLoader from '../components/common/TopLoader';
 
 const getCoachSport = () => localStorage.getItem('coachSport') || null;
 const getAcademyId = () => localStorage.getItem('academyId') || '';
@@ -491,6 +492,7 @@ function Dashboard() {
 
   return (
     <div className="min-h-screen bg-gray-900 text-white p-4 sm:p-6 md:p-10">
+      <TopLoader loading={loading} />
       <div className="max-w-6xl mx-auto">
 
         {/* ── Header ── */}

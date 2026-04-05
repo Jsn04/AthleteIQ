@@ -7,6 +7,7 @@ import RiskBadge from '../components/common/RiskBadge';
 import LoadingSkeleton from '../components/common/LoadingSkeleton';
 import BulkLogModal from './BulkLogModal';
 import WeeklyReport from './WeeklyReport';
+import TopLoader from '../components/common/TopLoader';
 import {
   LineChart, Line, AreaChart, Area, XAxis, YAxis, CartesianGrid,
   Tooltip, Legend, ResponsiveContainer,
@@ -168,6 +169,7 @@ function AthleteProfile() {
 
   return (
     <div className="min-h-screen bg-gray-900 text-white p-4 md:p-8">
+      <TopLoader loading={loading} />
       <div className="max-w-6xl mx-auto">
 
         <div className="flex justify-between items-center mb-8 flex-wrap gap-4">
