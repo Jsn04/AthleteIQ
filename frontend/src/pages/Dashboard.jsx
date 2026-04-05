@@ -221,27 +221,24 @@ function SportSection({ sport, athletes, insights, injuryRisks, checkins, onNavi
                         <button
                           onClick={e => { e.stopPropagation(); onMarkAttendance(athlete, 'present'); }}
                           disabled={loading}
-                          className={`text-[10px] font-black px-3 py-1 rounded-lg border transition ${
-                            status === 'present'
+                          className={`text-[10px] font-black px-3 py-1 rounded-lg border transition ${status === 'present'
                               ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-400'
                               : 'border-gray-700 text-gray-600 hover:border-emerald-500/40 hover:text-emerald-400'
-                          }`}>
+                            }`}>
                           ✓ Present
                         </button>
                         <button
                           onClick={e => { e.stopPropagation(); onMarkAttendance(athlete, 'absent'); }}
                           disabled={loading}
-                          className={`text-[10px] font-black px-3 py-1 rounded-lg border transition ${
-                            status === 'absent'
+                          className={`text-[10px] font-black px-3 py-1 rounded-lg border transition ${status === 'absent'
                               ? 'bg-rose-500/20 border-rose-500/40 text-rose-400'
                               : 'border-gray-700 text-gray-600 hover:border-rose-500/40 hover:text-rose-400'
-                          }`}>
+                            }`}>
                           ✗ Absent
                         </button>
                         {status && (
-                          <span className={`text-[10px] font-black uppercase tracking-widest ${
-                            status === 'present' ? 'text-emerald-400' : 'text-rose-400'
-                          }`}>
+                          <span className={`text-[10px] font-black uppercase tracking-widest ${status === 'present' ? 'text-emerald-400' : 'text-rose-400'
+                            }`}>
                             {status === 'present' ? '✓ Marked Present' : '✗ Marked Absent'}
                           </span>
                         )}
@@ -473,10 +470,10 @@ function Dashboard() {
     setMarkingAttendance(prev => ({ ...prev, [key]: true }));
     try {
       await axios.post(`${API_BASE_URL}/attendance/`, {
-        academy_id:   academyId,
+        academy_id: academyId,
         athlete_name: athlete.name,
-        status:       status,
-        date:         new Date().toISOString().split('T')[0],
+        status: status,
+        date: new Date().toISOString().split('T')[0],
       });
       setAttendance(prev => ({ ...prev, [key]: status }));
     } catch (err) {
@@ -554,7 +551,14 @@ function Dashboard() {
             </button>
 
             <button
-              onClick={() => setShowBulkModal(true)}
+              onClick={() => {
+                const present = visibleAthletes.filter(a => attendance[a.name.toLowerCase().trim()] === 'present');
+                if (present.length === 0) {
+                  alert('Mark at least one athlete as Present before logging a session.');
+                  return;
+                }
+                setShowBulkModal(true);
+              }}
               disabled={visibleAthletes.length === 0}
               className="bg-emerald-600 text-white px-6 py-2.5 rounded-xl text-xs font-bold hover:bg-emerald-500 disabled:bg-gray-700 disabled:text-gray-500 transition-all">
               + Log Session
@@ -591,7 +595,15 @@ function Dashboard() {
               </button>
 
               <button
-                onClick={() => { setShowBulkModal(true); setMenuOpen(false); }}
+                onClick={() => {
+                  const present = visibleAthletes.filter(a => attendance[a.name.toLowerCase().trim()] === 'present');
+                  if (present.length === 0) {
+                    alert('Mark at least one athlete as Present before logging a session.');
+                    return;
+                  }
+                  setMenuOpen(false);
+                  setShowBulkModal(true);
+                }}
                 disabled={visibleAthletes.length === 0}
                 className="bg-emerald-600 text-white px-5 py-3 rounded-xl text-sm font-bold disabled:bg-gray-700 disabled:text-gray-500">
                 + Log Today's Session
@@ -700,8 +712,8 @@ function Dashboard() {
                       <div className="min-w-0">
                         <p className="text-white font-black text-sm truncate">{athlete.name}</p>
                         <p className={`text-xs font-bold mt-0.5 ${!checkedIn ? 'text-gray-600' :
-                            risk === 'red' ? 'text-rose-400' :
-                              risk === 'yellow' ? 'text-amber-400' : 'text-emerald-400'
+                          risk === 'red' ? 'text-rose-400' :
+                            risk === 'yellow' ? 'text-amber-400' : 'text-emerald-400'
                           }`}>
                           {!checkedIn ? 'No check-in today' :
                             (insight?.insight || insight?.athlete_message)

@@ -276,7 +276,7 @@ export default function BulkLogModal({ athletes, duration, onClose, onSuccess })
                     )}
 
                     {/* ── STEP 2: Swipe ── */}
-                    {step === 'swipe' && currentAthlete && (
+                    {step === 'swipe' && currentAthlete && athletes.length > 0 && (
                         <div className="flex flex-col gap-5">
                             <AthleteCard
                                 athlete={currentAthlete}
