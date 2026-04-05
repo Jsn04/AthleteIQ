@@ -7,7 +7,8 @@ import RiskBadge from '../components/common/RiskBadge';
 import LoadingSkeleton from '../components/common/LoadingSkeleton';
 
 function SportDashboard() {
-  const { sportName } = useParams();
+  const { sport: sportName } = useParams();
+  const academyId = localStorage.getItem('academyId') || '';
   const navigate = useNavigate();
   const [athletes, setAthletes] = useState([]);
   const [insights, setInsights] = useState({});
@@ -16,7 +17,7 @@ function SportDashboard() {
   const fetchData = useCallback(async (isSilent = false) => {
     if (!isSilent) setLoading(true);
     try {
-      const athletesRes = await axios.get(`${API_BASE_URL}/athletes`);
+      const athletesRes = await axios.get(`${API_BASE_URL}/athletes`, { params: { academy_id: academyId } });
       const filtered = athletesRes.data.filter(a => a.sport.toLowerCase() === sportName.toLowerCase());
       setAthletes(filtered);
 
@@ -24,7 +25,7 @@ function SportDashboard() {
       await Promise.all(
         filtered.map(async (athlete) => {
           try {
-            const res = await axios.get(`${API_BASE_URL}/ai/insights/${encodeURIComponent(athlete.name)}`);
+            const res = await axios.get(`${API_BASE_URL}/ai/insights/${encodeURIComponent(athlete.name)}`, { params: { academy_id: academyId } });
             insightResults[athlete.name] = res.data;
           } catch {
             insightResults[athlete.name] = null;
