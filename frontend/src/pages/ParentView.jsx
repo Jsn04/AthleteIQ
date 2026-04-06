@@ -4,6 +4,7 @@ import axios from 'axios';
 import API_BASE_URL from '../config';
 import RiskBadge from '../components/common/RiskBadge';
 import LoadingSkeleton from '../components/common/LoadingSkeleton';
+import logo from '../assets/athleteiq_logo.svg';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
 const getAcademyId = () => localStorage.getItem('academyId') || '';
@@ -264,7 +265,7 @@ function ParentView() {
         {/* Header */}
         <div className="flex justify-between items-center mb-6 md:mb-10">
           <div>
-            <h1 className="text-2xl sm:text-3xl md:text-4xl font-black tracking-tight">AthleteIQ</h1>
+            <img src={logo} alt="AthleteIQ" className="h-10 w-auto mb-2 cursor-pointer" onClick={() => navigate('/')} />
             <p className="text-gray-400 text-xs mt-1">Parent View · Live Updates</p>
           </div>
           <button onClick={handleLogout}

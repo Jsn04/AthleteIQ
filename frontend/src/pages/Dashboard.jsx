@@ -223,8 +223,8 @@ function SportSection({ sport, athletes, insights, injuryRisks, checkins, onNavi
                           onClick={e => { e.stopPropagation(); onMarkAttendance(athlete, 'present'); }}
                           disabled={loading}
                           className={`text-[10px] font-black px-3 py-1 rounded-lg border transition ${status === 'present'
-                              ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-400'
-                              : 'border-gray-700 text-gray-600 hover:border-emerald-500/40 hover:text-emerald-400'
+                            ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-400'
+                            : 'border-gray-700 text-gray-600 hover:border-emerald-500/40 hover:text-emerald-400'
                             }`}>
                           ✓ Present
                         </button>
@@ -232,8 +232,8 @@ function SportSection({ sport, athletes, insights, injuryRisks, checkins, onNavi
                           onClick={e => { e.stopPropagation(); onMarkAttendance(athlete, 'absent'); }}
                           disabled={loading}
                           className={`text-[10px] font-black px-3 py-1 rounded-lg border transition ${status === 'absent'
-                              ? 'bg-rose-500/20 border-rose-500/40 text-rose-400'
-                              : 'border-gray-700 text-gray-600 hover:border-rose-500/40 hover:text-rose-400'
+                            ? 'bg-rose-500/20 border-rose-500/40 text-rose-400'
+                            : 'border-gray-700 text-gray-600 hover:border-rose-500/40 hover:text-rose-400'
                             }`}>
                           ✗ Absent
                         </button>

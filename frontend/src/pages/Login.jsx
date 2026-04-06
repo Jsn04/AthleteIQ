@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import API_BASE_URL from '../config';
+import logo from '../assets/athleteiq_logo.svg';
 
 const API = API_BASE_URL;
 
@@ -220,10 +221,8 @@ function Login() {
         <div className="flex justify-between items-center px-5 py-4" style={{ paddingLeft: '1.25rem', paddingRight: '1.25rem' }}>
           {/* Logo + Switch Academy */}
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 bg-blue-500 rounded-lg flex items-center justify-center glow-blue">
-              <span className="text-sm">⚡</span>
-            </div>
-            <span className="text-xl tracking-wider">ATHLETEIQ</span>
+            <img src={logo} alt="AthleteIQ" className="h-10 w-auto cursor-pointer" 
+              onClick={() => navigate('/')} />
             <button
               onClick={() => {
                 localStorage.removeItem('role');
@@ -481,8 +480,8 @@ function Login() {
       </div>
 
       {/* Footer */}
-      <div className="relative z-10 border-t border-white/5 py-8 text-center">
-        <p className="text-2xl tracking-wider mb-2">ATHLETEIQ</p>
+      <div className="relative z-10 border-t border-white/5 py-8 text-center flex flex-col items-center">
+        <img src={logo} alt="AthleteIQ" className="h-8 w-auto mb-2 opacity-50 grayscale hover:opacity-100 hover:grayscale-0 transition-all cursor-pointer" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} />
         <p className="text-gray-600 text-xs body-font">Built for serious coaches and athletes · © 2026</p>
       </div>
 

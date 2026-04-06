@@ -4,6 +4,7 @@ import axios from 'axios';
 import API_BASE_URL from '../config';
 import RiskBadge from '../components/common/RiskBadge';
 import LoadingSkeleton from '../components/common/LoadingSkeleton';
+import logo from '../assets/athleteiq_logo.svg';
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid,
   Tooltip, Legend, ResponsiveContainer
@@ -132,6 +133,7 @@ function AthleteDashboard() {
         {/* Header */}
         <div className="flex justify-between items-center mb-8 flex-wrap gap-4">
           <div>
+            <img src={logo} alt="AthleteIQ" className="h-8 w-auto mb-4 cursor-pointer" onClick={() => navigate('/athlete-dashboard')} />
             <h1 className="text-3xl md:text-4xl font-black tracking-tight">
               Hey {athleteName.split(' ')[0]} 👋
             </h1>

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import UpgradeModal from './UpgradeModal';
+import logo from '../assets/athleteiq_logo.svg';
 
 export default function AcademyProfile() {
     const navigate = useNavigate();
@@ -23,6 +24,7 @@ export default function AcademyProfile() {
                 {/* Header */}
                 <div className="flex items-center justify-between mb-8">
                     <div>
+                        <img src={logo} alt="AthleteIQ" className="h-8 w-auto mb-4 cursor-pointer" onClick={() => navigate('/dashboard')} />
                         <h1 className="text-3xl font-black tracking-tight">Academy Profile</h1>
                         <p className="text-gray-500 text-sm mt-1">Your academy details and plan</p>
                     </div>

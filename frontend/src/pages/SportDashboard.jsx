@@ -6,6 +6,7 @@ import StatCard from '../components/common/StatCard';
 import RiskBadge from '../components/common/RiskBadge';
 import LoadingSkeleton from '../components/common/LoadingSkeleton';
 import TopLoader from '../components/common/TopLoader';
+import logo from '../assets/athleteiq_logo.svg';
 
 function SportDashboard() {
   const { sport: sportName } = useParams();
@@ -60,15 +61,13 @@ function SportDashboard() {
 
         {/* Header */}
         <div className="flex justify-between items-center mb-8 flex-wrap gap-4">
-          <div className="flex items-center gap-4">
-            <Link to="/dashboard" className="text-gray-500 hover:text-white transition">
-              <span className="text-2xl">←</span>
-            </Link>
-            <div>
-              <h1 className="text-3xl font-black uppercase tracking-tight">{sportName} Dashboard</h1>
-              <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mt-1">Live Wellness Updates</p>
+            <div className="flex items-center gap-3">
+              <img src={logo} alt="AthleteIQ" className="h-8 w-auto cursor-pointer" onClick={() => navigate('/dashboard')} />
+              <div>
+                <h1 className="text-3xl font-black uppercase tracking-tight">{sportName} Dashboard</h1>
+                <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mt-1">Live Wellness Updates</p>
+              </div>
             </div>
-          </div>
           <div className="flex gap-2">
             {sportRed > 0 && <span className="bg-red-500 text-white px-3 py-1 rounded-full text-xs font-black">{sportRed} Critical</span>}
             {sportYellow > 0 && <span className="bg-yellow-500 text-black px-3 py-1 rounded-full text-xs font-black">{sportYellow} Caution</span>}
