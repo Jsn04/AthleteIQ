@@ -1,9 +1,10 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from routes import athletes, wellness, ai, auth, session_planner, injuries, attendance, reports, payments
 from dotenv import load_dotenv
 
 load_dotenv()
+
+from routes import athletes, wellness, ai, auth, session_planner, injuries, attendance, reports, payments
 
 app = FastAPI()
 
