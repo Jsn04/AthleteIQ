@@ -1,5 +1,6 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
+from typing import Optional
 from supabase import create_client
 from datetime import datetime, timezone, timedelta
 import os
@@ -15,28 +16,28 @@ class AcademyRegisterRequest(BaseModel):
 
 
 class AcademyLoginRequest(BaseModel):
-    email: str      # accepts email OR academy name
+    email: str
     password: str
 
 
 @router.post("/register-academy")
 def register_academy(body: AcademyRegisterRequest):
-    # Email uniqueness
     existing_email = (
         supabase.table("academies")
         .select("id")
         .eq("email", body.email.strip().lower())
-        .execute().data
+        .execute()
+        .data
     )
     if existing_email:
         raise HTTPException(status_code=400, detail="Email already registered. Please sign in.")
 
-    # Name uniqueness
     existing_name = (
         supabase.table("academies")
         .select("id")
         .ilike("name", body.name.strip())
-        .execute().data
+        .execute()
+        .data
     )
     if existing_name:
         raise HTTPException(status_code=400, detail="Academy name already taken.")
@@ -64,36 +65,29 @@ def register_academy(body: AcademyRegisterRequest):
 
 @router.post("/academy-login")
 def academy_login(body: AcademyLoginRequest):
-    identifier = body.email.strip()
-    academy = None
+    # Try email first
+    result = (
+        supabase.table("academies")
+        .select("*")
+        .eq("email", body.email.strip().lower())
+        .execute()
+        .data
+    )
 
-    # 1️⃣ Try email match first (new academies)
-    if "@" in identifier:
+    # Fall back to academy name (for existing academies with no email set)
+    if not result:
         result = (
             supabase.table("academies")
             .select("*")
-            .eq("email", identifier.lower())
-            .execute().data
+            .ilike("name", body.email.strip())
+            .execute()
+            .data
         )
-        if result:
-            academy = result[0]
 
-    # 2️⃣ Fall back to name match (old academies with no email)
-    if not academy:
-        result = (
-            supabase.table("academies")
-            .select("*")
-            .ilike("name", identifier)
-            .execute().data
-        )
-        if result:
-            academy = result[0]
+    if not result:
+        raise HTTPException(status_code=401, detail="Account not found. Please register first.")
 
-    if not academy:
-        raise HTTPException(
-            status_code=401,
-            detail="No account found. Try your academy name or register."
-        )
+    academy = result[0]
 
     if academy["password"] != body.password:
         raise HTTPException(status_code=401, detail="Incorrect password.")
