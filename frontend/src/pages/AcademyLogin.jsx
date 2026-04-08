@@ -32,16 +32,17 @@ export default function AcademyLogin() {
     };
 
     const handleSignIn = async () => {
-        if (!email.trim() || !password.trim()) { setError('Email or Academy Name and password are required.'); return; }
+        if (!email.trim() || !password.trim()) { setError('Email and password are required.'); return; }
         setLoading(true); setError('');
         try {
             const res = await axios.post(`${API}/auth/academy-login`, {
-                email: email.trim(), // ← no forced lowercase — backend handles both email and name
+                email: email.trim(),
                 password,
             });
             storeAndGo(res.data);
         } catch (err) {
-            setError(err.response?.data?.detail || 'Login failed. Check your credentials.');
+            const detail = err.response?.data?.detail;
+            setError(typeof detail === 'string' ? detail : 'Login failed. Check your credentials.');
         } finally { setLoading(false); }
     };
 
@@ -57,7 +58,8 @@ export default function AcademyLogin() {
             setSuccess(`Academy "${name.trim()}" created! Signing you in...`);
             setTimeout(() => storeAndGo(res.data), 1200);
         } catch (err) {
-            setError(err.response?.data?.detail || 'Could not create academy.');
+            const detail = err.response?.data?.detail;
+            setError(typeof detail === 'string' ? detail : 'Could not create academy.');
         } finally { setLoading(false); }
     };
 
@@ -253,7 +255,6 @@ export default function AcademyLogin() {
                             </div>
 
                             <div className="px-5 sm:px-8 py-6 sm:py-7 space-y-4">
-                                {/* Academy Name — register only */}
                                 {tab === 'signup' && (
                                     <div>
                                         <label className="text-gray-500 text-[11px] uppercase tracking-widest font-bold block mb-2">Academy Name</label>
@@ -263,7 +264,6 @@ export default function AcademyLogin() {
                                     </div>
                                 )}
 
-                                {/* ── KEY CHANGE: Email OR Academy Name for sign-in ── */}
                                 <div>
                                     <label className="text-gray-500 text-[11px] uppercase tracking-widest font-bold block mb-2">
                                         {tab === 'signin' ? 'Email or Academy Name' : 'Email'}
@@ -278,7 +278,6 @@ export default function AcademyLogin() {
                                     />
                                 </div>
 
-                                {/* Password */}
                                 <div>
                                     <label className="text-gray-500 text-[11px] uppercase tracking-widest font-bold block mb-2">Password</label>
                                     <input type="password" value={password} onChange={e => setPassword(e.target.value)} onKeyDown={handleKey}
@@ -286,7 +285,6 @@ export default function AcademyLogin() {
                                         className="input-field w-full rounded-xl px-4 py-3 sm:py-3.5 text-white placeholder-gray-700 text-sm" />
                                 </div>
 
-                                {/* Confirm Password — register only */}
                                 {tab === 'signup' && (
                                     <div>
                                         <label className="text-gray-500 text-[11px] uppercase tracking-widest font-bold block mb-2">Confirm Password</label>
@@ -346,6 +344,22 @@ export default function AcademyLogin() {
                                 </div>
                             </div>
                         </div>
+
+                        {/* Solo CTA */}
+                        <div className="mt-6 bg-gradient-to-br from-emerald-950/60 to-gray-900 border border-emerald-500/20 rounded-2xl p-5 text-center">
+                            <p className="text-emerald-400 text-[11px] uppercase tracking-widest font-bold mb-1">No Academy? No Problem.</p>
+                            <p className="text-gray-400 text-sm mb-4 font-light">Train solo with your own personal AI coach — no gym or team required.</p>
+                            <button
+                                onClick={() => navigate('/solo')}
+                                className="w-full py-3 rounded-xl text-sm font-black uppercase tracking-widest text-white transition-all"
+                                style={{ background: 'linear-gradient(135deg, #059669, #047857)' }}
+                                onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-1px)'}
+                                onMouseLeave={e => e.currentTarget.style.transform = 'translateY(0)'}
+                            >
+                                Train Solo — Get Your AI Coach →
+                            </button>
+                        </div>
+
                         <p className="text-center text-gray-800 text-[11px] uppercase tracking-widest font-bold mt-6">
                             AthleteIQ · Built for serious sports academies · © 2026
                         </p>
