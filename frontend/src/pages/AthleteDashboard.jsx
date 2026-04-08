@@ -7,10 +7,19 @@ import LoadingSkeleton from '../components/common/LoadingSkeleton';
 import logo from '../assets/athleteiq_logo.svg';
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid,
-  Tooltip, Legend, ResponsiveContainer
+  Tooltip, ResponsiveContainer
 } from 'recharts';
 
-function AthleteDashboard() {
+const Glass = ({ children, className = '', style = {} }) => (
+  <div
+    className={`rounded-2xl border backdrop-blur-sm ${className}`}
+    style={{ background: 'rgba(255,255,255,0.03)', borderColor: 'rgba(255,255,255,0.08)', ...style }}
+  >
+    {children}
+  </div>
+);
+
+export default function AthleteDashboard() {
   const navigate = useNavigate();
   const athleteName = localStorage.getItem('athleteName') || '';
   const athleteSport = localStorage.getItem('athleteSport') || '';
@@ -19,7 +28,6 @@ function AthleteDashboard() {
   const [insight, setInsight] = useState(null);
   const [injuryRisk, setInjuryRisk] = useState(null);
   const [loading, setLoading] = useState(true);
-
   const [athleteProfile, setAthleteProfile] = useState(null);
   const [showProfile, setShowProfile] = useState(false);
   const [showProfileForm, setShowProfileForm] = useState(false);
@@ -31,15 +39,13 @@ function AthleteDashboard() {
     if (!isSilent) setLoading(true);
     try {
       const academyId = localStorage.getItem('academyId') || '';
-
-      const [historyRes, insightRes, injuryRes] = await Promise.all([
+      const [histRes, insRes, injRes] = await Promise.all([
         axios.get(`${API_BASE_URL}/wellness/history/${encodeURIComponent(athleteName)}`, { params: { academy_id: academyId } }),
         axios.get(`${API_BASE_URL}/ai/insights/${encodeURIComponent(athleteName)}`, { params: { academy_id: academyId } }),
         axios.get(`${API_BASE_URL}/ai/injury-risk/${encodeURIComponent(athleteName)}`, { params: { academy_id: academyId } }),
       ]);
 
-      const raw = historyRes.data.history.slice().reverse();
-      const formatted = raw.map((c, i) => ({
+      const formatted = histRes.data.history.slice().reverse().map((c, i) => ({
         day: `Day ${i + 1}`,
         date: new Date(c.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }),
         energy: c.energy,
@@ -49,8 +55,8 @@ function AthleteDashboard() {
       }));
 
       setHistory(formatted);
-      setInsight(insightRes.data);
-      setInjuryRisk(injuryRes.data);
+      setInsight(insRes.data);
+      setInjuryRisk(injRes.data);
 
       const profileRes = await axios.get(`${API_BASE_URL}/athletes`, { params: { academy_id: academyId } });
       const found = profileRes.data.find(a => a.name.toLowerCase() === athleteName.toLowerCase());
@@ -65,30 +71,21 @@ function AthleteDashboard() {
           { params: { academy_id: academyId } }
         );
         setInjuries(injuriesRes.data || []);
-      } catch {
-        setInjuries([]);
-      }
+      } catch { setInjuries([]); }
     } catch (err) {
-      console.error('Error fetching athlete dashboard:', err);
-    } finally {
-      setLoading(false);
-    }
+      console.error('Dashboard fetch error:', err);
+    } finally { setLoading(false); }
   }, [athleteName]);
 
   useEffect(() => {
-    if (!athleteName) {
-      navigate('/login');
-      return;
-    }
+    if (!athleteName) { navigate('/login'); return; }
     fetchData();
-    const interval = setInterval(() => fetchData(true), 30000);
-    return () => clearInterval(interval);
+    const iv = setInterval(() => fetchData(true), 30000);
+    return () => clearInterval(iv);
   }, [athleteName, navigate, fetchData]);
 
   const handleLogout = () => {
-    localStorage.removeItem('role');
-    localStorage.removeItem('athleteName');
-    localStorage.removeItem('athleteSport');
+    ['role', 'athleteName', 'athleteSport'].forEach(k => localStorage.removeItem(k));
     navigate('/login');
   };
 
@@ -102,16 +99,13 @@ function AthleteDashboard() {
         {
           age: profileForm.age ? parseInt(profileForm.age) : athleteProfile.age,
           parent_name: profileForm.parent_name.trim(),
-          parent_phone: profileForm.parent_phone.trim(),
+          parent_phone: profileForm.parent_phone.trim()
         }
       );
       setShowProfileForm(false);
       fetchData(true);
-    } catch (err) {
-      console.error('Error saving profile:', err);
-    } finally {
-      setSavingProfile(false);
-    }
+    } catch (err) { console.error(err); }
+    finally { setSavingProfile(false); }
   };
 
   const avgOf = (key) => {
@@ -120,257 +114,332 @@ function AthleteDashboard() {
     return vals.length ? (vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(1) : '—';
   };
 
-  if (loading && history.length === 0) return (
-    <div className="min-h-screen bg-gray-900 p-8 flex items-center justify-center">
+  const riskColor = (risk) =>
+    risk === 'red' ? '#f43f5e' : risk === 'yellow' ? '#f59e0b' : '#10b981';
+
+  // ── Derived stats for the 3 hero stat cards ──
+  const avgReadiness = insight?.score ?? '—';
+  const injuryRiskVal = injuryRisk?.risk_score ?? injuryRisk?.acwr ?? '—';
+  const acwrVal = injuryRisk?.acwr ?? '—';
+
+  const riskTierColor = (tier) => {
+    if (!tier) return '#10b981';
+    const t = tier.toLowerCase();
+    if (t.includes('high') || t.includes('danger')) return '#f43f5e';
+    if (t.includes('mod') || t.includes('caution')) return '#f59e0b';
+    return '#10b981';
+  };
+
+  if (loading && !history.length) return (
+    <div className="min-h-screen bg-gray-950 flex items-center justify-center">
       <LoadingSkeleton type="profile" />
     </div>
   );
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white p-4 md:p-10">
-      <div className="max-w-3xl mx-auto">
+    <div className="min-h-screen bg-gray-950 text-white" style={{ fontFamily: "'DM Sans', sans-serif" }}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;600;700&display=swap');
+        .display{font-family:'Bebas Neue',sans-serif}
+        @keyframes shimmer{0%{background-position:-200% center}100%{background-position:200% center}}
+        @keyframes fadeUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
+        .score-ring{animation:fadeUp .5s ease both}
+        .card-hover{transition:border-color .2s,transform .2s}
+        .card-hover:hover{border-color:rgba(99,102,241,0.25)!important;transform:translateY(-1px)}
+      `}</style>
 
-        {/* Header */}
-        <div className="flex justify-between items-center mb-8 flex-wrap gap-4">
+      {/* Ambient BG */}
+      <div className="fixed inset-0 pointer-events-none">
+        <div style={{ background: 'radial-gradient(ellipse 70% 50% at 50% -10%,rgba(99,102,241,0.08) 0%,transparent 60%)' }} className="absolute inset-0" />
+        <div style={{ background: 'radial-gradient(ellipse 40% 30% at 90% 90%,rgba(16,185,129,0.05) 0%,transparent 60%)' }} className="absolute inset-0" />
+      </div>
+
+      <div className="relative z-10 max-w-2xl mx-auto px-4 py-6 md:py-10 space-y-5">
+
+        {/* ── Header ── */}
+        <div className="flex items-start justify-between gap-4 flex-wrap">
           <div>
-            <img src={logo} alt="AthleteIQ" className="h-8 w-auto mb-4 cursor-pointer" onClick={() => navigate('/athlete-dashboard')} />
-            <h1 className="text-3xl md:text-4xl font-black tracking-tight">
-              Hey {athleteName.split(' ')[0]} 👋
+            <img src={logo} alt="AthleteIQ" className="h-7 w-auto mb-3 opacity-80 cursor-pointer"
+              onClick={() => navigate('/athlete-dashboard')} />
+            <h1 className="display text-4xl md:text-5xl tracking-wider text-white leading-none">
+              HEY {athleteName.split(' ')[0].toUpperCase()} 👋
             </h1>
-            <p className="text-gray-500 text-xs mt-1 uppercase font-bold tracking-widest leading-relaxed">
+            <p className="text-gray-500 text-[11px] mt-1.5 uppercase font-bold tracking-widest">
               {athleteSport || 'Elite Squad'} · My Wellness Portal
             </p>
           </div>
-          <div className="flex gap-2">
-            <button
-              onClick={() => navigate('/checkin')}
-              className="bg-green-600 hover:bg-green-500 text-white px-5 py-2.5 rounded-xl font-bold transition shadow-lg active:scale-95 text-sm">
+
+          {/* ── Buttons WITH text labels ── */}
+          <div className="flex flex-wrap gap-2">
+            <button onClick={() => navigate('/checkin')}
+              className="bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2.5 rounded-xl font-bold text-sm transition active:scale-95 shadow-lg shadow-emerald-900/40">
               + Check-in
             </button>
-            <button
-              onClick={() => navigate('/meditation')}
-              className="border border-gray-600 text-gray-500 px-4 py-2.5 rounded-xl font-bold transition hover:border-indigo-500 hover:text-indigo-400 text-xs">
-              🧘 Meditate
+            <button onClick={() => navigate('/meditation')}
+              className="border border-white/10 text-gray-400 px-3 py-2.5 rounded-xl font-bold text-xs hover:border-indigo-500/50 hover:text-indigo-400 transition flex items-center gap-1.5">
+              🧘 <span>Meditate</span>
             </button>
-            <button
-              onClick={() => setShowProfile(true)}
-              className="border border-gray-600 text-gray-400 px-4 py-2.5 rounded-xl font-bold transition hover:border-blue-500 hover:text-blue-400 text-xs">
-              👤 My Profile
+            <button onClick={() => setShowProfile(true)}
+              className="border border-white/10 text-gray-400 px-3 py-2.5 rounded-xl font-bold text-xs hover:border-blue-500/50 hover:text-blue-400 transition flex items-center gap-1.5">
+              👤 <span>Profile</span>
             </button>
-            <button
-              onClick={handleLogout}
-              className="border border-gray-600 text-gray-400 px-4 py-2.5 rounded-xl font-bold transition hover:border-red-500 hover:text-red-400 text-xs">
-              Logout
+            <button onClick={handleLogout}
+              className="border border-white/10 text-gray-500 px-3 py-2.5 rounded-xl font-bold text-xs hover:border-red-500/50 hover:text-red-400 transition flex items-center gap-1.5">
+              🚪 <span>Logout</span>
             </button>
           </div>
         </div>
 
-        {/* Profile completion banner */}
-        {showProfileForm && (
-          <div className="bg-indigo-500/10 border border-indigo-500/20 rounded-2xl p-5 mb-6">
-            <p className="text-indigo-400 text-xs font-black uppercase tracking-widest mb-1">Complete Your Profile</p>
-            <p className="text-gray-400 text-sm mb-4">Add your details so your coach can reach your parents.</p>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3">
-              <input
-                type="number" placeholder="Your age"
-                value={profileForm.age}
-                onChange={e => setProfileForm(f => ({ ...f, age: e.target.value }))}
-                className="bg-gray-900 border border-gray-700 rounded-xl px-4 py-2.5 text-white placeholder-gray-600 focus:outline-none focus:border-indigo-500 text-sm"
-              />
-              <input
-                type="text" placeholder="Parent's name"
-                value={profileForm.parent_name}
-                onChange={e => setProfileForm(f => ({ ...f, parent_name: e.target.value }))}
-                className="bg-gray-900 border border-gray-700 rounded-xl px-4 py-2.5 text-white placeholder-gray-600 focus:outline-none focus:border-indigo-500 text-sm"
-              />
-              <input
-                type="tel" placeholder="Parent's phone (10 digits)"
-                value={profileForm.parent_phone}
-                onChange={e => setProfileForm(f => ({ ...f, parent_phone: e.target.value }))}
-                className="bg-gray-900 border border-gray-700 rounded-xl px-4 py-2.5 text-white placeholder-gray-600 focus:outline-none focus:border-indigo-500 text-sm"
-              />
-            </div>
-            <button
-              onClick={handleSaveProfile}
-              disabled={savingProfile || !profileForm.parent_phone.trim()}
-              className="w-full bg-indigo-600 hover:bg-indigo-500 disabled:bg-gray-700 disabled:text-gray-500 text-white py-2.5 rounded-xl font-black text-sm transition">
-              {savingProfile ? 'Saving...' : 'Save Profile →'}
-            </button>
+        {/* ── NEW: 3 Hero Stat Cards (Readiness / Injury Risk / ACWR) ── */}
+        {history.length > 0 && (
+          <div className="grid grid-cols-3 gap-3">
+            {/* Avg Readiness */}
+            <Glass className="p-4 text-center card-hover" style={{
+              background: 'rgba(99,102,241,0.06)',
+              borderColor: 'rgba(99,102,241,0.2)',
+            }}>
+              <p className="text-[9px] text-gray-500 uppercase font-black tracking-widest mb-2">Avg Readiness</p>
+              <p className="display text-4xl leading-none"
+                style={{ color: riskColor(insight?.risk) }}>
+                {avgReadiness}
+              </p>
+              <p className="text-[9px] text-gray-600 mt-1 font-semibold">/100</p>
+            </Glass>
+
+            {/* Injury Risk */}
+            <Glass className="p-4 text-center card-hover" style={{
+              background: 'rgba(245,158,11,0.06)',
+              borderColor: 'rgba(245,158,11,0.2)',
+            }}>
+              <p className="text-[9px] text-gray-500 uppercase font-black tracking-widest mb-2">Injury Risk</p>
+              <p className="display text-4xl leading-none"
+                style={{ color: riskTierColor(injuryRisk?.risk_tier) }}>
+                {injuryRisk?.risk_tier
+                  ? injuryRisk.risk_tier.charAt(0).toUpperCase() + injuryRisk.risk_tier.slice(1).toLowerCase().replace('_', ' ')
+                  : '—'}
+              </p>
+              <p className="text-[9px] text-gray-600 mt-1 font-semibold">
+                {injuryRisk?.risk_tier ? 'Zone' : 'No data'}
+              </p>
+            </Glass>
+
+            {/* ACWR */}
+            <Glass className="p-4 text-center card-hover" style={{
+              background: 'rgba(96,165,250,0.06)',
+              borderColor: 'rgba(96,165,250,0.2)',
+            }}>
+              <p className="text-[9px] text-gray-500 uppercase font-black tracking-widest mb-2">ACWR</p>
+              <p className="display text-4xl leading-none" style={{
+                color: !acwrVal || acwrVal === '—' ? '#6b7280'
+                  : acwrVal > 1.5 ? '#f43f5e'
+                    : acwrVal > 1.3 ? '#f59e0b'
+                      : '#60a5fa'
+              }}>
+                {acwrVal !== '—' ? Number(acwrVal).toFixed(2) : '—'}
+              </p>
+              <p className="text-[9px] text-gray-600 mt-1 font-semibold">Workload Ratio</p>
+            </Glass>
           </div>
         )}
 
-        {history.length === 0 ? (
-          <div className="bg-gray-800 rounded-2xl p-12 text-center border border-dashed border-gray-700">
-            <div className="text-5xl mb-4">📋</div>
-            <h2 className="text-2xl font-black text-white mb-2">Ready to start?</h2>
-            <p className="text-gray-500 mb-8 font-medium">Submit your first daily check-in to see your performance metrics.</p>
-            <button
-              onClick={() => navigate('/checkin')}
-              className="bg-blue-600 hover:bg-blue-500 text-white px-8 py-3 rounded-xl font-bold text-sm transition">
-              Launch Check-in
-            </button>
-          </div>
-        ) : (
-          <div className="space-y-6">
-
-            {/* Readiness Summary */}
-            {insight?.score != null && (
-              <div className="bg-gray-800 rounded-2xl p-6 border border-gray-700 flex justify-between items-center group">
-                <div className="flex items-center gap-6">
-                  <div className="text-center group-hover:scale-105 transition-transform">
-                    <p className={`text-5xl font-black leading-none mb-1 ${insight.risk === 'red' ? 'text-rose-400' : 'text-emerald-400'}`}>{insight.score}</p>
-                    <p className="text-gray-500 text-[10px] font-bold uppercase tracking-widest">Readiness</p>
-                  </div>
-                  <div className="w-[1px] h-12 bg-gray-700 hidden sm:block" />
-                  <div>
-                    <p className="text-gray-400 text-xs mb-1 font-bold uppercase tracking-widest">Status Verdict</p>
-                    <RiskBadge risk={insight.risk} />
-                  </div>
-                </div>
-                <div className="hidden sm:block">
-                  <div className="w-32 bg-gray-900 rounded-full h-2 overflow-hidden border border-gray-700">
-                    <div className={`h-full transition-all duration-1000 ${insight.risk === 'red' ? 'bg-rose-500' : 'bg-emerald-500'}`} style={{ width: `${insight.score}%` }} />
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* AI Coach Update */}
-            {insight?.athlete_message && insight.athlete_message !== 'No data yet' && (
-              <div className="bg-blue-500/10 border border-blue-500/20 rounded-2xl p-5 mb-5">
-                <p className="text-blue-400 text-xs font-bold uppercase tracking-widest mb-2">
-                  🤖 Today's Tip for You
-                </p>
-                <p className="text-gray-200 text-sm leading-relaxed italic">"{insight.athlete_message}"</p>
-              </div>
-            )}
-
-            {/* Summary Averages */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* ── Profile completion banner ── */}
+        {showProfileForm && (
+          <Glass className="p-5 card-hover" style={{ borderColor: 'rgba(99,102,241,0.2)' }}>
+            <p className="text-indigo-400 text-[11px] font-black uppercase tracking-widest mb-1">Complete Your Profile</p>
+            <p className="text-gray-500 text-sm mb-4">Add parent details so your coach can reach them.</p>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3">
               {[
-                { label: 'Energy', val: avgOf('energy'), color: 'text-blue-400' },
-                { label: 'Sleep', val: avgOf('sleep'), color: 'text-purple-400' },
-                { label: 'Soreness', val: avgOf('soreness'), color: 'text-rose-400' },
-                { label: 'Mood', val: avgOf('mood'), color: 'text-amber-400' },
-              ].map(m => (
-                <div key={m.label} className="bg-gray-800 rounded-xl p-4 border border-gray-700 text-center">
-                  <p className={`text-2xl font-black ${m.color}`}>{m.val}</p>
-                  <p className="text-gray-500 text-[10px] uppercase font-bold mt-1">Avg {m.label}</p>
+                { key: 'age', type: 'number', placeholder: 'Your age' },
+                { key: 'parent_name', type: 'text', placeholder: "Parent's name" },
+                { key: 'parent_phone', type: 'tel', placeholder: 'Parent phone (10 digits)' },
+              ].map(f => (
+                <input key={f.key} type={f.type} placeholder={f.placeholder} value={profileForm[f.key]}
+                  onChange={e => setProfileForm(p => ({ ...p, [f.key]: e.target.value }))}
+                  className="bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-white placeholder-gray-600 focus:outline-none focus:border-indigo-500 text-sm" />
+              ))}
+            </div>
+            <button onClick={handleSaveProfile} disabled={savingProfile || !profileForm.parent_phone.trim()}
+              className="w-full bg-indigo-600 hover:bg-indigo-500 disabled:bg-gray-800 disabled:text-gray-600 text-white py-2.5 rounded-xl font-black text-sm transition">
+              {savingProfile ? 'Saving...' : 'Save Profile →'}
+            </button>
+          </Glass>
+        )}
+
+        {/* ── Empty state ── */}
+        {history.length === 0 ? (
+          <Glass className="p-12 text-center">
+            <div className="text-5xl mb-4">📋</div>
+            <h2 className="display text-3xl tracking-wider text-white mb-2">READY TO START?</h2>
+            <p className="text-gray-500 mb-8 text-sm">Submit your first daily check-in to see your performance metrics.</p>
+            <button onClick={() => navigate('/checkin')}
+              className="bg-indigo-600 hover:bg-indigo-500 text-white px-8 py-3 rounded-xl font-bold text-sm transition">
+              Launch Check-in →
+            </button>
+          </Glass>
+        ) : (
+          <>
+            {/* ── Readiness hero card ── */}
+            {insight?.score != null && (
+              <Glass className="p-6 card-hover" style={{
+                background: `linear-gradient(135deg, rgba(${insight.risk === 'red' ? '244,63,94' : '16,185,129'},0.06) 0%, rgba(255,255,255,0.02) 100%)`,
+                borderColor: `rgba(${insight.risk === 'red' ? '244,63,94' : '16,185,129'},0.2)`,
+              }}>
+                <div className="flex items-center justify-between gap-4 flex-wrap">
+                  <div className="flex items-center gap-6">
+                    {/* Readiness Ring */}
+                    <div className="relative w-20 h-20 score-ring shrink-0">
+                      <svg viewBox="0 0 80 80" className="w-full h-full -rotate-90">
+                        <circle cx="40" cy="40" r="34" fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="6" />
+                        <circle cx="40" cy="40" r="34" fill="none"
+                          stroke={riskColor(insight.risk)} strokeWidth="6"
+                          strokeLinecap="round"
+                          strokeDasharray={`${2 * Math.PI * 34}`}
+                          strokeDashoffset={`${2 * Math.PI * 34 * (1 - insight.score / 100)}`}
+                          style={{ transition: 'stroke-dashoffset 1s ease' }} />
+                      </svg>
+                      <div className="absolute inset-0 flex flex-col items-center justify-center">
+                        <span className="font-black text-xl leading-none text-white">{insight.score}</span>
+                        <span className="text-[8px] text-gray-500 uppercase font-bold">Ready</span>
+                      </div>
+                    </div>
+                    <div>
+                      <p className="text-gray-500 text-[10px] uppercase font-bold tracking-widest mb-1">Today's Status</p>
+                      <RiskBadge risk={insight.risk} />
+                      {injuryRisk?.risk_tier && (
+                        <p className="text-gray-600 text-[11px] mt-1.5">Workload: {injuryRisk.risk_tier} · ACWR {injuryRisk.acwr}</p>
+                      )}
+                    </div>
+                  </div>
+                  {insight?.athlete_message && insight.athlete_message !== 'No data yet' && (
+                    <div className="flex-1 min-w-0 bg-white/[0.03] rounded-xl px-4 py-3 border border-white/5 max-w-xs">
+                      <p className="text-[10px] text-indigo-400 font-bold uppercase tracking-widest mb-1">🤖 Coach Says</p>
+                      <p className="text-gray-300 text-xs leading-relaxed italic">"{insight.athlete_message}"</p>
+                    </div>
+                  )}
                 </div>
+              </Glass>
+            )}
+
+            {/* ── Avg metric cards ── */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              {[
+                { label: 'Energy', val: avgOf('energy'), color: '#6366f1', bg: 'rgba(99,102,241,0.08)' },
+                { label: 'Sleep', val: avgOf('sleep'), color: '#8b5cf6', bg: 'rgba(139,92,246,0.08)' },
+                { label: 'Soreness', val: avgOf('soreness'), color: '#f43f5e', bg: 'rgba(244,63,94,0.08)' },
+                { label: 'Mood', val: avgOf('mood'), color: '#f59e0b', bg: 'rgba(245,158,11,0.08)' },
+              ].map(m => (
+                <Glass key={m.label} className="p-4 text-center card-hover" style={{ background: m.bg }}>
+                  <p className="font-black text-2xl leading-none mb-1" style={{ color: m.color }}>{m.val}</p>
+                  <p className="text-[10px] text-gray-600 uppercase font-bold tracking-widest">Avg {m.label}</p>
+                </Glass>
               ))}
             </div>
 
-            {/* Performance Trend */}
-            <div className="bg-gray-800 rounded-2xl p-6 border border-gray-700">
-              <h2 className="text-xs font-black text-gray-500 uppercase tracking-widest mb-6">Weekly Progress (Current Snapshot)</h2>
-              <div className="h-[220px]">
+            {/* ── Chart ── */}
+            <Glass className="p-5 card-hover">
+              <p className="text-[11px] font-black text-gray-500 uppercase tracking-widest mb-5">Weekly Trend</p>
+              <div className="h-[200px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={history.slice(-7)}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#374151" vertical={false} />
-                    <XAxis dataKey="date" tick={{ fill: '#6b7280', fontSize: 10 }} axisLine={false} tickLine={false} />
-                    <YAxis domain={[0, 10]} tick={{ fill: '#6b7280', fontSize: 10 }} axisLine={false} tickLine={false} />
-                    <Tooltip contentStyle={{ backgroundColor: '#1f2937', border: '1px solid #374151', borderRadius: '12px' }} />
-                    <Line type="monotone" dataKey="energy" stroke="#3b82f6" strokeWidth={2} dot={{ r: 3 }} name="Energy" />
-                    <Line type="monotone" dataKey="sleep" stroke="#8b5cf6" strokeWidth={2} dot={{ r: 3 }} name="Sleep" />
-                    <Line type="monotone" dataKey="soreness" stroke="#f43f5e" strokeWidth={2} dot={{ r: 3 }} name="Soreness" />
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" vertical={false} />
+                    <XAxis dataKey="date" tick={{ fill: '#4b5563', fontSize: 10 }} axisLine={false} tickLine={false} />
+                    <YAxis domain={[0, 10]} tick={{ fill: '#4b5563', fontSize: 10 }} axisLine={false} tickLine={false} />
+                    <Tooltip contentStyle={{ background: '#111827', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '12px', fontSize: 12 }} />
+                    <Line type="monotone" dataKey="energy" stroke="#6366f1" strokeWidth={2} dot={{ r: 3, fill: '#6366f1' }} name="Energy" />
+                    <Line type="monotone" dataKey="sleep" stroke="#8b5cf6" strokeWidth={2} dot={{ r: 3, fill: '#8b5cf6' }} name="Sleep" />
+                    <Line type="monotone" dataKey="soreness" stroke="#f43f5e" strokeWidth={2} dot={{ r: 3, fill: '#f43f5e' }} name="Soreness" />
                   </LineChart>
                 </ResponsiveContainer>
               </div>
-            </div>
+            </Glass>
 
-            {/* History Table */}
-            <div className="bg-gray-800 rounded-2xl p-6 border border-gray-700">
-              <h2 className="text-xs font-black text-gray-500 uppercase tracking-widest mb-6">Recent Check-ins</h2>
-              <div className="space-y-4">
+            {/* ── Recent check-ins ── */}
+            <Glass className="p-5 card-hover">
+              <p className="text-[11px] font-black text-gray-500 uppercase tracking-widest mb-4">Recent Check-ins</p>
+              <div className="space-y-3">
                 {[...history].reverse().slice(0, 5).map((entry, i) => (
-                  <div key={i} className="flex gap-4 items-center">
-                    <div className="text-gray-600 text-[10px] font-bold w-12 pt-1">{entry.date}</div>
-                    <div className="flex-1 bg-gray-900/50 rounded-xl p-3 border border-gray-700 transition hover:border-gray-500">
-                      <div className="grid grid-cols-4 gap-4 text-center">
-                        <div><p className="text-blue-400 font-bold text-sm">{entry.energy}</p><p className="text-[8px] text-gray-600">ENRG</p></div>
-                        <div><p className="text-purple-400 font-bold text-sm">{entry.sleep}</p><p className="text-[8px] text-gray-600">SLEE</p></div>
-                        <div><p className="text-rose-400 font-bold text-sm">{entry.soreness}</p><p className="text-[8px] text-gray-600">SORE</p></div>
-                        <div><p className="text-amber-400 font-bold text-sm">{entry.mood}</p><p className="text-[8px] text-gray-600">MOOD</p></div>
-                      </div>
+                  <div key={i} className="flex items-center gap-3">
+                    <span className="text-gray-700 text-[10px] font-bold w-12 shrink-0">{entry.date}</span>
+                    <div className="flex-1 bg-white/[0.02] rounded-xl px-4 py-2.5 border border-white/5 grid grid-cols-4 gap-2 text-center">
+                      {[
+                        { v: entry.energy, c: '#6366f1', l: 'EN' },
+                        { v: entry.sleep, c: '#8b5cf6', l: 'SL' },
+                        { v: entry.soreness, c: '#f43f5e', l: 'SO' },
+                        { v: entry.mood, c: '#f59e0b', l: 'MO' },
+                      ].map(x => (
+                        <div key={x.l}>
+                          <p className="font-black text-sm" style={{ color: x.c }}>{x.v}</p>
+                          <p className="text-[8px] text-gray-700">{x.l}</p>
+                        </div>
+                      ))}
                     </div>
                   </div>
                 ))}
               </div>
-            </div>
+            </Glass>
 
+            {/* ── Injuries ── */}
             {injuries.length > 0 && (
-              <div className="bg-gray-800 rounded-2xl p-6 border border-gray-700">
-                <h2 className="text-xs font-black text-gray-500 uppercase tracking-widest mb-4">🩹 My Injury History</h2>
+              <Glass className="p-5 card-hover">
+                <p className="text-[11px] font-black text-gray-500 uppercase tracking-widest mb-4">🩹 Injury History</p>
                 <div className="space-y-3">
                   {injuries.map(inj => (
-                    <div key={inj.id} className="bg-gray-900 border border-gray-700 rounded-xl p-4">
-                      <div className="flex items-center justify-between gap-3 flex-wrap">
-                        <div>
-                          <p className="text-white font-black text-sm">{inj.body_part} — {inj.injury_type}</p>
-                          <p className="text-gray-500 text-xs mt-0.5">{inj.date_occurred}</p>
-                          {inj.notes && <p className="text-gray-400 text-xs mt-1 italic">"{inj.notes}"</p>}
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <span className={`text-xs font-black px-3 py-1 rounded-full border ${
-                            inj.severity === 'severe' ? 'bg-rose-500/10 border-rose-500/30 text-rose-400' :
+                    <div key={inj.id} className="bg-white/[0.02] border border-white/5 rounded-xl p-4 flex items-center justify-between gap-3 flex-wrap">
+                      <div>
+                        <p className="text-white font-black text-sm">{inj.body_part} — {inj.injury_type}</p>
+                        <p className="text-gray-600 text-xs mt-0.5">{inj.date_occurred}</p>
+                        {inj.notes && <p className="text-gray-500 text-xs mt-1 italic">"{inj.notes}"</p>}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className={`text-xs font-black px-3 py-1 rounded-full border ${inj.severity === 'severe' ? 'bg-rose-500/10 border-rose-500/30 text-rose-400' :
                             inj.severity === 'moderate' ? 'bg-amber-500/10 border-amber-500/30 text-amber-400' :
-                            'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
-                          }`}>
-                            {inj.severity.toUpperCase()}
-                          </span>
-                          <span className={`text-xs font-bold px-2 py-1 rounded-lg ${
-                            inj.status === 'active' ? 'text-rose-400 bg-rose-500/10' :
+                              'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
+                          }`}>{inj.severity.toUpperCase()}</span>
+                        <span className={`text-xs font-bold px-2 py-1 rounded-lg ${inj.status === 'active' ? 'text-rose-400 bg-rose-500/10' :
                             inj.status === 'recovering' ? 'text-amber-400 bg-amber-500/10' :
-                            'text-emerald-400 bg-emerald-500/10'
-                          }`}>
-                            {inj.status.charAt(0).toUpperCase() + inj.status.slice(1)}
-                          </span>
-                        </div>
+                              'text-emerald-400 bg-emerald-500/10'
+                          }`}>{inj.status.charAt(0).toUpperCase() + inj.status.slice(1)}</span>
                       </div>
                     </div>
                   ))}
                 </div>
-              </div>
+              </Glass>
             )}
-          </div>
+          </>
         )}
-
-        {/* Profile modal */}
-        {showProfile && athleteProfile && (
-          <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4"
-            onClick={() => setShowProfile(false)}>
-            <div className="bg-gray-900 border border-gray-700 rounded-2xl p-6 w-full max-w-sm"
-              onClick={e => e.stopPropagation()}>
-              <div className="flex justify-between items-center mb-5">
-                <h3 className="text-lg font-black text-white">My Profile</h3>
-                <button onClick={() => setShowProfile(false)} className="text-gray-500 hover:text-white text-xl">✕</button>
-              </div>
-              <div className="space-y-3">
-                {[
-                  { label: 'Name', value: athleteProfile.name },
-                  { label: 'Sport', value: athleteProfile.sport || '—' },
-                  { label: 'Age', value: athleteProfile.age || '—' },
-                  { label: "Parent's Name", value: athleteProfile.parent_name || '—' },
-                  { label: "Parent's Phone", value: athleteProfile.parent_phone || '—' },
-                ].map(item => (
-                  <div key={item.label} className="flex justify-between items-center bg-gray-800 rounded-xl px-4 py-3 border border-gray-700">
-                    <p className="text-gray-500 text-xs font-bold uppercase tracking-widest">{item.label}</p>
-                    <p className="text-white text-sm font-bold">{item.value}</p>
-                  </div>
-                ))}
-              </div>
-              <button
-                onClick={() => { setShowProfile(false); setShowProfileForm(true); }}
-                className="w-full mt-4 border border-gray-600 text-gray-400 py-2.5 rounded-xl text-sm font-bold hover:border-indigo-500 hover:text-indigo-400 transition">
-                Edit Profile
-              </button>
-            </div>
-          </div>
-        )}
-
       </div>
+
+      {/* ── Profile modal ── */}
+      {showProfile && athleteProfile && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+          onClick={() => setShowProfile(false)}>
+          <div className="bg-gray-900 border border-white/10 rounded-2xl p-6 w-full max-w-sm"
+            onClick={e => e.stopPropagation()}>
+            <div className="flex justify-between items-center mb-5">
+              <h3 className="display text-2xl tracking-wider text-white">MY PROFILE</h3>
+              <button onClick={() => setShowProfile(false)} className="text-gray-500 hover:text-white text-xl">✕</button>
+            </div>
+            <div className="space-y-2">
+              {[
+                { label: 'Name', value: athleteProfile.name },
+                { label: 'Sport', value: athleteProfile.sport || '—' },
+                { label: 'Age', value: athleteProfile.age || '—' },
+                { label: "Parent's Name", value: athleteProfile.parent_name || '—' },
+                { label: "Parent's Phone", value: athleteProfile.parent_phone || '—' },
+              ].map(item => (
+                <div key={item.label} className="flex justify-between items-center bg-white/[0.03] rounded-xl px-4 py-3 border border-white/5">
+                  <p className="text-gray-500 text-xs font-bold uppercase tracking-widest">{item.label}</p>
+                  <p className="text-white text-sm font-bold">{item.value}</p>
+                </div>
+              ))}
+            </div>
+            <button onClick={() => { setShowProfile(false); setShowProfileForm(true); }}
+              className="w-full mt-4 border border-white/10 text-gray-400 py-2.5 rounded-xl text-sm font-bold hover:border-indigo-500/50 hover:text-indigo-400 transition">
+              Edit Profile
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
-
-export default AthleteDashboard;
