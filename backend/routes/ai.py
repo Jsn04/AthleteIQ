@@ -14,6 +14,8 @@ supabase = create_client(os.getenv("SUPABASE_URL"), os.getenv("SUPABASE_KEY"))
 
 
 def check_trial_access(academy_id: str):
+    if academy_id.startswith("solo_"):
+        return True
     result = supabase.table("academies")\
         .select("plan, trial_ends_at")\
         .eq("id", academy_id)\
