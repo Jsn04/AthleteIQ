@@ -9,7 +9,7 @@ import AthleteProfile from './pages/AthleteProfile';
 import ParentView from './pages/ParentView';
 import SportDashboard from './pages/SportDashboard';
 import AthleteDashboard from './pages/AthleteDashboard';
-import SessionPlannerPage from './pages/SessionPlannerPage';  // ← changed
+import SessionPlannerPage from './pages/SessionPlannerPage';
 import MeditationPage from './pages/MeditationPage';
 import AcademyProfile from './pages/AcademyProfile';
 
@@ -54,7 +54,7 @@ function App() {
         } />
         <Route path="/session-planner" element={
           <ProtectedRoute allowedRole="coach"><SessionPlannerPage /></ProtectedRoute>
-        } />  {/* ← changed from /drills */}
+        } />
 
         <Route path="/checkin" element={
           <ProtectedRoute allowedRole="athlete"><AthleteCheckIn /></ProtectedRoute>

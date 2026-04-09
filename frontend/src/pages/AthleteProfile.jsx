@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { useParams, Link, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import API_BASE_URL from '../config';
 import StatCard from '../components/common/StatCard';
@@ -82,9 +82,7 @@ function AthleteProfile() {
           { params: { academy_id: academyId } }
         );
         setInjuries(injuriesRes.data || []);
-      } catch {
-        setInjuries([]);
-      }
+      } catch { setInjuries([]); }
 
       try {
         const attRes = await axios.get(
@@ -92,9 +90,8 @@ function AthleteProfile() {
           { params: { academy_id: academyId } }
         );
         setAttendanceLog(attRes.data || []);
-      } catch {
-        setAttendanceLog([]);
-      }
+      } catch { setAttendanceLog([]); }
+
     } catch (err) {
       console.error('Error fetching athlete details:', err);
       setError('Failed to load athlete data. Please refresh.');
@@ -120,21 +117,14 @@ function AthleteProfile() {
       fetchData(true);
     } catch (err) {
       console.error('Injury log failed:', err);
-    } finally {
-      setSavingInjury(false);
-    }
+    } finally { setSavingInjury(false); }
   };
 
   const handleUpdateInjuryStatus = async (injuryId, newStatus, notes) => {
     try {
-      await axios.patch(`${API_BASE_URL}/injuries/${injuryId}`, {
-        status: newStatus,
-        notes: notes,
-      });
+      await axios.patch(`${API_BASE_URL}/injuries/${injuryId}`, { status: newStatus, notes });
       fetchData(true);
-    } catch (err) {
-      console.error('Status update failed:', err);
-    }
+    } catch (err) { console.error('Status update failed:', err); }
   };
 
   useEffect(() => {
@@ -160,9 +150,7 @@ function AthleteProfile() {
     <div className="min-h-screen bg-gray-950 p-6 flex items-center justify-center">
       <div className="text-center">
         <p className="text-rose-400 font-bold mb-4">{error}</p>
-        <button onClick={() => fetchData(false)} className="bg-blue-600 text-white px-6 py-3 rounded-xl font-bold text-sm">
-          Retry
-        </button>
+        <button onClick={() => fetchData(false)} className="bg-blue-600 text-white px-6 py-3 rounded-xl font-bold text-sm">Retry</button>
       </div>
     </div>
   );
@@ -172,6 +160,7 @@ function AthleteProfile() {
       <TopLoader loading={loading} />
       <div className="max-w-6xl mx-auto">
 
+        {/* Header */}
         <div className="flex justify-between items-center mb-8 flex-wrap gap-4">
           <div className="flex items-center gap-6">
             <button onClick={() => navigate('/dashboard')}
@@ -186,7 +175,7 @@ function AthleteProfile() {
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 flex-wrap">
             {insight && <RiskBadge risk={insight.risk} />}
             {injuries.filter(i => i.status === 'active').length > 0 && (
               <span className="bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs font-black px-3 py-1 rounded-full">
@@ -212,21 +201,25 @@ function AthleteProfile() {
           </div>
         </div>
 
+        {/* Stat Cards — Readiness and Injury Risk show /100 */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-          <StatCard 
-            label="Avg Readiness" 
-            value={insight?.metrics?.readiness ?? insight?.score ?? '—'} 
-            color="text-emerald-400" 
-          />
-          <StatCard label="Injury Risk" value={injuryRisk?.injury_risk_score ?? '—'}
-            color={injuryRisk?.risk_level === 'red' ? 'text-rose-400' : 'text-amber-400'} />
-          <StatCard 
-            label="ACWR" 
+          <StatCard
+            label="Avg Readiness"
             value={
-              injuryRisk?.acwr && injuryRisk.acwr > 0 
-                ? injuryRisk.acwr 
+              (insight?.metrics?.readiness ?? insight?.score) != null
+                ? `${insight?.metrics?.readiness ?? insight?.score}/100`
                 : '—'
             }
+            color="text-emerald-400"
+          />
+          <StatCard
+            label="Injury Risk"
+            value={injuryRisk?.injury_risk_score != null ? `${injuryRisk.injury_risk_score}/100` : '—'}
+            color={injuryRisk?.risk_level === 'red' ? 'text-rose-400' : 'text-amber-400'}
+          />
+          <StatCard
+            label="ACWR"
+            value={injuryRisk?.acwr && injuryRisk.acwr > 0 ? injuryRisk.acwr : '—'}
             color="text-blue-400"
             subtitle={!injuryRisk?.acwr || injuryRisk.acwr === 0 ? "7+ days needed" : null}
           />
@@ -235,6 +228,8 @@ function AthleteProfile() {
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2 space-y-6">
+
+            {/* Wellness Trends chart */}
             <div className="bg-gray-800 rounded-2xl p-6 border border-gray-700">
               <div className="flex justify-between items-center mb-6">
                 <h2 className="text-lg font-black uppercase tracking-tight">Wellness Trends</h2>
@@ -272,6 +267,7 @@ function AthleteProfile() {
               )}
             </div>
 
+            {/* Recovery Insight + Injury Prediction */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="bg-gray-800 rounded-2xl p-6 border border-gray-700">
                 <p className="text-blue-400 text-[10px] font-black uppercase mb-3 px-1">🤖 Recovery Insight</p>
@@ -310,6 +306,7 @@ function AthleteProfile() {
               </div>
             </div>
 
+            {/* Wellness metrics chart */}
             <div className="bg-gray-800 rounded-2xl p-6 border border-gray-700">
               <h2 className="text-xs font-black uppercase tracking-widest text-gray-500 mb-6">Recent Wellness Metrics</h2>
               {filteredHistory.length === 0 ? (
@@ -334,6 +331,7 @@ function AthleteProfile() {
             </div>
           </div>
 
+          {/* Sidebar */}
           <div className="space-y-6">
             <div className="bg-gray-800 rounded-2xl p-6 border border-gray-700">
               <h2 className="text-sm font-black uppercase tracking-tight mb-6">Recent Training Sessions</h2>
@@ -363,18 +361,10 @@ function AthleteProfile() {
                 </div>
               )}
             </div>
-            <div className="bg-blue-600 rounded-2xl p-6 text-center text-white relative overflow-hidden group">
-              <div className="absolute top-0 right-0 w-24 h-24 bg-white/10 blur-2xl -translate-y-10 translate-x-10 group-hover:scale-150 transition-transform" />
-              <h3 className="text-lg font-black mb-1 relative z-10 italic">AthleteIQ</h3>
-              <p className="text-blue-100 text-xs mb-6 relative z-10 font-bold opacity-80">Connected Performance Analysis</p>
-              <Link to="/drills"
-                className="block w-full bg-white text-blue-600 py-3 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-blue-50 transition active:scale-95 relative z-10">
-                Assign Drills
-              </Link>
-            </div>
           </div>
         </div>
 
+        {/* All Wellness Logs */}
         <div className="mt-10 bg-gray-800 rounded-2xl p-6 border border-gray-700">
           <h2 className="text-xs font-black uppercase tracking-widest text-gray-500 mb-8">All Wellness Logs</h2>
           {history.length === 0 ? (
@@ -407,7 +397,8 @@ function AthleteProfile() {
             </div>
           )}
         </div>
-        {/* Attendance History */}
+
+        {/* Attendance */}
         <div className="mt-10 bg-gray-800 rounded-2xl p-6 border border-gray-700">
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-xs font-black uppercase tracking-widest text-gray-500">📅 Attendance (Last 30 Days)</h2>
@@ -417,17 +408,12 @@ function AthleteProfile() {
               </span>
             )}
           </div>
-
           {attendanceLog.length === 0 ? (
             <p className="text-gray-600 text-xs text-center py-4">No attendance logged yet.</p>
           ) : (
             <div className="flex flex-wrap gap-2">
               {attendanceLog.map((a, i) => (
-                <div key={i}
-                  className={`flex flex-col items-center px-3 py-2 rounded-xl border text-center ${
-                    a.status === 'present'
-                      ? 'bg-emerald-500/10 border-emerald-500/20'
-                      : 'bg-rose-500/10 border-rose-500/20'
+                <div key={i} className={`flex flex-col items-center px-3 py-2 rounded-xl border text-center ${a.status === 'present' ? 'bg-emerald-500/10 border-emerald-500/20' : 'bg-rose-500/10 border-rose-500/20'
                   }`}>
                   <span className={`text-xs font-black ${a.status === 'present' ? 'text-emerald-400' : 'text-rose-400'}`}>
                     {a.status === 'present' ? '✓' : '✗'}
@@ -445,13 +431,11 @@ function AthleteProfile() {
         <div className="mt-10 bg-gray-800 rounded-2xl p-6 border border-gray-700 space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="text-xs font-black uppercase tracking-widest text-gray-500">🩹 Injury History</h2>
-            <button
-              onClick={() => setShowInjuryModal(true)}
+            <button onClick={() => setShowInjuryModal(true)}
               className="bg-rose-600 hover:bg-rose-500 text-white text-xs font-black px-4 py-2 rounded-xl transition">
               + Log Injury
             </button>
           </div>
-
           {injuries.length === 0 ? (
             <p className="text-gray-600 text-xs text-center py-4">No injuries logged yet.</p>
           ) : (
@@ -465,15 +449,11 @@ function AthleteProfile() {
                       {inj.notes && <p className="text-gray-400 text-xs mt-1 italic">"{inj.notes}"</p>}
                     </div>
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className={`text-xs font-black px-3 py-1 rounded-full border ${
-                        inj.severity === 'severe' ? 'bg-rose-500/10 border-rose-500/30 text-rose-400' :
-                        inj.severity === 'moderate' ? 'bg-amber-500/10 border-amber-500/30 text-amber-400' :
-                        'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
-                      }`}>
-                        {inj.severity.toUpperCase()}
-                      </span>
-                      <select
-                        value={inj.status}
+                      <span className={`text-xs font-black px-3 py-1 rounded-full border ${inj.severity === 'severe' ? 'bg-rose-500/10 border-rose-500/30 text-rose-400' :
+                          inj.severity === 'moderate' ? 'bg-amber-500/10 border-amber-500/30 text-amber-400' :
+                            'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
+                        }`}>{inj.severity.toUpperCase()}</span>
+                      <select value={inj.status}
                         onChange={e => handleUpdateInjuryStatus(inj.id, e.target.value, inj.notes)}
                         className="bg-gray-800 border border-gray-700 text-gray-300 text-xs font-bold px-2 py-1 rounded-lg focus:outline-none">
                         <option value="active">Active</option>
@@ -499,14 +479,13 @@ function AthleteProfile() {
               <h2 className="text-white font-black text-lg">Log Injury</h2>
               <button onClick={() => setShowInjuryModal(false)} className="text-gray-500 hover:text-white text-xl">✕</button>
             </div>
-
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <p className="text-gray-500 text-[10px] uppercase font-bold mb-1">Body Part</p>
                 <select value={injuryForm.body_part}
                   onChange={e => setInjuryForm(f => ({ ...f, body_part: e.target.value }))}
                   className="w-full bg-gray-800 border border-gray-700 text-white text-sm px-3 py-2.5 rounded-xl focus:outline-none focus:border-rose-500">
-                  {['Knee','Ankle','Shoulder','Hamstring','Back','Groin','Wrist','Other'].map(p => (
+                  {['Knee', 'Ankle', 'Shoulder', 'Hamstring', 'Back', 'Groin', 'Wrist', 'Other'].map(p => (
                     <option key={p} value={p}>{p}</option>
                   ))}
                 </select>
@@ -516,49 +495,39 @@ function AthleteProfile() {
                 <select value={injuryForm.injury_type}
                   onChange={e => setInjuryForm(f => ({ ...f, injury_type: e.target.value }))}
                   className="w-full bg-gray-800 border border-gray-700 text-white text-sm px-3 py-2.5 rounded-xl focus:outline-none focus:border-rose-500">
-                  {['Sprain','Strain','Fracture','Bruise','Overuse','Other'].map(t => (
+                  {['Sprain', 'Strain', 'Fracture', 'Bruise', 'Overuse', 'Other'].map(t => (
                     <option key={t} value={t}>{t}</option>
                   ))}
                 </select>
               </div>
             </div>
-
             <div>
               <p className="text-gray-500 text-[10px] uppercase font-bold mb-2">Severity</p>
               <div className="flex gap-2">
-                {['mild','moderate','severe'].map(s => (
-                  <button key={s}
-                    onClick={() => setInjuryForm(f => ({ ...f, severity: s }))}
-                    className={`flex-1 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition border ${
-                      injuryForm.severity === s
+                {['mild', 'moderate', 'severe'].map(s => (
+                  <button key={s} onClick={() => setInjuryForm(f => ({ ...f, severity: s }))}
+                    className={`flex-1 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition border ${injuryForm.severity === s
                         ? s === 'severe' ? 'bg-rose-600 border-rose-500 text-white'
                           : s === 'moderate' ? 'bg-amber-600 border-amber-500 text-white'
-                          : 'bg-emerald-600 border-emerald-500 text-white'
+                            : 'bg-emerald-600 border-emerald-500 text-white'
                         : 'border-gray-700 text-gray-500 hover:border-gray-500'
-                    }`}>
-                    {s}
-                  </button>
+                      }`}>{s}</button>
                 ))}
               </div>
             </div>
-
             <div>
               <p className="text-gray-500 text-[10px] uppercase font-bold mb-1">Date Occurred</p>
               <input type="date" value={injuryForm.date_occurred}
                 onChange={e => setInjuryForm(f => ({ ...f, date_occurred: e.target.value }))}
-                className="w-full bg-gray-800 border border-gray-700 text-white text-sm px-3 py-2.5 rounded-xl focus:outline-none focus:border-rose-500"
-              />
+                className="w-full bg-gray-800 border border-gray-700 text-white text-sm px-3 py-2.5 rounded-xl focus:outline-none focus:border-rose-500" />
             </div>
-
             <div>
               <p className="text-gray-500 text-[10px] uppercase font-bold mb-1">Notes (optional)</p>
               <textarea rows={2} value={injuryForm.notes}
                 onChange={e => setInjuryForm(f => ({ ...f, notes: e.target.value }))}
                 placeholder="Happened during sprint drill..."
-                className="w-full bg-gray-800 border border-gray-700 text-white text-sm px-3 py-2.5 rounded-xl focus:outline-none focus:border-rose-500 resize-none placeholder-gray-600"
-              />
+                className="w-full bg-gray-800 border border-gray-700 text-white text-sm px-3 py-2.5 rounded-xl focus:outline-none focus:border-rose-500 resize-none placeholder-gray-600" />
             </div>
-
             <button onClick={handleLogInjury} disabled={savingInjury}
               className="w-full bg-rose-600 hover:bg-rose-500 disabled:bg-gray-700 disabled:text-gray-500 text-white py-3 rounded-xl text-xs font-black uppercase tracking-widest transition">
               {savingInjury ? 'Saving...' : 'Log Injury →'}
@@ -571,11 +540,7 @@ function AthleteProfile() {
         <BulkLogModal athletes={singleAthleteList} onClose={() => setShowBulkModal(false)} onSuccess={() => fetchData(false)} />
       )}
       {showWeeklyReport && (
-        <WeeklyReport
-          athleteName={name}
-          academyId={academyId}
-          onClose={() => setShowWeeklyReport(false)}
-        />
+        <WeeklyReport athleteName={name} academyId={academyId} onClose={() => setShowWeeklyReport(false)} />
       )}
     </div>
   );

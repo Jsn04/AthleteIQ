@@ -117,16 +117,15 @@ export default function AthleteDashboard() {
   const riskColor = (risk) =>
     risk === 'red' ? '#f43f5e' : risk === 'yellow' ? '#f59e0b' : '#10b981';
 
-  // ── Derived stats for the 3 hero stat cards ──
   const avgReadiness = insight?.score ?? '—';
-  const injuryRiskVal = injuryRisk?.risk_score ?? injuryRisk?.acwr ?? '—';
   const acwrVal = injuryRisk?.acwr ?? '—';
+  const injuryRiskScore = injuryRisk?.injury_risk_score ?? null;
+  const injuryRiskLevel = injuryRisk?.risk_level ?? null;
 
-  const riskTierColor = (tier) => {
-    if (!tier) return '#10b981';
-    const t = tier.toLowerCase();
-    if (t.includes('high') || t.includes('danger')) return '#f43f5e';
-    if (t.includes('mod') || t.includes('caution')) return '#f59e0b';
+  const riskLevelColor = (level) => {
+    if (!level) return '#10b981';
+    if (level === 'red') return '#f43f5e';
+    if (level === 'yellow') return '#f59e0b';
     return '#10b981';
   };
 
@@ -148,7 +147,6 @@ export default function AthleteDashboard() {
         .card-hover:hover{border-color:rgba(99,102,241,0.25)!important;transform:translateY(-1px)}
       `}</style>
 
-      {/* Ambient BG */}
       <div className="fixed inset-0 pointer-events-none">
         <div style={{ background: 'radial-gradient(ellipse 70% 50% at 50% -10%,rgba(99,102,241,0.08) 0%,transparent 60%)' }} className="absolute inset-0" />
         <div style={{ background: 'radial-gradient(ellipse 40% 30% at 90% 90%,rgba(16,185,129,0.05) 0%,transparent 60%)' }} className="absolute inset-0" />
@@ -156,7 +154,7 @@ export default function AthleteDashboard() {
 
       <div className="relative z-10 max-w-2xl mx-auto px-4 py-6 md:py-10 space-y-5">
 
-        {/* ── Header ── */}
+        {/* Header */}
         <div className="flex items-start justify-between gap-4 flex-wrap">
           <div>
             <img src={logo} alt="AthleteIQ" className="h-7 w-auto mb-3 opacity-80 cursor-pointer"
@@ -168,8 +166,6 @@ export default function AthleteDashboard() {
               {athleteSport || 'Elite Squad'} · My Wellness Portal
             </p>
           </div>
-
-          {/* ── Buttons WITH text labels ── */}
           <div className="flex flex-wrap gap-2">
             <button onClick={() => navigate('/checkin')}
               className="bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2.5 rounded-xl font-bold text-sm transition active:scale-95 shadow-lg shadow-emerald-900/40">
@@ -190,43 +186,33 @@ export default function AthleteDashboard() {
           </div>
         </div>
 
-        {/* ── NEW: 3 Hero Stat Cards (Readiness / Injury Risk / ACWR) ── */}
+        {/* 3 Hero Stat Cards */}
         {history.length > 0 && (
           <div className="grid grid-cols-3 gap-3">
-            {/* Avg Readiness */}
             <Glass className="p-4 text-center card-hover" style={{
-              background: 'rgba(99,102,241,0.06)',
-              borderColor: 'rgba(99,102,241,0.2)',
+              background: 'rgba(99,102,241,0.06)', borderColor: 'rgba(99,102,241,0.2)',
             }}>
               <p className="text-[9px] text-gray-500 uppercase font-black tracking-widest mb-2">Avg Readiness</p>
-              <p className="display text-4xl leading-none"
-                style={{ color: riskColor(insight?.risk) }}>
-                {avgReadiness}
+              <p className="display text-4xl leading-none" style={{ color: riskColor(insight?.risk) }}>
+                {avgReadiness !== '—' ? avgReadiness : '—'}
               </p>
               <p className="text-[9px] text-gray-600 mt-1 font-semibold">/100</p>
             </Glass>
 
-            {/* Injury Risk */}
             <Glass className="p-4 text-center card-hover" style={{
-              background: 'rgba(245,158,11,0.06)',
-              borderColor: 'rgba(245,158,11,0.2)',
+              background: 'rgba(245,158,11,0.06)', borderColor: 'rgba(245,158,11,0.2)',
             }}>
               <p className="text-[9px] text-gray-500 uppercase font-black tracking-widest mb-2">Injury Risk</p>
-              <p className="display text-4xl leading-none"
-                style={{ color: riskTierColor(injuryRisk?.risk_tier) }}>
-                {injuryRisk?.risk_tier
-                  ? injuryRisk.risk_tier.charAt(0).toUpperCase() + injuryRisk.risk_tier.slice(1).toLowerCase().replace('_', ' ')
-                  : '—'}
+              <p className="display text-4xl leading-none" style={{ color: riskLevelColor(injuryRiskLevel) }}>
+                {injuryRiskScore != null ? injuryRiskScore : '—'}
               </p>
               <p className="text-[9px] text-gray-600 mt-1 font-semibold">
-                {injuryRisk?.risk_tier ? 'Zone' : 'No data'}
+                {injuryRiskScore != null ? '/100' : 'No data'}
               </p>
             </Glass>
 
-            {/* ACWR */}
             <Glass className="p-4 text-center card-hover" style={{
-              background: 'rgba(96,165,250,0.06)',
-              borderColor: 'rgba(96,165,250,0.2)',
+              background: 'rgba(96,165,250,0.06)', borderColor: 'rgba(96,165,250,0.2)',
             }}>
               <p className="text-[9px] text-gray-500 uppercase font-black tracking-widest mb-2">ACWR</p>
               <p className="display text-4xl leading-none" style={{
@@ -242,7 +228,7 @@ export default function AthleteDashboard() {
           </div>
         )}
 
-        {/* ── Profile completion banner ── */}
+        {/* Profile completion banner */}
         {showProfileForm && (
           <Glass className="p-5 card-hover" style={{ borderColor: 'rgba(99,102,241,0.2)' }}>
             <p className="text-indigo-400 text-[11px] font-black uppercase tracking-widest mb-1">Complete Your Profile</p>
@@ -265,7 +251,7 @@ export default function AthleteDashboard() {
           </Glass>
         )}
 
-        {/* ── Empty state ── */}
+        {/* Empty state */}
         {history.length === 0 ? (
           <Glass className="p-12 text-center">
             <div className="text-5xl mb-4">📋</div>
@@ -278,7 +264,7 @@ export default function AthleteDashboard() {
           </Glass>
         ) : (
           <>
-            {/* ── Readiness hero card ── */}
+            {/* Readiness hero card */}
             {insight?.score != null && (
               <Glass className="p-6 card-hover" style={{
                 background: `linear-gradient(135deg, rgba(${insight.risk === 'red' ? '244,63,94' : '16,185,129'},0.06) 0%, rgba(255,255,255,0.02) 100%)`,
@@ -286,7 +272,6 @@ export default function AthleteDashboard() {
               }}>
                 <div className="flex items-center justify-between gap-4 flex-wrap">
                   <div className="flex items-center gap-6">
-                    {/* Readiness Ring */}
                     <div className="relative w-20 h-20 score-ring shrink-0">
                       <svg viewBox="0 0 80 80" className="w-full h-full -rotate-90">
                         <circle cx="40" cy="40" r="34" fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="6" />
@@ -305,8 +290,10 @@ export default function AthleteDashboard() {
                     <div>
                       <p className="text-gray-500 text-[10px] uppercase font-bold tracking-widest mb-1">Today's Status</p>
                       <RiskBadge risk={insight.risk} />
-                      {injuryRisk?.risk_tier && (
-                        <p className="text-gray-600 text-[11px] mt-1.5">Workload: {injuryRisk.risk_tier} · ACWR {injuryRisk.acwr}</p>
+                      {injuryRisk?.metrics?.risk_tier && (
+                        <p className="text-gray-600 text-[11px] mt-1.5">
+                          Workload: {injuryRisk.metrics.risk_tier} · ACWR {injuryRisk.acwr}
+                        </p>
                       )}
                     </div>
                   </div>
@@ -320,7 +307,53 @@ export default function AthleteDashboard() {
               </Glass>
             )}
 
-            {/* ── Avg metric cards ── */}
+            {/* Recovery Insight + Injury Prediction */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <Glass className="p-5 card-hover">
+                <p className="text-blue-400 text-[10px] font-black uppercase tracking-widest mb-3">🤖 Recovery Insight</p>
+                {insight?.insight && insight.insight !== 'No data yet' ? (
+                  <p className="text-gray-200 text-sm leading-relaxed italic">"{insight.insight}"</p>
+                ) : (
+                  <p className="text-gray-500 text-sm italic">Gathering wellness patterns...</p>
+                )}
+              </Glass>
+
+              <Glass className="p-5 card-hover" style={{
+                borderColor: injuryRiskLevel === 'red' ? 'rgba(244,63,94,0.3)' : 'rgba(255,255,255,0.08)',
+              }}>
+                <p className="text-gray-500 text-[10px] font-black uppercase tracking-widest mb-3">🛡️ Injury Prediction</p>
+                {injuryRisk ? (
+                  <div>
+                    <div className="flex justify-between items-end mb-2">
+                      <p className="text-2xl font-black" style={{ color: riskLevelColor(injuryRiskLevel) }}>
+                        {injuryRiskLevel ? injuryRiskLevel.toUpperCase() : '—'}
+                      </p>
+                      {injuryRiskScore != null && (
+                        <p className="text-gray-500 text-[10px] font-bold">SCORE: {injuryRiskScore}/100</p>
+                      )}
+                    </div>
+                    {injuryRiskScore != null && (
+                      <div className="w-full bg-white/5 rounded-full h-1.5 overflow-hidden mb-3">
+                        <div className="h-full rounded-full transition-all duration-1000"
+                          style={{ width: `${injuryRiskScore}%`, background: riskLevelColor(injuryRiskLevel) }} />
+                      </div>
+                    )}
+                    {injuryRisk.verdict && (
+                      <p className="text-gray-400 text-xs leading-relaxed">{injuryRisk.verdict}</p>
+                    )}
+                    {injuryRisk.deception_flag && (
+                      <span className="inline-block mt-3 text-orange-400 font-bold text-[10px] bg-orange-400/10 px-2 py-0.5 rounded border border-orange-400/20">
+                        ⚠️ Deception Warning
+                      </span>
+                    )}
+                  </div>
+                ) : (
+                  <p className="text-gray-500 text-sm italic">Analyzing training load...</p>
+                )}
+              </Glass>
+            </div>
+
+            {/* Avg metric cards */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               {[
                 { label: 'Energy', val: avgOf('energy'), color: '#6366f1', bg: 'rgba(99,102,241,0.08)' },
@@ -335,7 +368,7 @@ export default function AthleteDashboard() {
               ))}
             </div>
 
-            {/* ── Chart ── */}
+            {/* Chart */}
             <Glass className="p-5 card-hover">
               <p className="text-[11px] font-black text-gray-500 uppercase tracking-widest mb-5">Weekly Trend</p>
               <div className="h-[200px]">
@@ -353,7 +386,7 @@ export default function AthleteDashboard() {
               </div>
             </Glass>
 
-            {/* ── Recent check-ins ── */}
+            {/* Recent check-ins */}
             <Glass className="p-5 card-hover">
               <p className="text-[11px] font-black text-gray-500 uppercase tracking-widest mb-4">Recent Check-ins</p>
               <div className="space-y-3">
@@ -378,7 +411,7 @@ export default function AthleteDashboard() {
               </div>
             </Glass>
 
-            {/* ── Injuries ── */}
+            {/* Injuries */}
             {injuries.length > 0 && (
               <Glass className="p-5 card-hover">
                 <p className="text-[11px] font-black text-gray-500 uppercase tracking-widest mb-4">🩹 Injury History</p>
@@ -409,7 +442,7 @@ export default function AthleteDashboard() {
         )}
       </div>
 
-      {/* ── Profile modal ── */}
+      {/* Profile modal */}
       {showProfile && athleteProfile && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4"
           onClick={() => setShowProfile(false)}>
