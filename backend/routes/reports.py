@@ -20,13 +20,22 @@ def _call_llm_sync(prompt: str, max_tokens: int = 600) -> str:
     if AI_PROVIDER == "groq":
         from groq import Groq
         client = Groq(api_key=GROQ_API_KEY)
-        response = client.chat.completions.create(
-            model=AI_MODEL,
-            max_tokens=max_tokens,
-            temperature=0.7,
-            messages=[{"role": "user", "content": prompt}],
-        )
-        return response.choices[0].message.content.strip()
+        try:
+            response = client.chat.completions.create(
+                model=AI_MODEL,
+                max_tokens=max_tokens,
+                temperature=0.7,
+                messages=[{"role": "user", "content": prompt}],
+            )
+            return response.choices[0].message.content.strip()
+        except Exception as e:
+            err = str(e)
+            if "rate_limit_exceeded" in err or "429" in err:
+                return (
+                    "Weekly report is temporarily unavailable — the AI engine "
+                    "has hit its daily token limit. Try again later today."
+                )
+            raise
     elif AI_PROVIDER == "openai":
         from openai import OpenAI
         client = OpenAI(api_key=OPENAI_API_KEY)

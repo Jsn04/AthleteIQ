@@ -48,8 +48,11 @@ app.include_router(attendance.router, prefix="/attendance")
 app.include_router(reports.router, prefix="/reports")
 app.include_router(payments.router, prefix="/payments")
 
-@app.get("/health")
+@app.api_route("/health", methods=["GET", "HEAD"])
 async def health():
+    # HEAD support is required so uptime monitors (UptimeRobot, etc.)
+    # that default to HEAD requests don't get a 405 and flag the
+    # service as down.
     return {"status": "ok"}
 
 @app.get("/")
