@@ -2,6 +2,7 @@ import asyncio
 import os
 from datetime import datetime, timezone
 
+import httpx
 from fastapi import APIRouter
 from supabase import create_client
 
@@ -10,7 +11,19 @@ from config import AI_PROVIDER, AI_MODEL, GROQ_API_KEY, OPENAI_API_KEY, ANTHROPI
 router = APIRouter()
 
 
-supabase = create_client(os.getenv("SUPABASE_URL"), os.getenv("SUPABASE_KEY"))
+def get_supabase():
+    return create_client(os.getenv("SUPABASE_URL"), os.getenv("SUPABASE_KEY"))
+
+supabase = get_supabase()
+
+
+def safe_supabase_query(query_fn):
+    global supabase
+    try:
+        return query_fn()
+    except (httpx.ReadError, httpx.ConnectError):
+        supabase = get_supabase()
+        return query_fn()
 
 
 def check_trial_access(academy_id: str):
@@ -32,20 +45,25 @@ def check_trial_access(academy_id: str):
     return datetime.now(timezone.utc) <= expiry
 
 
-
 def _call_llm_sync(prompt: str, max_tokens: int = 250) -> str:
     max_tokens = min(max_tokens, 250)
 
     if AI_PROVIDER == "groq":
         from groq import Groq
         client = Groq(api_key=GROQ_API_KEY)
-        response = client.chat.completions.create(
-            model=AI_MODEL,
-            max_tokens=max_tokens,
-            temperature=0.7,
-            messages=[{"role": "user", "content": prompt}],
-        )
-        return response.choices[0].message.content.strip()
+        try:
+            response = client.chat.completions.create(
+                model=AI_MODEL,
+                max_tokens=max_tokens,
+                temperature=0.7,
+                messages=[{"role": "user", "content": prompt}],
+            )
+            return response.choices[0].message.content.strip()
+        except Exception as e:
+            err = str(e)
+            if "rate_limit_exceeded" in err or "429" in err:
+                return "AI coach is resting — refresh in a moment."
+            raise
 
     elif AI_PROVIDER == "openai":
         from openai import OpenAI
@@ -91,13 +109,11 @@ def calculate_acwr(training_logs: list) -> dict:
         return duration * rpe * multiplier
 
     all_loads = [session_load(l) for l in training_logs]
-    all_loads = [l for l in all_loads if l > 0]  # remove sat-out sessions
+    all_loads = [l for l in all_loads if l > 0]
 
     if not all_loads:
         return {"acwr": 0.0, "acute_load": 0, "chronic_load": 0, "risk_tier": "No Data", "readiness": 50}
 
-    # Acute = last 3 sessions (most recent load)
-    # Chronic = average session load across all available data
     acute_count  = min(3, len(all_loads))
     acute_load   = sum(all_loads[:acute_count])
     chronic_load = sum(all_loads) / len(all_loads) * acute_count
@@ -346,18 +362,22 @@ Write a concise 3-sentence summary: wellness trend, training load assessment, on
 @router.get("/injury-risk/{athlete_name}")
 async def get_injury_risk(athlete_name: str, academy_id: str = ""):
     checkins_result = await asyncio.to_thread(
-        lambda: supabase.table("checkins").select("*")
-        .eq("athlete_name", athlete_name).eq("academy_id", academy_id)
-        .order("created_at", desc=True).limit(28).execute()
+        lambda: safe_supabase_query(
+            lambda: supabase.table("checkins").select("*")
+            .eq("athlete_name", athlete_name).eq("academy_id", academy_id)
+            .order("created_at", desc=True).limit(28).execute().data
+        )
     )
     training_result = await asyncio.to_thread(
-        lambda: supabase.table("training_logs").select("*")
-        .eq("athlete_name", athlete_name).eq("academy_id", academy_id)
-        .order("created_at", desc=True).limit(28).execute()
+        lambda: safe_supabase_query(
+            lambda: supabase.table("training_logs").select("*")
+            .eq("athlete_name", athlete_name).eq("academy_id", academy_id)
+            .order("created_at", desc=True).limit(28).execute().data
+        )
     )
 
-    checkins = checkins_result.data or []
-    training = training_result.data or []
+    checkins = checkins_result or []
+    training = training_result or []
 
     if not checkins and not training:
         return {"injury_risk_score": None, "acwr": None, "signals": [],
