@@ -1,5 +1,6 @@
 import asyncio
 import os
+import time
 from datetime import datetime, timezone
 
 import httpx
@@ -24,6 +25,37 @@ def safe_supabase_query(query_fn):
     except (httpx.ReadError, httpx.ConnectError):
         supabase = get_supabase()
         return query_fn()
+
+
+# In-memory TTL cache for AI endpoint responses.
+# Purpose: a dashboard refresh must not consume Groq tokens. Only the first
+# call per athlete within the TTL window actually hits the LLM; every
+# subsequent view (refresh, modal open, parent view) is served from memory.
+# Lost on process restart, which is rare with UptimeRobot keeping Render warm.
+_AI_CACHE: dict[str, tuple[float, dict]] = {}
+_AI_CACHE_TTL = 12 * 60 * 60  # 12 hours, matches the insights cache pattern
+
+
+def _ai_cache_key(endpoint: str, athlete_name: str, academy_id: str) -> str:
+    return f"{endpoint}::{athlete_name}::{academy_id}"
+
+
+def _ai_cache_get(endpoint: str, athlete_name: str, academy_id: str):
+    key = _ai_cache_key(endpoint, athlete_name, academy_id)
+    entry = _AI_CACHE.get(key)
+    if not entry:
+        return None
+    created_at, value = entry
+    if time.time() - created_at > _AI_CACHE_TTL:
+        _AI_CACHE.pop(key, None)
+        return None
+    age_mins = round((time.time() - created_at) / 60)
+    return {**value, "cached": True, "cache_age_mins": age_mins}
+
+
+def _ai_cache_set(endpoint: str, athlete_name: str, academy_id: str, value: dict):
+    key = _ai_cache_key(endpoint, athlete_name, academy_id)
+    _AI_CACHE[key] = (time.time(), value)
 
 
 def check_trial_access(academy_id: str):
@@ -253,6 +285,10 @@ ATHLETE_MESSAGE: [one motivating sentence for the athlete]"""
 
 @router.get("/squad-insights")
 async def get_squad_insights(academy_id: str = ""):
+    cached = _ai_cache_get("squad-insights", "squad", academy_id)
+    if cached:
+        return cached
+
     athletes_result = await asyncio.to_thread(
         lambda: supabase.table("athletes").select("*").eq("academy_id", academy_id).execute()
     )
@@ -303,11 +339,17 @@ Respond in EXACTLY this format:
 SQUAD_INSIGHT: [2 sentences — one observation about squad state, one actionable recommendation for today]"""
 
     text = await call_llm(prompt, max_tokens=150)
-    return {"squad_insight": text.replace("SQUAD_INSIGHT:", "").strip()}
+    result = {"squad_insight": text.replace("SQUAD_INSIGHT:", "").strip()}
+    _ai_cache_set("squad-insights", "squad", academy_id, result)
+    return {**result, "cached": False}
 
 
 @router.get("/weekly-summary/{athlete_name}")
 async def get_weekly_summary(athlete_name: str, academy_id: str = ""):
+    cached = _ai_cache_get("weekly-summary", athlete_name, academy_id)
+    if cached:
+        return cached
+
     checkins_result = await asyncio.to_thread(
         lambda: supabase.table("checkins").select("*")
         .eq("athlete_name", athlete_name).eq("academy_id", academy_id)
@@ -358,11 +400,17 @@ Training this week:
 Write a concise 3-sentence summary: wellness trend, training load assessment, one recommendation for next week. Speak directly to a coach."""
 
     text = await call_llm(prompt, max_tokens=250)
-    return {"summary": text}
+    result = {"summary": text}
+    _ai_cache_set("weekly-summary", athlete_name, academy_id, result)
+    return {**result, "cached": False}
 
 
 @router.get("/injury-risk/{athlete_name}")
 async def get_injury_risk(athlete_name: str, academy_id: str = ""):
+    cached = _ai_cache_get("injury-risk", athlete_name, academy_id)
+    if cached:
+        return cached
+
     checkins_result = await asyncio.to_thread(
         lambda: safe_supabase_query(
             lambda: supabase.table("checkins").select("*")
@@ -520,7 +568,7 @@ Write a 2-sentence verdict: sentence 1 is the main risk and why, sentence 2 is o
 
     verdict = await call_llm(prompt, max_tokens=150)
 
-    return {
+    result = {
         "injury_risk_score": total_score,
         "acwr":              acwr,
         "signals":           all_signals,
@@ -529,10 +577,16 @@ Write a 2-sentence verdict: sentence 1 is the main risk and why, sentence 2 is o
         "deception_flag":    deception_flag,
         "metrics":           metrics,
     }
+    _ai_cache_set("injury-risk", athlete_name, academy_id, result)
+    return {**result, "cached": False}
 
 
 @router.get("/drills/{athlete_name}")
 async def get_drill_suggestions(athlete_name: str, academy_id: str = ""):
+    cached = _ai_cache_get("drills", athlete_name, academy_id)
+    if cached:
+        return cached
+
     checkins_result = await asyncio.to_thread(
         lambda: supabase.table("checkins").select("*")
         .eq("athlete_name", athlete_name).eq("academy_id", academy_id)
@@ -615,16 +669,22 @@ REASON: [one sentence referencing today's wellness numbers]
         if drill.get("name"):
             drills.append(drill)
 
-    return {
+    result = {
         "drills":  drills[:3],
         "sport":   sport,
         "context": wellness_context if latest else "No check-in data",
         "athlete": athlete_name,
     }
+    _ai_cache_set("drills", athlete_name, academy_id, result)
+    return {**result, "cached": False}
 
 
 @router.get("/parent-recovery/{athlete_name}")
 async def get_parent_recovery(athlete_name: str, academy_id: str = ""):
+    cached = _ai_cache_get("parent-recovery", athlete_name, academy_id)
+    if cached:
+        return cached
+
     athletes_result = await asyncio.to_thread(
         lambda: supabase.table("athletes").select("*")
         .eq("name", athlete_name).eq("academy_id", academy_id).limit(1).execute()
@@ -665,7 +725,7 @@ async def get_parent_recovery(athlete_name: str, academy_id: str = ""):
         wellness_text = "No recent check-in data available"
 
     if risk_level == "green":
-        return {
+        green_result = {
             "risk_level":    "green",
             "coach_message": (
                 f"{athlete_name.split(' ')[0]} is in good shape! "
@@ -675,6 +735,8 @@ async def get_parent_recovery(athlete_name: str, academy_id: str = ""):
             "athlete":   athlete_name,
             "sport":     sport,
         }
+        _ai_cache_set("parent-recovery", athlete_name, academy_id, green_result)
+        return {**green_result, "cached": False}
 
     age_text = f"Age: {age}" if age else ""
     severity = "HIGH RISK" if risk_level == "red" else "MODERATE CONCERN"
@@ -732,10 +794,12 @@ WHY: [1 sentence]
         if exercise.get("name"):
             exercises.append(exercise)
 
-    return {
+    result = {
         "risk_level":    risk_level,
         "coach_message": coach_message,
         "exercises":     exercises[:3],
         "athlete":       athlete_name,
         "sport":         sport,
     }
+    _ai_cache_set("parent-recovery", athlete_name, academy_id, result)
+    return {**result, "cached": False}
