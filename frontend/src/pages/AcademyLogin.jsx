@@ -345,21 +345,6 @@ export default function AcademyLogin() {
                             </div>
                         </div>
 
-                        {/* Solo CTA */}
-                        <div className="mt-6 bg-gradient-to-br from-emerald-950/60 to-gray-900 border border-emerald-500/20 rounded-2xl p-5 text-center">
-                            <p className="text-emerald-400 text-[11px] uppercase tracking-widest font-bold mb-1">No Academy? No Problem.</p>
-                            <p className="text-gray-400 text-sm mb-4 font-light">Train solo with your own personal AI coach — no gym or team required.</p>
-                            <button
-                                onClick={() => navigate('/solo')}
-                                className="w-full py-3 rounded-xl text-sm font-black uppercase tracking-widest text-white transition-all"
-                                style={{ background: 'linear-gradient(135deg, #059669, #047857)' }}
-                                onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-1px)'}
-                                onMouseLeave={e => e.currentTarget.style.transform = 'translateY(0)'}
-                            >
-                                Train Solo — Get Your AI Coach →
-                            </button>
-                        </div>
-
                         <p className="text-center text-gray-800 text-[11px] uppercase tracking-widest font-bold mt-6">
                             AthleteIQ · Built for serious sports academies · © 2026
                         </p>
