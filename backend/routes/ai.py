@@ -29,10 +29,12 @@ def safe_supabase_query(query_fn):
 def check_trial_access(academy_id: str):
     if academy_id.startswith("solo_"):
         return True
-    result = supabase.table("academies")\
-        .select("plan, trial_ends_at")\
-        .eq("id", academy_id)\
+    result = safe_supabase_query(
+        lambda: supabase.table("academies")
+        .select("plan, trial_ends_at")
+        .eq("id", academy_id)
         .execute().data
+    )
     if not result:
         return False
     academy = result[0]

@@ -1,5 +1,9 @@
-from fastapi import FastAPI
+import logging
+import traceback
+
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -17,10 +21,22 @@ app.add_middleware(
         "https://athleteiq.in",
         "https://www.athleteiq.in",
     ],
+    allow_origin_regex=r"https://athlete-iq.*\.vercel\.app",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception):
+    # Runs inside the middleware stack, so CORSMiddleware attaches headers
+    # to the error response instead of stripping them (Starlette gotcha).
+    logging.error("Unhandled error on %s: %s\n%s", request.url.path, exc, traceback.format_exc())
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "Internal server error", "path": request.url.path},
+    )
 
 app.include_router(athletes.router, prefix="/athletes")
 app.include_router(wellness.router, prefix="/wellness")
