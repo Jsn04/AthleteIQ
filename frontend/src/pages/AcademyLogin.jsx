@@ -6,10 +6,10 @@ import API_BASE_URL from '../config';
 const API = API_BASE_URL;
 
 const ACADEMIES = [
-    { name: 'Delhi Skating Academy', sport: '⛸️', athletes: 24, status: 'Live' },
-    { name: 'Mumbai Cricket Club', sport: '🏏', athletes: 31, status: 'Live' },
+    { name: 'Delhi Skating Academy', sport: '⛸️', athletes: 24, status: 'Active' },
+    { name: 'Mumbai Cricket Club', sport: '🏏', athletes: 31, status: 'Active' },
     { name: 'Pune Athletics Hub', sport: '🏃', athletes: 18, status: 'Active' },
-    { name: 'Chennai Badminton Pro', sport: '🏸', athletes: 12, status: 'Live' },
+    { name: 'Chennai Badminton Pro', sport: '🏸', athletes: 12, status: 'Active' },
 ];
 
 export default function AcademyLogin() {
@@ -93,21 +93,22 @@ export default function AcademyLogin() {
           background-clip:text;animation:shimmer 3s linear infinite;
         }
         .marquee-wrap{overflow:hidden}
-        .marquee-track{display:flex;width:max-content;animation:marquee 28s linear infinite;gap:2.5rem}
+        .marquee-track{display:flex;width:max-content;animation:marquee 32s linear infinite;gap:2.5rem}
         .input-field{background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);transition:all .2s}
         .input-field:hover{border-color:rgba(255,255,255,0.15)}
         .input-field:focus{outline:none;border-color:rgba(99,102,241,0.5);background:rgba(99,102,241,0.03)}
         .btn-indigo{background:linear-gradient(135deg,#6366f1,#4f46e5);transition:all .2s}
         .btn-indigo:hover{transform:translateY(-1px);box-shadow:0 8px 24px rgba(99,102,241,0.35)}
         .live-dot::before{content:'';position:absolute;inset:0;border-radius:50%;background:#22c55e;animation:pulse-ring 1.5s ease-out infinite}
-        .scan{position:absolute;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,rgba(99,102,241,0.15),transparent);animation:scanline 6s linear infinite;pointer-events:none}
+        .scan{position:absolute;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,rgba(99,102,241,0.12),transparent);animation:scanline 8s linear infinite;pointer-events:none}
+        .feature-tag{font-family:'Bebas Neue',sans-serif;letter-spacing:.05em}
       `}</style>
 
             {/* BG */}
             <div className="fixed inset-0 pointer-events-none overflow-hidden">
-                <div style={{ background: 'radial-gradient(ellipse 80% 60% at 60% 0%,rgba(99,102,241,0.07) 0%,transparent 60%)' }} className="absolute inset-0" />
-                <div style={{ background: 'radial-gradient(ellipse 60% 50% at 10% 80%,rgba(59,130,246,0.05) 0%,transparent 60%)' }} className="absolute inset-0" />
-                <div className="absolute inset-0 opacity-[0.025]" style={{
+                <div style={{ background: 'radial-gradient(ellipse 80% 60% at 60% 0%,rgba(99,102,241,0.06) 0%,transparent 60%)' }} className="absolute inset-0" />
+                <div style={{ background: 'radial-gradient(ellipse 60% 50% at 10% 80%,rgba(59,130,246,0.04) 0%,transparent 60%)' }} className="absolute inset-0" />
+                <div className="absolute inset-0 opacity-[0.018]" style={{
                     backgroundImage: 'linear-gradient(rgba(255,255,255,1) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,1) 1px,transparent 1px)',
                     backgroundSize: '60px 60px'
                 }} />
@@ -117,7 +118,7 @@ export default function AcademyLogin() {
                     { e: '🏸', x: 82, y: 65, d: 8 }, { e: '🏀', x: 50, y: 8, d: 10 }, { e: '🤸', x: 5, y: 45, d: 13 },
                     { e: '🎾', x: 92, y: 45, d: 7 }, { e: '🏊', x: 45, y: 85, d: 9 },
                 ].map((p, i) => (
-                    <div key={i} className="absolute text-2xl select-none opacity-[0.06]"
+                    <div key={i} className="absolute text-2xl select-none opacity-[0.05]"
                         style={{ left: `${p.x}%`, top: `${p.y}%`, animation: `float ${p.d}s ease-in-out infinite`, animationDelay: `${i * 0.7}s` }}>
                         {p.e}
                     </div>
@@ -132,17 +133,17 @@ export default function AcademyLogin() {
                 </div>
                 <span className="relative flex items-center gap-2 bg-green-500/10 border border-green-500/20 text-green-400 text-xs px-3 py-1.5 rounded-full font-semibold">
                     <span className="live-dot relative w-2 h-2 bg-green-400 rounded-full" />
-                    <span className="hidden sm:inline">Platform </span>Live
+                    <span className="hidden sm:inline">System </span>Online
                 </span>
             </nav>
 
             {/* Marquee */}
             <div className="relative z-10 border-b border-white/5 py-2.5 marquee-wrap">
-                <div className="marquee-track text-[11px] text-gray-600 uppercase tracking-[0.15em] font-semibold">
+                <div className="marquee-track text-[11px] text-gray-700 uppercase tracking-[0.18em] font-semibold">
                     {[...Array(2)].map((_, gi) =>
-                        ['AI Injury Prediction', 'Real-time Wellness', 'Squad Management', 'ACWR Tracking', 'Drill Generation', 'Parent Portal', 'Deception Detection', 'Match Readiness', 'Performance Analytics'].map((t, i) => (
+                        ['Workload Management', 'Injury Signals', 'Session Logging', 'Readiness Scores', 'Parent Insights', 'Squad Analytics', 'ACWR Tracking', 'Mental Performance', 'Drill Planning', 'Deception Detection'].map((t, i) => (
                             <span key={`${gi}-${i}`} className="flex items-center gap-2.5 whitespace-nowrap">
-                                <span className="w-1 h-1 bg-indigo-500 rounded-full opacity-60" />
+                                <span className="w-1 h-1 bg-indigo-500/50 rounded-full" />
                                 {t}
                             </span>
                         ))
@@ -156,21 +157,21 @@ export default function AcademyLogin() {
 
                     {/* Left hero */}
                     <div className={`hidden lg:block ${mounted ? '' : 'opacity-0'}`}>
-                        <div className="anim-1 inline-flex items-center gap-2 border border-indigo-500/30 bg-indigo-500/10 text-indigo-400 text-[11px] uppercase tracking-widest font-bold px-3 py-1.5 rounded-full mb-8">
-                            <span className="w-1.5 h-1.5 bg-indigo-400 rounded-full animate-pulse" />
-                            AI Sports Performance Platform
+                        <div className="anim-1 inline-flex items-center gap-2 border border-indigo-500/25 bg-indigo-500/8 text-indigo-400 text-[11px] uppercase tracking-widest font-bold px-3 py-1.5 rounded-full mb-8">
+                            <span className="w-1.5 h-1.5 bg-indigo-400 rounded-full" />
+                            Performance Intelligence · India
                         </div>
                         <h1 className="anim-2 display text-[5.5rem] lg:text-[7rem] leading-none tracking-wider text-white mb-6">
-                            YOUR<br /><span className="shimmer-text">ACADEMY.</span><br />YOUR DATA.
+                            KNOW EVERY<br /><span className="shimmer-text">ATHLETE.</span><br />EVERY SESSION.
                         </h1>
                         <p className="anim-3 text-gray-400 text-lg leading-relaxed max-w-md mb-10 font-light">
-                            One platform for your entire academy. Track every athlete's wellness, predict injuries with AI, and make smarter coaching decisions — every single day.
+                            Built for coaches who want more than gut feel. Full squad wellness, workload data, and injury signals — logged in under 3 minutes a session.
                         </p>
                         <div className="anim-4 grid grid-cols-3 gap-4 mb-12">
                             {[
-                                { val: '15+', label: 'Sports', color: 'text-indigo-400' },
-                                { val: 'AI', label: 'Injury Alerts', color: 'text-blue-400' },
-                                { val: '∞', label: 'Athletes', color: 'text-green-400' },
+                                { val: '3 min', label: 'Squad Logged', color: 'text-indigo-400' },
+                                { val: '15+', label: 'Sports', color: 'text-blue-400' },
+                                { val: '100', label: 'Readiness Scale', color: 'text-green-400' },
                             ].map(s => (
                                 <div key={s.label} className="bg-white/[0.02] border border-white/5 rounded-2xl p-4 text-center hover:border-indigo-500/20 transition-all">
                                     <p className={`display text-4xl ${s.color} tracking-wider`}>{s.val}</p>
@@ -180,21 +181,21 @@ export default function AcademyLogin() {
                         </div>
                         <div className="anim-5">
                             <p className="text-gray-600 text-[11px] uppercase tracking-widest font-bold mb-3 flex items-center gap-2">
-                                <span className="w-1 h-1 bg-indigo-500 rounded-full" />
-                                Academies on the platform
+                                <span className="w-1 h-1 bg-indigo-500/60 rounded-full" />
+                                Active academies
                             </p>
                             <div className="space-y-2">
                                 {ACADEMIES.map((a, i) => (
-                                    <div key={i} className="flex items-center justify-between bg-white/[0.02] border border-white/5 hover:border-indigo-500/20 hover:bg-indigo-500/[0.03] rounded-xl px-4 py-3 transition-all group">
+                                    <div key={i} className="flex items-center justify-between bg-white/[0.02] border border-white/5 hover:border-indigo-500/20 hover:bg-indigo-500/[0.02] rounded-xl px-4 py-3 transition-all group">
                                         <div className="flex items-center gap-3">
                                             <span className="text-xl">{a.sport}</span>
                                             <div>
                                                 <p className="text-white text-sm font-semibold group-hover:text-indigo-300 transition-colors">{a.name}</p>
-                                                <p className="text-gray-600 text-[11px]">{a.athletes} athletes</p>
+                                                <p className="text-gray-600 text-[11px]">{a.athletes} athletes tracked</p>
                                             </div>
                                         </div>
-                                        <span className="flex items-center gap-1.5 text-green-400 text-[11px] font-bold uppercase">
-                                            <span className="w-1.5 h-1.5 bg-green-400 rounded-full animate-pulse" />
+                                        <span className="flex items-center gap-1.5 text-green-400 text-[11px] font-semibold">
+                                            <span className="w-1.5 h-1.5 bg-green-400 rounded-full" />
                                             {a.status}
                                         </span>
                                     </div>
@@ -205,19 +206,19 @@ export default function AcademyLogin() {
 
                     {/* Mobile hero */}
                     <div className="lg:hidden text-center mb-2">
-                        <div className="inline-flex items-center gap-2 border border-indigo-500/30 bg-indigo-500/10 text-indigo-400 text-[11px] uppercase tracking-widest font-bold px-3 py-1.5 rounded-full mb-4">
-                            <span className="w-1.5 h-1.5 bg-indigo-400 rounded-full animate-pulse" />
-                            AI Sports Performance Platform
+                        <div className="inline-flex items-center gap-2 border border-indigo-500/25 bg-indigo-500/8 text-indigo-400 text-[11px] uppercase tracking-widest font-bold px-3 py-1.5 rounded-full mb-4">
+                            <span className="w-1.5 h-1.5 bg-indigo-400 rounded-full" />
+                            Performance Intelligence
                         </div>
                         <h1 className="display text-5xl leading-none tracking-wider text-white mb-3">
-                            YOUR <span className="shimmer-text">ACADEMY.</span>
+                            KNOW EVERY <span className="shimmer-text">ATHLETE.</span>
                         </h1>
-                        <p className="text-gray-500 text-sm mb-4 font-light px-2">Track wellness, predict injuries with AI, and coach smarter.</p>
+                        <p className="text-gray-500 text-sm mb-4 font-light px-2">Full squad wellness, workload data, and injury signals — in one place.</p>
                         <div className="grid grid-cols-3 gap-2 mb-2 max-w-xs mx-auto">
                             {[
-                                { val: '15+', label: 'Sports', color: 'text-indigo-400' },
-                                { val: 'AI', label: 'Alerts', color: 'text-blue-400' },
-                                { val: '∞', label: 'Athletes', color: 'text-green-400' },
+                                { val: '3 min', label: 'Squad Log', color: 'text-indigo-400' },
+                                { val: '15+', label: 'Sports', color: 'text-blue-400' },
+                                { val: '100', label: 'Readiness', color: 'text-green-400' },
                             ].map(s => (
                                 <div key={s.label} className="bg-white/[0.02] border border-white/5 rounded-xl p-2 text-center">
                                     <p className={`display text-2xl ${s.color} tracking-wider`}>{s.val}</p>
@@ -233,12 +234,12 @@ export default function AcademyLogin() {
                             <div className="px-5 sm:px-8 pt-6 sm:pt-8 pb-5 border-b border-white/5">
                                 <p className="text-gray-500 text-[11px] uppercase tracking-[0.2em] font-bold mb-1">Academy Portal</p>
                                 <h2 className="display text-3xl sm:text-4xl text-white tracking-wider">
-                                    {tab === 'signin' ? 'ENTER WORKSPACE' : 'REGISTER ACADEMY'}
+                                    {tab === 'signin' ? 'SIGN IN' : 'GET STARTED'}
                                 </h2>
                                 <p className="text-gray-500 text-sm mt-1">
                                     {tab === 'signin'
-                                        ? 'Sign in with your email or academy name.'
-                                        : 'Create your academy — fully isolated, instantly ready.'}
+                                        ? 'Enter your credentials to access your dashboard.'
+                                        : 'Set up your academy in under 2 minutes.'}
                                 </p>
                             </div>
 
@@ -296,13 +297,13 @@ export default function AcademyLogin() {
 
                                 {error && (
                                     <div className="flex gap-2.5 items-start bg-red-500/10 border border-red-500/20 rounded-xl px-4 py-3">
-                                        <span className="text-red-400 shrink-0">⚠</span>
+                                        <span className="text-red-400 shrink-0 text-sm">—</span>
                                         <p className="text-red-400 text-sm">{error}</p>
                                     </div>
                                 )}
                                 {success && (
                                     <div className="flex gap-2.5 items-start bg-green-500/10 border border-green-500/20 rounded-xl px-4 py-3">
-                                        <span className="text-green-400 shrink-0">✅</span>
+                                        <span className="text-green-400 shrink-0 text-sm">✓</span>
                                         <p className="text-green-400 text-sm">{success}</p>
                                     </div>
                                 )}
@@ -311,7 +312,7 @@ export default function AcademyLogin() {
                                     className="btn-indigo w-full text-white font-black py-4 rounded-xl text-sm uppercase tracking-widest disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2 mt-2">
                                     {loading
                                         ? <><span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />{tab === 'signin' ? 'Signing in...' : 'Creating...'}</>
-                                        : tab === 'signin' ? 'Enter Workspace →' : 'Create Academy →'
+                                        : tab === 'signin' ? 'Sign In →' : 'Create Academy →'
                                     }
                                 </button>
 
@@ -326,18 +327,18 @@ export default function AcademyLogin() {
                             <div className="px-5 sm:px-8 pb-6 sm:pb-7">
                                 <div className="flex items-center gap-3 mb-4">
                                     <div className="flex-1 h-px bg-white/5" />
-                                    <p className="text-gray-700 text-[10px] uppercase tracking-widest font-bold whitespace-nowrap">Why AthleteIQ</p>
+                                    <p className="text-gray-700 text-[10px] uppercase tracking-widest font-bold whitespace-nowrap">What's included</p>
                                     <div className="flex-1 h-px bg-white/5" />
                                 </div>
                                 <div className="grid grid-cols-2 gap-2">
                                     {[
-                                        { icon: '🔒', text: 'Fully isolated data per academy' },
-                                        { icon: '⚡', text: 'Live dashboard, 30s check-ins' },
-                                        { icon: '🤖', text: 'AI injury risk & drill plans' },
-                                        { icon: '👨‍👩‍👧', text: 'Parent portal included' },
+                                        { tag: '01', text: 'Data isolated per academy — never shared' },
+                                        { tag: '02', text: 'Live dashboard — squad check-ins in 30s' },
+                                        { tag: '03', text: 'Injury signals, ACWR & readiness scoring' },
+                                        { tag: '04', text: 'Parent recovery portal — included by default' },
                                     ].map((f, i) => (
-                                        <div key={i} className="flex items-start gap-2 bg-white/[0.02] rounded-xl p-3 border border-white/5">
-                                            <span className="text-base shrink-0">{f.icon}</span>
+                                        <div key={i} className="flex items-start gap-2.5 bg-white/[0.02] rounded-xl p-3 border border-white/5">
+                                            <span className="feature-tag text-indigo-500/60 text-sm shrink-0 leading-tight">{f.tag}</span>
                                             <p className="text-gray-500 text-[11px] leading-tight font-medium">{f.text}</p>
                                         </div>
                                     ))}
@@ -346,7 +347,7 @@ export default function AcademyLogin() {
                         </div>
 
                         <p className="text-center text-gray-800 text-[11px] uppercase tracking-widest font-bold mt-6">
-                            AthleteIQ · Built for serious sports academies · © 2026
+                            AthleteIQ · India · © 2026
                         </p>
                     </div>
                 </div>

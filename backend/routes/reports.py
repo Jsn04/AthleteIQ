@@ -343,10 +343,41 @@ async def get_weekly_report(athlete_name: str, academy_id: str = ""):
     if not academy_id:
         raise HTTPException(status_code=400, detail="academy_id required")
 
-    week_start = get_week_start()
+    today = date.today()
+    week_start = get_week_start(today)
+    week_end = week_start + timedelta(days=6)
+
+    # Mon–Fri (weekday 0–4): week is still in progress.
+    # Return a lightweight signal so the frontend can show the "check back" screen.
+    # We never generate or cache a partial-week report — that data is incomplete
+    # and would just sit stale until overwritten, burning tokens for nothing.
+    if today.weekday() < 5:  # 5 = Saturday, 6 = Sunday
+        days_remaining = week_end.weekday() - today.weekday() + 1  # days until Sunday incl.
+        # quick data counts so the frontend can show "X sessions logged so far"
+        checkins_count_res = await asyncio.to_thread(
+            lambda: supabase.table("checkins").select("id", count="exact")
+            .eq("athlete_name", athlete_name).eq("academy_id", academy_id)
+            .gte("created_at", week_start.isoformat())
+            .execute()
+        )
+        training_count_res = await asyncio.to_thread(
+            lambda: supabase.table("training_logs").select("id", count="exact")
+            .eq("athlete_name", athlete_name).eq("academy_id", academy_id)
+            .gte("created_at", week_start.isoformat())
+            .execute()
+        )
+        return {
+            "week_in_progress": True,
+            "week_start": week_start.isoformat(),
+            "week_end": week_end.isoformat(),
+            "days_remaining": days_remaining,
+            "checkins_so_far": checkins_count_res.count or 0,
+            "sessions_so_far": training_count_res.count or 0,
+        }
+
+    # Saturday or Sunday — generate/return the full week report.
     week_start_str = week_start.isoformat()
 
-    # check if report already exists for this week
     existing = await asyncio.to_thread(
         lambda: supabase.table("weekly_reports").select("*")
         .eq("academy_id", academy_id)
@@ -362,10 +393,11 @@ async def get_weekly_report(athlete_name: str, academy_id: str = ""):
             "coach_note": rec["coach_note"],
             "generated_at": rec["generated_at"],
             "already_existed": True,
+            "week_in_progress": False,
             **rec["report_data"],
         }
 
-    # generate fresh
+    # Generate fresh (first time hitting on weekend)
     report_data = await build_report(athlete_name, academy_id, week_start)
 
     saved = await asyncio.to_thread(
@@ -384,6 +416,7 @@ async def get_weekly_report(athlete_name: str, academy_id: str = ""):
         "coach_note": "",
         "generated_at": rec["generated_at"],
         "already_existed": False,
+        "week_in_progress": False,
         **report_data,
     }
 

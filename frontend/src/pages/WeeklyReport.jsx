@@ -157,6 +157,78 @@ function WeeklyReport({ athleteName, academyId, onClose }) {
     );
   }
 
+  // Mid-week: week not yet complete — show waiting screen
+  if (report.week_in_progress) {
+    const weekEndDate = new Date(report.week_end);
+    // Adjust for timezone offset so date displays correctly
+    weekEndDate.setMinutes(weekEndDate.getMinutes() + weekEndDate.getTimezoneOffset());
+    const readableDate = weekEndDate.toLocaleDateString('en-IN', {
+      weekday: 'long', day: 'numeric', month: 'long',
+    });
+    const weekStartDate = new Date(report.week_start);
+    weekStartDate.setMinutes(weekStartDate.getMinutes() + weekStartDate.getTimezoneOffset());
+    const weekStartReadable = weekStartDate.toLocaleDateString('en-IN', {
+      day: 'numeric', month: 'short',
+    });
+    return (
+      <div className="fixed inset-0 bg-black/90 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div className="bg-gray-900 border border-gray-800 rounded-3xl max-w-sm w-full p-8 text-center space-y-6">
+          {/* progress ring */}
+          <div className="relative w-20 h-20 mx-auto">
+            <svg className="w-20 h-20 -rotate-90" viewBox="0 0 80 80">
+              <circle cx="40" cy="40" r="34" fill="none" stroke="#1f2937" strokeWidth="6" />
+              <circle cx="40" cy="40" r="34" fill="none" stroke="#4f46e5" strokeWidth="6"
+                strokeLinecap="round"
+                strokeDasharray={`${2 * Math.PI * 34}`}
+                strokeDashoffset={`${2 * Math.PI * 34 * (1 - (7 - report.days_remaining) / 7)}`} />
+            </svg>
+            <span className="absolute inset-0 flex items-center justify-center text-white font-black text-sm">
+              {7 - report.days_remaining}/7
+            </span>
+          </div>
+
+          <div>
+            <p className="text-gray-500 text-[11px] uppercase tracking-widest font-bold mb-2">
+              Week of {weekStartReadable}
+            </p>
+            <h3 className="text-white font-black text-xl mb-1">Week in Progress</h3>
+            <p className="text-gray-400 text-sm leading-relaxed">
+              The full report for <span className="text-white font-bold">{athleteName}</span> will
+              be generated once the week is complete.
+            </p>
+          </div>
+
+          <div className="bg-gray-800/60 border border-gray-700 rounded-2xl p-4 space-y-2 text-left">
+            <div className="flex items-center justify-between">
+              <span className="text-gray-500 text-xs">Check-ins logged</span>
+              <span className="text-white font-black text-sm">{report.checkins_so_far}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-gray-500 text-xs">Sessions logged</span>
+              <span className="text-white font-black text-sm">{report.sessions_so_far}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-gray-500 text-xs">Days remaining</span>
+              <span className="text-indigo-400 font-black text-sm">{report.days_remaining}</span>
+            </div>
+          </div>
+
+          <div className="bg-indigo-500/10 border border-indigo-500/20 rounded-2xl px-4 py-3">
+            <p className="text-indigo-300 text-xs font-semibold leading-relaxed">
+              Come back on <span className="text-indigo-200 font-black">{readableDate}</span> for
+              the full report — attendance, training load, injury signals, and next-week plan.
+            </p>
+          </div>
+
+          <button onClick={onClose}
+            className="w-full bg-gray-800 hover:bg-gray-700 text-white py-3 rounded-xl text-sm font-black transition">
+            Got it
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="fixed inset-0 bg-black/90 backdrop-blur-sm z-50 overflow-y-auto">
       {/* top action bar */}

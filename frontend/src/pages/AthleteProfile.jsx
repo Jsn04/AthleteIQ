@@ -478,8 +478,8 @@ function AthleteProfile() {
                     </div>
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className={`text-xs font-black px-3 py-1 rounded-full border ${inj.severity === 'severe' ? 'bg-rose-500/10 border-rose-500/30 text-rose-400' :
-                          inj.severity === 'moderate' ? 'bg-amber-500/10 border-amber-500/30 text-amber-400' :
-                            'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
+                        inj.severity === 'moderate' ? 'bg-amber-500/10 border-amber-500/30 text-amber-400' :
+                          'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
                         }`}>{inj.severity.toUpperCase()}</span>
                       <select value={inj.status}
                         onChange={e => handleUpdateInjuryStatus(inj.id, e.target.value, inj.notes)}
@@ -535,10 +535,10 @@ function AthleteProfile() {
                 {['mild', 'moderate', 'severe'].map(s => (
                   <button key={s} onClick={() => setInjuryForm(f => ({ ...f, severity: s }))}
                     className={`flex-1 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition border ${injuryForm.severity === s
-                        ? s === 'severe' ? 'bg-rose-600 border-rose-500 text-white'
-                          : s === 'moderate' ? 'bg-amber-600 border-amber-500 text-white'
-                            : 'bg-emerald-600 border-emerald-500 text-white'
-                        : 'border-gray-700 text-gray-500 hover:border-gray-500'
+                      ? s === 'severe' ? 'bg-rose-600 border-rose-500 text-white'
+                        : s === 'moderate' ? 'bg-amber-600 border-amber-500 text-white'
+                          : 'bg-emerald-600 border-emerald-500 text-white'
+                      : 'border-gray-700 text-gray-500 hover:border-gray-500'
                       }`}>{s}</button>
                 ))}
               </div>

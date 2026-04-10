@@ -128,53 +128,194 @@ async def call_llm(prompt: str, max_tokens: int = 250) -> str:
     return await asyncio.to_thread(_call_llm_sync, prompt, max_tokens)
 
 
-def calculate_acwr(training_logs: list) -> dict:
-    if not training_logs:
-        return {"acwr": 0.0, "acute_load": 0, "chronic_load": 0, "risk_tier": "No Data", "readiness": 50}
+def _session_load(log: dict) -> float:
+    """RPE × duration × intensity multiplier for one training session."""
+    duration = log.get("duration") or 0
+    if duration == 0:
+        return 0.0
+    rpe = log.get("rpe") or 5
+    multiplier = {"Low": 0.6, "Medium": 1.0, "High": 1.4}.get(
+        log.get("intensity", "Medium"), 1.0
+    )
+    return duration * rpe * multiplier
 
-    intensity_map = {"Low": 0.6, "Medium": 1.0, "High": 1.4}
 
-    def session_load(log):
-        duration = log.get("duration") or 0
-        if duration == 0:
-            return 0
-        rpe = log.get("rpe") or 5
-        multiplier = intensity_map.get(log.get("intensity", "Medium"), 1.0)
-        return duration * rpe * multiplier
+def _days_ago(log: dict, now: datetime) -> float:
+    try:
+        created = datetime.fromisoformat(log["created_at"].replace("Z", "+00:00"))
+        return (now - created).total_seconds() / 86400
+    except Exception:
+        return 999.0
 
-    all_loads = [session_load(l) for l in training_logs]
-    all_loads = [l for l in all_loads if l > 0]
 
-    if not all_loads:
-        return {"acwr": 0.0, "acute_load": 0, "chronic_load": 0, "risk_tier": "No Data", "readiness": 50}
+def calculate_readiness(training_logs: list, checkins=None) -> dict:
+    """
+    Multi-factor readiness score: 60% coach data + 40% athlete check-in.
 
-    acute_count  = min(3, len(all_loads))
-    acute_load   = sum(all_loads[:acute_count])
-    chronic_load = sum(all_loads) / len(all_loads) * acute_count
+    Coach pillar (60%):
+      - Load trend: last session vs 3-session baseline (always available)
+      - ACWR:       proper 7-day / 28-day date windows (only when 7+ days of data)
+      - Coach notes: keyword sentiment on last 5 sessions
 
-    acwr = round(acute_load / chronic_load, 2) if chronic_load else 0.0
+    Athlete pillar (40%):
+      - Energy 30%, Sleep 30%, Soreness 25% (inverted), Mood 15%
+      - Uses last 3 check-ins
 
-    if acwr < 0.8:
-        risk_tier, readiness = "Undertraining", 65
-    elif acwr <= 1.3:
-        risk_tier, readiness = "Optimal", 88
-    elif acwr <= 1.5:
-        risk_tier, readiness = "Caution", 55
+    Weights shift when data is limited so the score is never dominated by
+    a single missing dimension.
+    """
+    checkins = checkins or []
+    now = datetime.now(timezone.utc)
+
+    # ── ACWR: proper 7-day / 28-day windows ──────────────────────────────────
+    loads_7d  = [_session_load(l) for l in training_logs if _days_ago(l, now) <=  7]
+    loads_28d = [_session_load(l) for l in training_logs if _days_ago(l, now) <= 28]
+    loads_7d  = [l for l in loads_7d  if l > 0]
+    loads_28d = [l for l in loads_28d if l > 0]
+
+    # ACWR is only meaningful with enough history in both windows
+    has_acwr = len(loads_7d) >= 2 and len(loads_28d) >= 5
+
+    acute_load_total   = sum(loads_7d)
+    chronic_load_total = sum(loads_28d)
+
+    acwr_val = 0.0
+    if has_acwr and chronic_load_total > 0:
+        # Standard formula: acute weekly sum / chronic weekly average (over 4 wks)
+        chronic_weekly_avg = chronic_load_total / 4
+        acwr_val = round(acute_load_total / chronic_weekly_avg, 2)
+
+    # ── PILLAR 1: COACH DATA (60%) ────────────────────────────────────────────
+    coach_score = 70  # neutral fallback when no training data at all
+
+    if training_logs:
+        all_loads = [_session_load(l) for l in training_logs if _session_load(l) > 0]
+
+        # A. Load trend — last session vs 3-session rolling baseline
+        trend_score = 75
+        if all_loads:
+            recent_load = all_loads[0]
+            baseline    = (sum(all_loads[1:4]) / len(all_loads[1:4])
+                           if len(all_loads) > 1 else recent_load)
+            if baseline > 0:
+                ratio = recent_load / baseline
+                if   ratio > 1.6:  trend_score = max(25, int(75 - (ratio - 1.6) * 60))
+                elif ratio > 1.3:  trend_score = max(48, int(75 - (ratio - 1.3) * 45))
+                elif ratio > 1.1:  trend_score = 72
+                elif ratio >= 0.7: trend_score = 85   # good consistency
+                elif ratio >= 0.5: trend_score = 74   # deliberate taper — ok
+                else:              trend_score = 60   # significant drop
+
+            # Last session RPE / intensity modifier
+            last_rpe       = training_logs[0].get("rpe") or 5
+            last_intensity = training_logs[0].get("intensity", "Medium")
+            if last_rpe >= 9 or last_intensity == "High" and last_rpe >= 8:
+                trend_score = max(trend_score - 12, 20)
+            elif last_rpe <= 3 and last_intensity == "Low":
+                trend_score = min(trend_score + 8, 92)
+
+        # B. ACWR score — continuous curve, only when data is sufficient
+        acwr_score = None
+        if has_acwr and acwr_val > 0:
+            if   acwr_val < 0.5:   acwr_score = 35
+            elif acwr_val < 0.8:   acwr_score = int(35 + (acwr_val - 0.5) / 0.3 * 37)
+            elif acwr_val <= 1.05: acwr_score = int(72 + (acwr_val - 0.8) / 0.25 * 21)
+            elif acwr_val <= 1.3:  acwr_score = int(93 - (acwr_val - 1.05) / 0.25 * 27)
+            elif acwr_val <= 1.5:  acwr_score = int(66 - (acwr_val - 1.3)  / 0.2  * 28)
+            else:                  acwr_score = max(15, int(38 - (acwr_val - 1.5) / 0.5 * 23))
+
+        # C. Coach notes sentiment (last 5 sessions)
+        notes_text = " ".join(
+            t.get("coach_notes", "").lower()
+            for t in training_logs[:5] if t.get("coach_notes")
+        )
+        notes_score = 75  # neutral baseline
+        if any(kw in notes_text for kw in [
+            "pain", "sore", "aching", "tight", "injury", "discomfort",
+            "tender", "limping", "hurts", "hurting",
+        ]):
+            notes_score -= 20
+        if any(kw in notes_text for kw in [
+            "pulled out", "sat out", "stopped early", "early exit",
+            "reduced load", "modified session", "held back",
+        ]):
+            notes_score -= 12
+        if any(kw in notes_text for kw in [
+            "tired", "fatigued", "sluggish", "heavy legs",
+            "lethargic", "flat", "not sharp", "looked off",
+        ]):
+            notes_score -= 8
+        if any(kw in notes_text for kw in [
+            "great session", "excellent", "sharp", "strong",
+            "best session", "perfect", "very good",
+        ]):
+            notes_score += 10
+        notes_score = max(20, min(95, notes_score))
+
+        # Combine sub-pillars — weights shift when ACWR is unavailable
+        if acwr_score is not None:
+            # Full data: load trend 40%, ACWR 35%, notes 25%
+            coach_score = int(trend_score * 0.40 + acwr_score * 0.35 + notes_score * 0.25)
+        else:
+            # Insufficient history for ACWR: load trend 65%, notes 35%
+            coach_score = int(trend_score * 0.65 + notes_score * 0.35)
+
+    # ── PILLAR 2: ATHLETE WELLNESS (40%) ──────────────────────────────────────
+    wellness_score = 70  # neutral fallback when no check-ins
+
+    if checkins:
+        recent = checkins[:3]
+        avg_energy   = sum(c.get("energy",   5) for c in recent) / len(recent)
+        avg_sleep    = sum(c.get("sleep",    5) for c in recent) / len(recent)
+        avg_soreness = sum(c.get("soreness", 5) for c in recent) / len(recent)
+        avg_mood     = sum(c.get("mood",     5) for c in recent) / len(recent)
+
+        # Normalise each to 0-100; soreness is inverted (high soreness = low score)
+        e_score  = int((avg_energy          / 10) * 100)
+        sl_score = int((avg_sleep           / 10) * 100)
+        so_score = int(((10 - avg_soreness) / 10) * 100)
+        m_score  = int((avg_mood            / 10) * 100)
+
+        # energy 30%, sleep 30%, soreness 25%, mood 15%
+        wellness_score = int(
+            e_score  * 0.30 +
+            sl_score * 0.30 +
+            so_score * 0.25 +
+            m_score  * 0.15
+        )
+
+    # ── FINAL SCORE: 60% coach + 40% athlete ──────────────────────────────────
+    final_readiness = max(5, min(98, int(coach_score * 0.60 + wellness_score * 0.40)))
+
+    # Risk tier — prefer ACWR when available; fall back to readiness band
+    if has_acwr and acwr_val > 0:
+        if   acwr_val > 1.5:  risk_tier = "High Risk"
+        elif acwr_val > 1.3:  risk_tier = "Caution"
+        elif acwr_val < 0.8:  risk_tier = "Undertraining"
+        else:                  risk_tier = "Optimal"
     else:
-        risk_tier, readiness = "High Risk", 25
+        if   final_readiness >= 78: risk_tier = "Optimal"
+        elif final_readiness >= 55: risk_tier = "Caution"
+        else:                        risk_tier = "High Risk"
 
     return {
-        "acwr": acwr,
-        "acute_load": round(acute_load),
-        "chronic_load": round(chronic_load),
-        "risk_tier": risk_tier,
-        "readiness": readiness,
+        "readiness":      final_readiness,
+        "acwr":           acwr_val,
+        "acute_load":     round(acute_load_total),
+        "chronic_load":   round(chronic_load_total),
+        "risk_tier":      risk_tier,
+        "coach_score":    coach_score,
+        "wellness_score": wellness_score,
+        "has_acwr":       has_acwr,
     }
 
 
-# Maps the workload tier from calculate_acwr() to the green/yellow/red buckets
-# the frontend uses for colour coding. Derived from metrics so that cache hits
-# always surface a risk colour even though the LLM's RISK line isn't persisted.
+# Keep thin alias so any code referencing calculate_acwr still works
+def calculate_acwr(training_logs: list) -> dict:
+    return calculate_readiness(training_logs, [])
+
+
+# Maps the workload tier to the green/yellow/red buckets the frontend uses
 _RISK_TIER_TO_LEVEL = {
     "Optimal": "green",
     "Undertraining": "green",
@@ -264,7 +405,7 @@ async def get_athlete_insight(athlete_name: str, academy_id: str = ""):
     if not checkins and not training:
         return {"insight": "No data yet", "risk": "unknown", "score": None, "cached": False}
 
-    metrics        = calculate_acwr(training)
+    metrics        = calculate_readiness(training, checkins)
     latest_checkin = checkins[0] if checkins else {}
 
     checkin_summary = (
@@ -399,7 +540,7 @@ async def get_weekly_summary(athlete_name: str, academy_id: str = ""):
     if not checkins and not training:
         return {"summary": "No data available yet to generate a weekly summary."}
 
-    metrics = calculate_acwr(training)
+    metrics = calculate_readiness(training, checkins)
 
     checkin_summary = (
         "\n".join([
@@ -465,7 +606,7 @@ async def get_injury_risk(athlete_name: str, academy_id: str = ""):
         return {"injury_risk_score": None, "acwr": None, "signals": [],
                 "verdict": "No data available yet", "risk_level": "unknown", "deception_flag": False}
 
-    metrics = calculate_acwr(training)
+    metrics = calculate_readiness(training, checkins)
     acwr    = metrics["acwr"]
 
     coach_notes_combined = " ".join([
