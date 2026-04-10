@@ -26,7 +26,7 @@ def safe_supabase_query(query_fn):
     global supabase
     try:
         return query_fn()
-    except (httpx.ReadError, httpx.ConnectError):
+    except (httpx.ReadError, httpx.ConnectError, httpx.RemoteProtocolError):
         supabase = get_supabase()
         return query_fn()
 

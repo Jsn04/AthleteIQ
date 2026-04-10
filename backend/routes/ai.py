@@ -22,7 +22,7 @@ def safe_supabase_query(query_fn):
     global supabase
     try:
         return query_fn()
-    except (httpx.ReadError, httpx.ConnectError):
+    except (httpx.ReadError, httpx.ConnectError, httpx.RemoteProtocolError):
         supabase = get_supabase()
         return query_fn()
 
@@ -381,14 +381,13 @@ async def _save_insight_cache(supabase, athlete_name: str, academy_id: str, insi
 
 @router.get("/insights/{athlete_name}")
 async def get_athlete_insight(athlete_name: str, academy_id: str = ""):
-    if not await asyncio.to_thread(check_trial_access, academy_id):
-        return {"status": "trial_expired", "message": "Your 14-day trial has expired."}
-
-    cached = await _get_cached_insight(supabase, athlete_name, academy_id)
-    if cached:
-        return cached
-
     try:
+        if not await asyncio.to_thread(check_trial_access, academy_id):
+            return {"status": "trial_expired", "message": "Your 14-day trial has expired."}
+
+        cached = await _get_cached_insight(supabase, athlete_name, academy_id)
+        if cached:
+            return cached
         checkins_result = await asyncio.to_thread(
             lambda: safe_supabase_query(
                 lambda: supabase.table("checkins").select("*")
