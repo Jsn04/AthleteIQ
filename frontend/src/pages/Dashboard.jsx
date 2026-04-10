@@ -299,8 +299,10 @@ function Dashboard() {
   const [loadingRecovery, setLoadingRecovery] = useState({});
   const [attendance, setAttendance] = useState({});
   const [markingAttendance, setMarkingAttendance] = useState({});
+  const [loadError, setLoadError] = useState(false);
   const navigate = useNavigate();
   const prevCheckinsRef = useRef(null);
+  const retryTimerRef = useRef(null);
   const coachSport = getCoachSport();
   const academyId = getAcademyId();
 
@@ -317,6 +319,7 @@ function Dashboard() {
 
       setAthletes(athletesRes.data);
       setCheckins(checkinsRes.data);
+      setLoadError(false);
       setLastUpdated(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
 
       if (dataChanged || !isSilent) {
@@ -351,6 +354,11 @@ function Dashboard() {
       }
     } catch (err) {
       console.error('Error fetching data:', err);
+      // Don't clobber any previously loaded athletes — surface a soft error banner
+      // instead. On first-load failure (athletes still empty) the effect below
+      // schedules a fast 3s retry so the user isn't stuck on "No athletes found"
+      // for 30s while the polling interval limps to the rescue.
+      setLoadError(true);
     } finally {
       setLoading(false);
     }
@@ -361,6 +369,18 @@ function Dashboard() {
     const interval = setInterval(() => fetchData(true), 30000);
     return () => clearInterval(interval);
   }, [fetchData]);
+
+  // Fast retry on initial load failure — handles Render cold starts and
+  // transient Supabase stale-connection errors without waiting for the 30s poll.
+  useEffect(() => {
+    if (loadError && athletes.length === 0) {
+      if (retryTimerRef.current) clearTimeout(retryTimerRef.current);
+      retryTimerRef.current = setTimeout(() => fetchData(true), 3000);
+    }
+    return () => {
+      if (retryTimerRef.current) clearTimeout(retryTimerRef.current);
+    };
+  }, [loadError, athletes.length, fetchData]);
 
   const visibleAthletes = coachSport
     ? athletes.filter(a => norm(a.sport) === norm(coachSport))
@@ -638,22 +658,39 @@ function Dashboard() {
 
         {/* ── Athletes ── */}
         {visibleAthletes.length === 0 ? (
-          <div className="bg-gray-800 rounded-2xl p-10 sm:p-16 text-center border border-dashed border-gray-700">
-            <h2 className="text-xl sm:text-2xl font-black text-white mb-2">
-              {coachSport ? `No ${coachSport} athletes found` : 'No athletes found'}
-            </h2>
-            <p className="text-gray-500 mb-6 font-medium text-sm">
-              {coachSport
-                ? `No athletes assigned to ${coachSport} yet. Ask an admin to add them.`
-                : 'Get started by adding your athlete profiles.'}
-            </p>
-            {!coachSport && (
-              <Link to="/athletes"
+          loadError ? (
+            <div className="bg-gray-800 rounded-2xl p-10 sm:p-16 text-center border border-dashed border-amber-500/30">
+              <div className="inline-flex items-center gap-3 mb-3">
+                <span className="w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse" />
+                <h2 className="text-xl sm:text-2xl font-black text-white">Reconnecting…</h2>
+              </div>
+              <p className="text-gray-500 mb-6 font-medium text-sm">
+                Couldn't reach the server. Retrying automatically.
+              </p>
+              <button
+                onClick={() => fetchData(false)}
                 className="inline-block bg-blue-600 hover:bg-blue-500 text-white px-8 py-3 rounded-xl font-bold transition-all">
-                Add Athletes
-              </Link>
-            )}
-          </div>
+                Retry now
+              </button>
+            </div>
+          ) : (
+            <div className="bg-gray-800 rounded-2xl p-10 sm:p-16 text-center border border-dashed border-gray-700">
+              <h2 className="text-xl sm:text-2xl font-black text-white mb-2">
+                {coachSport ? `No ${coachSport} athletes found` : 'No athletes found'}
+              </h2>
+              <p className="text-gray-500 mb-6 font-medium text-sm">
+                {coachSport
+                  ? `No athletes assigned to ${coachSport} yet. Ask an admin to add them.`
+                  : 'Get started by adding your athlete profiles.'}
+              </p>
+              {!coachSport && (
+                <Link to="/athletes"
+                  className="inline-block bg-blue-600 hover:bg-blue-500 text-white px-8 py-3 rounded-xl font-bold transition-all">
+                  Add Athletes
+                </Link>
+              )}
+            </div>
+          )
         ) : (
           <div className="space-y-4">
             {Object.entries(sportGroups).map(([sport, sportAthletes]) => (

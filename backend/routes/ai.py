@@ -172,6 +172,18 @@ def calculate_acwr(training_logs: list) -> dict:
     }
 
 
+# Maps the workload tier from calculate_acwr() to the green/yellow/red buckets
+# the frontend uses for colour coding. Derived from metrics so that cache hits
+# always surface a risk colour even though the LLM's RISK line isn't persisted.
+_RISK_TIER_TO_LEVEL = {
+    "Optimal": "green",
+    "Undertraining": "green",
+    "Caution": "yellow",
+    "High Risk": "red",
+    "No Data": "unknown",
+}
+
+
 async def _get_cached_insight(supabase, athlete_name: str, academy_id: str):
     try:
         result = await asyncio.to_thread(
@@ -186,10 +198,26 @@ async def _get_cached_insight(supabase, athlete_name: str, academy_id: str):
         cached    = result.data[0]
         cached_at = datetime.fromisoformat(cached["created_at"].replace("Z", "+00:00"))
         age_hours = (datetime.now(timezone.utc) - cached_at).total_seconds() / 3600
-        if age_hours < 12:
-            return {"insight": cached["insight"], "metrics": cached["metrics"],
-                    "cached": True, "cache_age_mins": round(age_hours * 60)}
-        return None
+        if age_hours >= 12:
+            return None
+
+        # Reconstruct the full response shape from the stored row. The cache
+        # table only has `insight` + `metrics` columns, so score / risk /
+        # athlete_message have to be derived (or read from the metrics dict
+        # if newer rows stuffed them in on save). Without this, the athlete
+        # and coach dashboards render "—" for Avg Readiness on every refresh
+        # because insight.score is undefined on cache hits.
+        metrics = cached.get("metrics") or {}
+        athlete_message = metrics.get("athlete_message", "")
+        return {
+            "insight": cached["insight"],
+            "metrics": metrics,
+            "score": metrics.get("readiness"),
+            "risk": _RISK_TIER_TO_LEVEL.get(metrics.get("risk_tier", ""), "unknown"),
+            "athlete_message": athlete_message,
+            "cached": True,
+            "cache_age_mins": round(age_hours * 60),
+        }
     except Exception:
         return None
 
@@ -278,6 +306,10 @@ ATHLETE_MESSAGE: [one motivating sentence for the athlete]"""
         elif line.startswith("ATHLETE_MESSAGE:"):
             result["athlete_message"] = line.replace("ATHLETE_MESSAGE:", "").strip()
 
+    # Stuff athlete_message into the metrics dict so it round-trips through
+    # the cache (the table schema only has insight + metrics columns, and
+    # score/risk get reconstructed from metrics on read).
+    metrics["athlete_message"] = result.get("athlete_message", "")
     result["metrics"] = metrics
     await _save_insight_cache(supabase, athlete_name, academy_id, result.get("insight", ""), metrics)
     return result

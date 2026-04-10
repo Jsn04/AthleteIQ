@@ -43,6 +43,9 @@ function AthleteProfile() {
   const [showWeeklyReport, setShowWeeklyReport] = useState(false);
 
   const prevCheckinsRef = useRef(null);
+  const retryTimerRef = useRef(null);
+  const [fetchTick, setFetchTick] = useState(0);
+  const [partialLoad, setPartialLoad] = useState(false);
 
   const fetchData = useCallback(async (isSilent = false) => {
     if (!isSilent) setLoading(true);
@@ -75,6 +78,15 @@ function AthleteProfile() {
       if (logsRes.status === 'fulfilled') setTrainingLogs([...logsRes.value.data.logs || []].reverse());
       if (insightRes.status === 'fulfilled') setInsight(insightRes.value.data);
       if (injuryRes.status === 'fulfilled') setInjuryRisk(injuryRes.value.data);
+
+      // Flag a partial load if any of the AI panels came back rejected. A follow-up
+      // effect schedules a fast retry so readiness + injury risk don't stay blank
+      // while waiting for a 429 or stale Supabase connection to clear.
+      setPartialLoad(
+        insightRes.status !== 'fulfilled' ||
+        injuryRes.status !== 'fulfilled'
+      );
+      setFetchTick(t => t + 1);
 
       try {
         const injuriesRes = await axios.get(
@@ -132,6 +144,22 @@ function AthleteProfile() {
     const interval = setInterval(() => fetchData(true), 30000);
     return () => clearInterval(interval);
   }, [fetchData]);
+
+  // Fast retry when an AI panel fails on first open (Groq 429, stale Supabase
+  // connection, cold start). Without this the coach sees a blank readiness /
+  // recovery card and has to manually refresh 3-4 times. Capped at 5 attempts
+  // (~15s) so a broken backend doesn't turn into a request storm — after that
+  // the normal 30s polling interval takes over.
+  useEffect(() => {
+    if (!partialLoad) return;
+    if (insight && injuryRisk) return;
+    if (fetchTick > 5) return;
+    if (retryTimerRef.current) clearTimeout(retryTimerRef.current);
+    retryTimerRef.current = setTimeout(() => fetchData(true), 3000);
+    return () => {
+      if (retryTimerRef.current) clearTimeout(retryTimerRef.current);
+    };
+  }, [partialLoad, fetchTick, insight, injuryRisk, fetchData]);
 
   const filteredHistory = (() => {
     const n = timeRange === '7D' ? 7 : timeRange === '14D' ? 14 : timeRange === '30D' ? 30 : 999;
