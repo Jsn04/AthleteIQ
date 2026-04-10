@@ -388,34 +388,39 @@ async def get_athlete_insight(athlete_name: str, academy_id: str = ""):
     if cached:
         return cached
 
-    checkins_result = await asyncio.to_thread(
-        lambda: supabase.table("checkins").select("*")
-        .eq("athlete_name", athlete_name).eq("academy_id", academy_id)
-        .order("created_at", desc=True).limit(7).execute()
-    )
-    training_result = await asyncio.to_thread(
-        lambda: supabase.table("training_logs").select("*")
-        .eq("athlete_name", athlete_name).eq("academy_id", academy_id)
-        .order("created_at", desc=True).limit(28).execute()
-    )
+    try:
+        checkins_result = await asyncio.to_thread(
+            lambda: safe_supabase_query(
+                lambda: supabase.table("checkins").select("*")
+                .eq("athlete_name", athlete_name).eq("academy_id", academy_id)
+                .order("created_at", desc=True).limit(7).execute()
+            )
+        )
+        training_result = await asyncio.to_thread(
+            lambda: safe_supabase_query(
+                lambda: supabase.table("training_logs").select("*")
+                .eq("athlete_name", athlete_name).eq("academy_id", academy_id)
+                .order("created_at", desc=True).limit(28).execute()
+            )
+        )
 
-    checkins = checkins_result.data or []
-    training = training_result.data or []
+        checkins = (checkins_result.data if hasattr(checkins_result, 'data') else checkins_result) or []
+        training = (training_result.data if hasattr(training_result, 'data') else training_result) or []
 
-    if not checkins and not training:
-        return {"insight": "No data yet", "risk": "unknown", "score": None, "cached": False}
+        if not checkins and not training:
+            return {"insight": "No data yet", "risk": "unknown", "score": None, "cached": False}
 
-    metrics        = calculate_readiness(training, checkins)
-    latest_checkin = checkins[0] if checkins else {}
+        metrics        = calculate_readiness(training, checkins)
+        latest_checkin = checkins[0] if checkins else {}
 
-    checkin_summary = (
-        "\n".join([
-            f"- Energy {c['energy']}/10, Sleep {c['sleep']}/10, Soreness {c['soreness']}/10, Mood {c['mood']}/10"
-            for c in checkins
-        ]) if checkins else "No wellness check-ins submitted yet"
-    )
+        checkin_summary = (
+            "\n".join([
+                f"- Energy {c['energy']}/10, Sleep {c['sleep']}/10, Soreness {c['soreness']}/10, Mood {c['mood']}/10"
+                for c in checkins
+            ]) if checkins else "No wellness check-ins submitted yet"
+        )
 
-    prompt = f"""You are an elite sports physiotherapist and performance coach.
+        prompt = f"""You are an elite sports physiotherapist and performance coach.
 
 Athlete: {athlete_name}
 Readiness Score: {metrics['readiness']}/100
@@ -431,29 +436,31 @@ RISK: [green or yellow or red]
 SCORE: [readiness number 0-100]
 ATHLETE_MESSAGE: [one motivating sentence for the athlete]"""
 
-    text   = await call_llm(prompt, max_tokens=200)
-    result = {"cached": False, "cache_age_mins": 0}
+        text   = await call_llm(prompt, max_tokens=200)
+        result = {"cached": False, "cache_age_mins": 0}
 
-    for line in text.split("\n"):
-        if line.startswith("INSIGHT:"):
-            result["insight"] = line.replace("INSIGHT:", "").strip()
-        elif line.startswith("RISK:"):
-            result["risk"] = line.replace("RISK:", "").strip().lower()
-        elif line.startswith("SCORE:"):
-            try:
-                result["score"] = int(line.replace("SCORE:", "").strip())
-            except Exception:
-                result["score"] = metrics["readiness"]
-        elif line.startswith("ATHLETE_MESSAGE:"):
-            result["athlete_message"] = line.replace("ATHLETE_MESSAGE:", "").strip()
+        for line in text.split("\n"):
+            if line.startswith("INSIGHT:"):
+                result["insight"] = line.replace("INSIGHT:", "").strip()
+            elif line.startswith("RISK:"):
+                result["risk"] = line.replace("RISK:", "").strip().lower()
+            elif line.startswith("SCORE:"):
+                try:
+                    result["score"] = int(line.replace("SCORE:", "").strip())
+                except Exception:
+                    result["score"] = metrics["readiness"]
+            elif line.startswith("ATHLETE_MESSAGE:"):
+                result["athlete_message"] = line.replace("ATHLETE_MESSAGE:", "").strip()
 
-    # Stuff athlete_message into the metrics dict so it round-trips through
-    # the cache (the table schema only has insight + metrics columns, and
-    # score/risk get reconstructed from metrics on read).
-    metrics["athlete_message"] = result.get("athlete_message", "")
-    result["metrics"] = metrics
-    await _save_insight_cache(supabase, athlete_name, academy_id, result.get("insight", ""), metrics)
-    return result
+        metrics["athlete_message"] = result.get("athlete_message", "")
+        result["metrics"] = metrics
+        await _save_insight_cache(supabase, athlete_name, academy_id, result.get("insight", ""), metrics)
+        return result
+    except Exception as e:
+        import logging
+        logging.error("insights/%s crashed: %s", athlete_name, e)
+        return {"insight": "Insight temporarily unavailable", "risk": "unknown",
+                "score": None, "cached": False, "error": True}
 
 
 @router.get("/squad-insights")
@@ -584,149 +591,150 @@ async def get_injury_risk(athlete_name: str, academy_id: str = ""):
     if cached:
         return cached
 
-    checkins_result = await asyncio.to_thread(
-        lambda: safe_supabase_query(
-            lambda: supabase.table("checkins").select("*")
-            .eq("athlete_name", athlete_name).eq("academy_id", academy_id)
-            .order("created_at", desc=True).limit(28).execute().data
+    try:
+        checkins_result = await asyncio.to_thread(
+            lambda: safe_supabase_query(
+                lambda: supabase.table("checkins").select("*")
+                .eq("athlete_name", athlete_name).eq("academy_id", academy_id)
+                .order("created_at", desc=True).limit(28).execute().data
+            )
         )
-    )
-    training_result = await asyncio.to_thread(
-        lambda: safe_supabase_query(
-            lambda: supabase.table("training_logs").select("*")
-            .eq("athlete_name", athlete_name).eq("academy_id", academy_id)
-            .order("created_at", desc=True).limit(28).execute().data
+        training_result = await asyncio.to_thread(
+            lambda: safe_supabase_query(
+                lambda: supabase.table("training_logs").select("*")
+                .eq("athlete_name", athlete_name).eq("academy_id", academy_id)
+                .order("created_at", desc=True).limit(28).execute().data
+            )
         )
-    )
 
-    checkins = checkins_result or []
-    training = training_result or []
+        checkins = checkins_result or []
+        training = training_result or []
 
-    if not checkins and not training:
-        return {"injury_risk_score": None, "acwr": None, "signals": [],
-                "verdict": "No data available yet", "risk_level": "unknown", "deception_flag": False}
+        if not checkins and not training:
+            return {"injury_risk_score": None, "acwr": None, "signals": [],
+                    "verdict": "No data available yet", "risk_level": "unknown", "deception_flag": False}
 
-    metrics = calculate_readiness(training, checkins)
-    acwr    = metrics["acwr"]
+        metrics = calculate_readiness(training, checkins)
+        acwr    = metrics["acwr"]
 
-    coach_notes_combined = " ".join([
-        t.get("coach_notes", "").lower() for t in training[:7] if t.get("coach_notes")
-    ])
+        coach_notes_combined = " ".join([
+            t.get("coach_notes", "").lower() for t in training[:7] if t.get("coach_notes")
+        ])
 
-    notes_score, notes_signals       = 0, []
-    athlete_score, athlete_signals   = 0, []
-    acwr_score, acwr_signals         = 0, []
-    deception_flag, mismatch_signals = False, []
+        notes_score, notes_signals       = 0, []
+        athlete_score, athlete_signals   = 0, []
+        acwr_score, acwr_signals         = 0, []
+        deception_flag, mismatch_signals = False, []
 
-    subtle_keywords = ["tired", "flat", "sluggish", "heavy legs", "looked off",
-                       "not himself", "not herself", "seemed off", "low energy",
-                       "unmotivated", "lethargic", "slow", "labored"]
-    if any(w in coach_notes_combined for w in subtle_keywords):
-        notes_score += 8
-        notes_signals.append("Coach noted subtle fatigue or low energy signs")
+        subtle_keywords = ["tired", "flat", "sluggish", "heavy legs", "looked off",
+                           "not himself", "not herself", "seemed off", "low energy",
+                           "unmotivated", "lethargic", "slow", "labored"]
+        if any(w in coach_notes_combined for w in subtle_keywords):
+            notes_score += 8
+            notes_signals.append("Coach noted subtle fatigue or low energy signs")
 
-    load_keywords = ["reduced load", "modified session", "light work only", "kept it easy",
-                     "held back", "limited reps", "sat out drills", "reduced intensity", "short session"]
-    if any(w in coach_notes_combined for w in load_keywords):
-        notes_score += 12
-        notes_signals.append("Coach already modified or reduced training load")
+        load_keywords = ["reduced load", "modified session", "light work only", "kept it easy",
+                         "held back", "limited reps", "sat out drills", "reduced intensity", "short session"]
+        if any(w in coach_notes_combined for w in load_keywords):
+            notes_score += 12
+            notes_signals.append("Coach already modified or reduced training load")
 
-    pain_keywords = ["pain", "complained", "discomfort", "sore", "aching",
-                     "tight", "stiff", "tender", "hurts", "hurting", "painful"]
-    if any(w in coach_notes_combined for w in pain_keywords):
-        notes_score += 15
-        notes_signals.append("Coach notes mention pain or discomfort")
+        pain_keywords = ["pain", "complained", "discomfort", "sore", "aching",
+                         "tight", "stiff", "tender", "hurts", "hurting", "painful"]
+        if any(w in coach_notes_combined for w in pain_keywords):
+            notes_score += 15
+            notes_signals.append("Coach notes mention pain or discomfort")
 
-    compensation_keywords = ["limping", "favoring", "protecting", "guarding", "compensating",
-                              "altered gait", "not moving right", "avoiding", "one-sided", "uneven"]
-    if any(w in coach_notes_combined for w in compensation_keywords):
-        notes_score += 20
-        notes_signals.append("Coach observed movement compensation or altered gait")
+        compensation_keywords = ["limping", "favoring", "protecting", "guarding", "compensating",
+                                  "altered gait", "not moving right", "avoiding", "one-sided", "uneven"]
+        if any(w in coach_notes_combined for w in compensation_keywords):
+            notes_score += 20
+            notes_signals.append("Coach observed movement compensation or altered gait")
 
-    stoppage_keywords = ["pulled out", "stopped early", "sat out", "couldn't finish",
-                         "left session", "withdrew", "pulled up", "had to stop", "taken off", "subbed off"]
-    if any(w in coach_notes_combined for w in stoppage_keywords):
-        notes_score += 25
-        notes_signals.append("Athlete stopped session early or was withdrawn")
+        stoppage_keywords = ["pulled out", "stopped early", "sat out", "couldn't finish",
+                             "left session", "withdrew", "pulled up", "had to stop", "taken off", "subbed off"]
+        if any(w in coach_notes_combined for w in stoppage_keywords):
+            notes_score += 25
+            notes_signals.append("Athlete stopped session early or was withdrawn")
 
-    notes_score = min(notes_score, 25)
+        notes_score = min(notes_score, 25)
 
-    recent_checkins = checkins[:7]
+        recent_checkins = checkins[:7]
 
-    if recent_checkins:
-        soreness_vals = [c["soreness"] for c in recent_checkins if c.get("soreness") is not None]
-        if soreness_vals:
-            avg_soreness = sum(soreness_vals) / len(soreness_vals)
-            last3 = soreness_vals[:3]
-            if len(last3) >= 3 and all(s >= 7 for s in last3):
-                athlete_score += 20
-                athlete_signals.append(f"3 consecutive days of high soreness: {last3}")
-            elif avg_soreness >= 7:
-                athlete_score += 13
-                athlete_signals.append(f"High average soreness: {round(avg_soreness, 1)}/10")
-            elif avg_soreness >= 5:
-                athlete_score += 6
-                athlete_signals.append(f"Moderate soreness trend: {round(avg_soreness, 1)}/10")
+        if recent_checkins:
+            soreness_vals = [c["soreness"] for c in recent_checkins if c.get("soreness") is not None]
+            if soreness_vals:
+                avg_soreness = sum(soreness_vals) / len(soreness_vals)
+                last3 = soreness_vals[:3]
+                if len(last3) >= 3 and all(s >= 7 for s in last3):
+                    athlete_score += 20
+                    athlete_signals.append(f"3 consecutive days of high soreness: {last3}")
+                elif avg_soreness >= 7:
+                    athlete_score += 13
+                    athlete_signals.append(f"High average soreness: {round(avg_soreness, 1)}/10")
+                elif avg_soreness >= 5:
+                    athlete_score += 6
+                    athlete_signals.append(f"Moderate soreness trend: {round(avg_soreness, 1)}/10")
 
-        sleep_vals = [c["sleep"] for c in recent_checkins if c.get("sleep") is not None]
-        if sleep_vals:
-            avg_sleep = sum(sleep_vals) / len(sleep_vals)
-            last3_sleep = sleep_vals[:3]
-            if len(last3_sleep) >= 3 and all(s <= 5 for s in last3_sleep):
-                athlete_score += 15
-                athlete_signals.append(f"3 consecutive nights of poor sleep: {last3_sleep}")
-            elif avg_sleep <= 5:
+            sleep_vals = [c["sleep"] for c in recent_checkins if c.get("sleep") is not None]
+            if sleep_vals:
+                avg_sleep = sum(sleep_vals) / len(sleep_vals)
+                last3_sleep = sleep_vals[:3]
+                if len(last3_sleep) >= 3 and all(s <= 5 for s in last3_sleep):
+                    athlete_score += 15
+                    athlete_signals.append(f"3 consecutive nights of poor sleep: {last3_sleep}")
+                elif avg_sleep <= 5:
+                    athlete_score += 10
+                    athlete_signals.append(f"Chronic sleep deficit: avg {round(avg_sleep, 1)}/10")
+                elif avg_sleep <= 6:
+                    athlete_score += 5
+                    athlete_signals.append(f"Below average sleep: avg {round(avg_sleep, 1)}/10")
+
+        if training and recent_checkins:
+            latest_training  = training[0]
+            latest_checkin   = recent_checkins[0]
+            coach_rpe        = latest_training.get("rpe")
+            athlete_energy   = latest_checkin.get("energy")
+            athlete_soreness = latest_checkin.get("soreness")
+
+            if coach_rpe is not None and athlete_energy is not None:
+                mismatch = coach_rpe - (10 - athlete_energy)
+                if mismatch >= 5:
+                    athlete_score += 20
+                    deception_flag = True
+                    mismatch_signals.append(f"High deception risk — coach RPE {coach_rpe}/10 but athlete energy {athlete_energy}/10")
+                elif mismatch >= 3:
+                    athlete_score += 10
+                    mismatch_signals.append(f"Moderate mismatch — coach RPE {coach_rpe}/10 vs athlete energy {athlete_energy}/10")
+
+            if athlete_soreness is not None and athlete_soreness <= 2 and latest_training.get("intensity") == "High":
                 athlete_score += 10
-                athlete_signals.append(f"Chronic sleep deficit: avg {round(avg_sleep, 1)}/10")
-            elif avg_sleep <= 6:
-                athlete_score += 5
-                athlete_signals.append(f"Below average sleep: avg {round(avg_sleep, 1)}/10")
-
-    if training and recent_checkins:
-        latest_training  = training[0]
-        latest_checkin   = recent_checkins[0]
-        coach_rpe        = latest_training.get("rpe")
-        athlete_energy   = latest_checkin.get("energy")
-        athlete_soreness = latest_checkin.get("soreness")
-
-        if coach_rpe is not None and athlete_energy is not None:
-            mismatch = coach_rpe - (10 - athlete_energy)
-            if mismatch >= 5:
-                athlete_score += 20
                 deception_flag = True
-                mismatch_signals.append(f"High deception risk — coach RPE {coach_rpe}/10 but athlete energy {athlete_energy}/10")
-            elif mismatch >= 3:
-                athlete_score += 10
-                mismatch_signals.append(f"Moderate mismatch — coach RPE {coach_rpe}/10 vs athlete energy {athlete_energy}/10")
+                mismatch_signals.append("Suspicious — near-zero soreness reported after High intensity session")
 
-        if athlete_soreness is not None and athlete_soreness <= 2 and latest_training.get("intensity") == "High":
-            athlete_score += 10
-            deception_flag = True
-            mismatch_signals.append("Suspicious — near-zero soreness reported after High intensity session")
+        if acwr:
+            if acwr > 1.5:
+                acwr_score += 20
+                acwr_signals.append(f"Training spike — ACWR {acwr} above danger threshold of 1.5")
+            elif acwr > 1.3:
+                acwr_score += 10
+                acwr_signals.append(f"Elevated training load — ACWR {acwr} in caution zone")
+            elif acwr < 0.8:
+                acwr_score += 5
+                acwr_signals.append(f"Undertraining — ACWR {acwr} below 0.8")
 
-    if acwr:
-        if acwr > 1.5:
-            acwr_score += 20
-            acwr_signals.append(f"Training spike — ACWR {acwr} above danger threshold of 1.5")
-        elif acwr > 1.3:
-            acwr_score += 10
-            acwr_signals.append(f"Elevated training load — ACWR {acwr} in caution zone")
-        elif acwr < 0.8:
-            acwr_score += 5
-            acwr_signals.append(f"Undertraining — ACWR {acwr} below 0.8")
+        total_score = min(notes_score + athlete_score + acwr_score, 100)
+        risk_level  = "red" if total_score >= 70 else ("yellow" if total_score >= 40 else "green")
+        all_signals = acwr_signals + notes_signals + mismatch_signals + athlete_signals
 
-    total_score = min(notes_score + athlete_score + acwr_score, 100)
-    risk_level  = "red" if total_score >= 70 else ("yellow" if total_score >= 40 else "green")
-    all_signals = acwr_signals + notes_signals + mismatch_signals + athlete_signals
+        deception_context = (
+            "IMPORTANT: Deception risk detected. Athlete self-report inconsistent with coach data. Flag to coach."
+            if deception_flag else ""
+        )
 
-    deception_context = (
-        "IMPORTANT: Deception risk detected. Athlete self-report inconsistent with coach data. Flag to coach."
-        if deception_flag else ""
-    )
+        signals_text = "\n".join([f"- {s}" for s in all_signals]) if all_signals else "No major risk signals detected"
 
-    signals_text = "\n".join([f"- {s}" for s in all_signals]) if all_signals else "No major risk signals detected"
-
-    prompt = f"""You are a sports physiotherapist reviewing injury risk data.
+        prompt = f"""You are a sports physiotherapist reviewing injury risk data.
 
 Athlete: {athlete_name}
 Risk score: {total_score}/100 | ACWR: {acwr} | Risk level: {risk_level}
@@ -739,19 +747,25 @@ Signals:
 
 Write a 2-sentence verdict: sentence 1 is the main risk and why, sentence 2 is one specific action for today. If deception is flagged, mention it directly."""
 
-    verdict = await call_llm(prompt, max_tokens=150)
+        verdict = await call_llm(prompt, max_tokens=150)
 
-    result = {
-        "injury_risk_score": total_score,
-        "acwr":              acwr,
-        "signals":           all_signals,
-        "verdict":           verdict,
-        "risk_level":        risk_level,
-        "deception_flag":    deception_flag,
-        "metrics":           metrics,
-    }
-    _ai_cache_set("injury-risk", athlete_name, academy_id, result)
-    return {**result, "cached": False}
+        result = {
+            "injury_risk_score": total_score,
+            "acwr":              acwr,
+            "signals":           all_signals,
+            "verdict":           verdict,
+            "risk_level":        risk_level,
+            "deception_flag":    deception_flag,
+            "metrics":           metrics,
+        }
+        _ai_cache_set("injury-risk", athlete_name, academy_id, result)
+        return {**result, "cached": False}
+    except Exception as e:
+        import logging
+        logging.error("injury-risk/%s crashed: %s", athlete_name, e)
+        return {"injury_risk_score": None, "acwr": None, "signals": [],
+                "verdict": "Risk assessment temporarily unavailable", "risk_level": "unknown",
+                "deception_flag": False, "error": True}
 
 
 @router.get("/drills/{athlete_name}")
