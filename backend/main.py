@@ -10,7 +10,7 @@ load_dotenv()
 
 from routes import athletes, wellness, ai, auth, session_planner, injuries, attendance, reports, payments
 
-app = FastAPI(redirect_slashes=False)
+app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,

@@ -5,7 +5,7 @@ import os
 router = APIRouter()
 supabase = create_client(os.getenv("SUPABASE_URL"), os.getenv("SUPABASE_KEY"))
 
-@router.post("/")
+@router.post("")
 async def log_injury(payload: dict):
     data = {
         "academy_id": payload.get("academy_id"),

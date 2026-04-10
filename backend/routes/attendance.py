@@ -6,7 +6,7 @@ import os
 router = APIRouter()
 supabase = create_client(os.getenv("SUPABASE_URL"), os.getenv("SUPABASE_KEY"))
 
-@router.post("/")
+@router.post("")
 async def mark_attendance(payload: dict):
     academy_id   = payload.get("academy_id")
     athlete_name = payload.get("athlete_name")

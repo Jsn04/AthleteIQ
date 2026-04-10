@@ -12,7 +12,7 @@ def require_academy(academy_id: str):
         raise HTTPException(status_code=400, detail="academy_id is required")
     return academy_id
 
-@router.get("/")
+@router.get("")
 def get_checkins(academy_id: str = Query(...)):
     require_academy(academy_id)
     now         = datetime.now(timezone.utc)
@@ -27,7 +27,7 @@ def get_checkins(academy_id: str = Query(...)):
         .execute()
     return response.data
 
-@router.post("/")
+@router.post("")
 def submit_checkin(checkin: dict, academy_id: str = Query(...)):
     require_academy(academy_id)
     if "athlete_name" in checkin:

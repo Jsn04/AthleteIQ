@@ -37,7 +37,7 @@ def require_academy(academy_id: str):
     return academy_id
 
 
-@router.get("/")
+@router.get("")
 def get_athletes(academy_id: str = Query(...)):
     require_academy(academy_id)
     response = safe_supabase_query(
@@ -50,7 +50,7 @@ def get_athletes(academy_id: str = Query(...)):
     return response.data
 
 
-@router.post("/")
+@router.post("")
 def add_athlete(athlete: dict, academy_id: str = Query(...)):
     require_academy(academy_id)
     athlete["academy_id"] = academy_id
