@@ -342,6 +342,29 @@ async def get_weekly_report(athlete_name: str, academy_id: str = ""):
 
     if existing.data:
         rec = existing.data[0]
+        # If the report was generated before Saturday (stale mid-week cache),
+        # regenerate it with the full week's data.
+        generated_at = rec.get("generated_at", "")
+        generated_date = date.fromisoformat(generated_at[:10]) if generated_at else None
+        saturday = week_start + timedelta(days=5)
+        if generated_date and generated_date < saturday:
+            # Stale report — regenerate and update in place
+            report_data = await build_report(athlete_name, academy_id, week_start)
+            await asyncio.to_thread(
+                lambda: safe_query(lambda sb: sb.table("weekly_reports")
+                .update({"report_data": report_data})
+                .eq("id", rec["id"])
+                .execute())
+            )
+            return {
+                "report_id": rec["id"],
+                "coach_note": rec["coach_note"],
+                "generated_at": rec["generated_at"],
+                "already_existed": True,
+                "regenerated": True,
+                "week_in_progress": False,
+                **report_data,
+            }
         return {
             "report_id": rec["id"],
             "coach_note": rec["coach_note"],
