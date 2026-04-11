@@ -198,7 +198,8 @@ def calculate_confidence(checkins: list, training_logs=None) -> dict:
         flags.append(f"Contradictory metrics for {contradiction_streak} consecutive days (e.g., high soreness + high energy)")
 
     # ── 3. MISSING CHECK-INS ─────────────────────────────────────────────────
-    # Count check-in days in the last 14 calendar days
+    # Only penalize days where the athlete was PRESENT (has a training log)
+    # but did NOT submit a check-in. Absent days don't count against them.
     now = datetime.now(timezone.utc)
     checkin_dates = set()
     for c in recent_14:
@@ -209,13 +210,22 @@ def calculate_confidence(checkins: list, training_logs=None) -> dict:
         except Exception:
             pass
 
-    # Expected: ~14 days. Calculate misses.
-    missed = max(0, 14 - len(checkin_dates))
+    training_dates = set()
+    for t in training_logs:
+        try:
+            dt = datetime.fromisoformat(t["created_at"].replace("Z", "+00:00"))
+            if (now - dt).days <= 14:
+                training_dates.add(dt.strftime("%Y-%m-%d"))
+        except Exception:
+            pass
+
+    # Missed = days with training but no check-in
+    missed = len(training_dates - checkin_dates)
     # First 2 misses are free, then -5% per miss
     if missed > 2:
         penalty = min(25, (missed - 2) * 5)
         score -= penalty
-        flags.append(f"Missed {missed} check-ins in last 14 days")
+        flags.append(f"Missed check-in on {missed} training days (last 14 days)")
 
     # ── 4. COACH-ATHLETE MISMATCH (if training data available) ───────────────
     # Only flag when pattern persists 3+ sessions
