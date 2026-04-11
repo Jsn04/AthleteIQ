@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import axios from 'axios';
-import API_BASE_URL from '../config';
+import api, { warmup } from '../api';
 import StatCard from '../components/common/StatCard';
 import RiskBadge from '../components/common/RiskBadge';
 import LoadingSkeleton from '../components/common/LoadingSkeleton';
@@ -309,16 +308,21 @@ function Dashboard() {
   const fetchData = useCallback(async (isSilent = false) => {
     if (!isSilent) setLoading(true);
     try {
-      const [athletesRes, checkinsRes] = await Promise.all([
-        axios.get(`${API_BASE_URL}/athletes`, { params: { academy_id: academyId } }),
-        axios.get(`${API_BASE_URL}/wellness`, { params: { academy_id: academyId } }),
+      const [athletesRes, checkinsRes] = await Promise.allSettled([
+        api.get(`/athletes`, { params: { academy_id: academyId } }),
+        api.get(`/wellness`, { params: { academy_id: academyId } }),
       ]);
 
-      const newCheckinsRaw = JSON.stringify(checkinsRes.data);
+      // If athletes failed, bail out (nothing to render)
+      if (athletesRes.status !== 'fulfilled') throw new Error('Athletes fetch failed');
+      const athletesData = athletesRes.value.data;
+      const checkinsData = checkinsRes.status === 'fulfilled' ? checkinsRes.value.data : [];
+
+      const newCheckinsRaw = JSON.stringify(checkinsData);
       const dataChanged = newCheckinsRaw !== prevCheckinsRef.current;
 
-      setAthletes(athletesRes.data);
-      setCheckins(checkinsRes.data);
+      setAthletes(athletesData);
+      setCheckins(checkinsData);
       setLoadError(false);
       setLastUpdated(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
 
@@ -326,10 +330,10 @@ function Dashboard() {
         const insightResults = {};
         const injuryResults = {};
         await Promise.all(
-          athletesRes.data.map(async (athlete) => {
+          athletesData.map(async (athlete) => {
             const [insightRes, injuryRes] = await Promise.allSettled([
-              axios.get(`${API_BASE_URL}/ai/insights/${encodeURIComponent(athlete.name)}`, { params: { academy_id: academyId } }),
-              axios.get(`${API_BASE_URL}/ai/injury-risk/${encodeURIComponent(athlete.name)}`, { params: { academy_id: academyId } }),
+              api.get(`/ai/insights/${encodeURIComponent(athlete.name)}`, { params: { academy_id: academyId } }),
+              api.get(`/ai/injury-risk/${encodeURIComponent(athlete.name)}`, { params: { academy_id: academyId } }),
             ]);
             insightResults[athlete.name] = insightRes.status === 'fulfilled' ? insightRes.value.data : null;
             injuryResults[athlete.name] = injuryRes.status === 'fulfilled' ? injuryRes.value.data : null;
@@ -341,7 +345,7 @@ function Dashboard() {
       }
 
       try {
-        const attendanceRes = await axios.get(`${API_BASE_URL}/attendance/today`, {
+        const attendanceRes = await api.get(`/attendance/today`, {
           params: { academy_id: academyId }
         });
         const attendanceMap = {};
@@ -365,7 +369,8 @@ function Dashboard() {
   }, [academyId]);
 
   useEffect(() => {
-    fetchData();
+    // Wake up Render before loading real data
+    warmup().then(() => fetchData());
     const interval = setInterval(() => fetchData(true), 30000);
     return () => clearInterval(interval);
   }, [fetchData]);
@@ -454,8 +459,8 @@ function Dashboard() {
 
     setLoadingRecovery(prev => ({ ...prev, [athlete.name]: true }));
     try {
-      const res = await axios.get(
-        `${API_BASE_URL}/ai/parent-recovery/${encodeURIComponent(athlete.name)}`,
+      const res = await api.get(
+        `/ai/parent-recovery/${encodeURIComponent(athlete.name)}`,
         { params: { academy_id: academyId } }
       );
       const data = res.data;
@@ -494,7 +499,7 @@ function Dashboard() {
     const key = athlete.name.toLowerCase().trim();
     setMarkingAttendance(prev => ({ ...prev, [key]: true }));
     try {
-      await axios.post(`${API_BASE_URL}/attendance/`, {
+      await api.post(`/attendance`, {
         academy_id: academyId,
         athlete_name: athlete.name,
         status: status,

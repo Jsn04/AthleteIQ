@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
-import API_BASE_URL from '../config';
+import api, { warmup } from '../api';
 import RiskBadge from '../components/common/RiskBadge';
 import LoadingSkeleton from '../components/common/LoadingSkeleton';
 import logo from '../assets/athleteiq_logo.svg';
@@ -39,35 +38,38 @@ export default function AthleteDashboard() {
     if (!isSilent) setLoading(true);
     try {
       const academyId = localStorage.getItem('academyId') || '';
-      const [histRes, insRes, injRes] = await Promise.all([
-        axios.get(`${API_BASE_URL}/wellness/history/${encodeURIComponent(athleteName)}`, { params: { academy_id: academyId } }),
-        axios.get(`${API_BASE_URL}/ai/insights/${encodeURIComponent(athleteName)}`, { params: { academy_id: academyId } }),
-        axios.get(`${API_BASE_URL}/ai/injury-risk/${encodeURIComponent(athleteName)}`, { params: { academy_id: academyId } }),
+      const [histRes, insRes, injRes] = await Promise.allSettled([
+        api.get(`/wellness/history/${encodeURIComponent(athleteName)}`, { params: { academy_id: academyId } }),
+        api.get(`/ai/insights/${encodeURIComponent(athleteName)}`, { params: { academy_id: academyId } }),
+        api.get(`/ai/injury-risk/${encodeURIComponent(athleteName)}`, { params: { academy_id: academyId } }),
       ]);
 
-      const formatted = histRes.data.history.slice().reverse().map((c, i) => ({
-        day: `Day ${i + 1}`,
-        date: new Date(c.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }),
-        energy: c.energy,
-        sleep: c.sleep,
-        soreness: c.soreness,
-        mood: c.mood,
-      }));
-
-      setHistory(formatted);
-      setInsight(insRes.data);
-      setInjuryRisk(injRes.data);
-
-      const profileRes = await axios.get(`${API_BASE_URL}/athletes`, { params: { academy_id: academyId } });
-      const found = profileRes.data.find(a => a.name.toLowerCase() === athleteName.toLowerCase());
-      if (found) {
-        setAthleteProfile(found);
-        if (!found.parent_phone) setShowProfileForm(true);
+      if (histRes.status === 'fulfilled' && histRes.value.data.history) {
+        const formatted = histRes.value.data.history.slice().reverse().map((c, i) => ({
+          day: `Day ${i + 1}`,
+          date: new Date(c.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }),
+          energy: c.energy,
+          sleep: c.sleep,
+          soreness: c.soreness,
+          mood: c.mood,
+        }));
+        setHistory(formatted);
       }
+      if (insRes.status === 'fulfilled') setInsight(insRes.value.data);
+      if (injRes.status === 'fulfilled') setInjuryRisk(injRes.value.data);
 
       try {
-        const injuriesRes = await axios.get(
-          `${API_BASE_URL}/injuries/${encodeURIComponent(athleteName)}`,
+        const profileRes = await api.get(`/athletes`, { params: { academy_id: academyId } });
+        const found = profileRes.data.find(a => a.name.toLowerCase() === athleteName.toLowerCase());
+        if (found) {
+          setAthleteProfile(found);
+          if (!found.parent_phone) setShowProfileForm(true);
+        }
+      } catch {}
+
+      try {
+        const injuriesRes = await api.get(
+          `/injuries/${encodeURIComponent(athleteName)}`,
           { params: { academy_id: academyId } }
         );
         setInjuries(injuriesRes.data || []);
@@ -94,8 +96,8 @@ export default function AthleteDashboard() {
     setSavingProfile(true);
     try {
       const academyId = localStorage.getItem('academyId') || '';
-      await axios.patch(
-        `${API_BASE_URL}/athletes/${athleteProfile.id}?academy_id=${academyId}`,
+      await api.patch(
+        `/athletes/${athleteProfile.id}?academy_id=${academyId}`,
         {
           age: profileForm.age ? parseInt(profileForm.age) : athleteProfile.age,
           parent_name: profileForm.parent_name.trim(),

@@ -1,49 +1,37 @@
+import asyncio
+import json
+import logging
+import os
+from datetime import datetime, timezone, date
+
 from fastapi import APIRouter, HTTPException
 from groq import Groq
-import asyncio, json, os
-from datetime import datetime, timezone, date
-from supabase import create_client
+
+from db import safe_query
 
 router = APIRouter()
+log = logging.getLogger(__name__)
 
-SUPABASE_URL = os.environ.get("SUPABASE_URL")
-SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
-supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
-
-
-# ─── Trial gate helper ────────────────────────────────────────────────────────
 
 def check_trial_access(academy_id: str):
-    """
-    Returns (allowed: bool, reason: str)
-    - paid plan → always allowed
-    - free plan, trial active → allowed
-    - free plan, trial expired → blocked
-    """
-    result = (
-        supabase.table("academies")
+    """Returns (allowed: bool, reason: str)."""
+    result = safe_query(
+        lambda sb: sb.table("academies")
         .select("plan, trial_ends_at")
         .eq("id", academy_id)
-        .execute()
-        .data
+        .execute().data
     )
-
     if not result:
         return False, "Academy not found"
-
     academy = result[0]
-
     if academy["plan"] == "paid":
         return True, "ok"
-
     trial_ends_at = academy.get("trial_ends_at")
     if not trial_ends_at:
         return False, "Trial not configured. Contact support."
-
     expiry = datetime.fromisoformat(trial_ends_at.replace("Z", "+00:00"))
     if datetime.now(timezone.utc) > expiry:
         return False, "Your 14-day trial has expired. Upgrade to continue."
-
     return True, "ok"
 
 
@@ -228,8 +216,7 @@ Return ONLY raw JSON. No markdown. No explanation. This exact structure:
 # ─── Fetch squad data ─────────────────────────────────────────────────────────
 
 def fetch_squad_data(academy_id: str):
-    athletes_res = (
-        supabase.table("athletes")
+    athletes_res = safe_query(lambda sb: sb.table("athletes")
         .select("id, name, sport")
         .eq("academy_id", academy_id)
         .eq("is_deleted", False)
@@ -242,8 +229,7 @@ def fetch_squad_data(academy_id: str):
 
     today = date.today().isoformat()
     try:
-        checkins_res = (
-            supabase.table("checkins")
+        checkins_res = safe_query(lambda sb: sb.table("checkins")
             .select("athlete_name, energy, sleep, soreness, mood")
             .eq("academy_id", academy_id)
             .gte("created_at", today)
@@ -268,12 +254,13 @@ def fetch_squad_data(academy_id: str):
         a["acwr_status"] = "Optimal"
 
     try:
-        sessions_res = supabase.table("training_logs")\
-            .select("*")\
-            .eq("academy_id", academy_id)\
-            .order("created_at", desc=True)\
-            .limit(3)\
+        sessions_res = safe_query(lambda sb: sb.table("training_logs")
+            .select("*")
+            .eq("academy_id", academy_id)
+            .order("created_at", desc=True)
+            .limit(3)
             .execute()
+        )
 
         recent = []
         for s in sessions_res.data:
@@ -293,8 +280,7 @@ def fetch_squad_data(academy_id: str):
 def check_rate_limit(coach_id: str):
     now = datetime.now(timezone.utc)
 
-    result = (
-        supabase.table("session_plans")
+    result = safe_query(lambda sb: sb.table("session_plans")
         .select("created_at")
         .eq("coach_id", coach_id)
         .order("created_at", desc=True)
@@ -314,13 +300,13 @@ def check_rate_limit(coach_id: str):
 # ─── Save plan ────────────────────────────────────────────────────────────────
 
 def save_plan(coach_id: str, academy_id: str, coach_input: dict, plan: dict):
-    supabase.table("session_plans").insert({
+    safe_query(lambda sb: sb.table("session_plans").insert({
         "coach_id":      coach_id,
         "academy_id":    academy_id,
         "coach_input":   coach_input,
         "generated_plan": plan,
         "created_at":    datetime.now(timezone.utc).isoformat()
-    }).execute()
+    }).execute())
 
 
 # ─── Main route ───────────────────────────────────────────────────────────────

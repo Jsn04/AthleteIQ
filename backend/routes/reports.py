@@ -1,66 +1,20 @@
 import asyncio
-import os
 import json
+import logging
 from datetime import datetime, timezone, date, timedelta
 from fastapi import APIRouter, HTTPException
-from supabase import create_client
+
+from db import safe_query
+from llm import call_llm
 
 router = APIRouter()
-supabase = create_client(os.getenv("SUPABASE_URL"), os.getenv("SUPABASE_KEY"))
-
-from config import AI_PROVIDER, AI_MODEL, GROQ_API_KEY, OPENAI_API_KEY, ANTHROPIC_API_KEY
+log = logging.getLogger(__name__)
 
 
 def get_week_start(d: date = None) -> date:
     d = d or date.today()
     return d - timedelta(days=d.weekday())
 
-
-def _call_llm_sync(prompt: str, max_tokens: int = 600) -> str:
-    if AI_PROVIDER == "groq":
-        from groq import Groq
-        client = Groq(api_key=GROQ_API_KEY)
-        try:
-            response = client.chat.completions.create(
-                model=AI_MODEL,
-                max_tokens=max_tokens,
-                temperature=0.7,
-                messages=[{"role": "user", "content": prompt}],
-            )
-            return response.choices[0].message.content.strip()
-        except Exception as e:
-            err = str(e)
-            if "rate_limit_exceeded" in err or "429" in err:
-                return (
-                    "Weekly report is temporarily unavailable — the AI engine "
-                    "has hit its daily token limit. Try again later today."
-                )
-            raise
-    elif AI_PROVIDER == "openai":
-        from openai import OpenAI
-        client = OpenAI(api_key=OPENAI_API_KEY)
-        response = client.chat.completions.create(
-            model=AI_MODEL,
-            max_tokens=max_tokens,
-            temperature=0.7,
-            messages=[{"role": "user", "content": prompt}],
-        )
-        return response.choices[0].message.content.strip()
-    elif AI_PROVIDER == "anthropic":
-        import anthropic
-        client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
-        response = client.messages.create(
-            model=AI_MODEL,
-            max_tokens=max_tokens,
-            messages=[{"role": "user", "content": prompt}],
-        )
-        return response.content[0].text.strip()
-    else:
-        raise ValueError(f"Unknown AI_PROVIDER: {AI_PROVIDER}")
-
-
-async def call_llm(prompt: str, max_tokens: int = 600) -> str:
-    return await asyncio.to_thread(_call_llm_sync, prompt, max_tokens)
 
 
 def calculate_acwr(training_logs: list) -> dict:
@@ -116,25 +70,25 @@ async def build_report(athlete_name: str, academy_id: str, week_start: date) -> 
         checkins_res, training_res, injuries_res,
         attendance_res, last_checkins_res
     ) = await asyncio.gather(
-        asyncio.to_thread(lambda: supabase.table("checkins").select("*")
+        asyncio.to_thread(lambda: safe_query(lambda sb: sb.table("checkins").select("*")
             .eq("athlete_name", athlete_name).eq("academy_id", academy_id)
             .gte("created_at", week_start_str).lte("created_at", week_end_str + "T23:59:59")
-            .order("created_at", desc=False).execute()),
-        asyncio.to_thread(lambda: supabase.table("training_logs").select("*")
+            .order("created_at", desc=False).execute())),
+        asyncio.to_thread(lambda: safe_query(lambda sb: sb.table("training_logs").select("*")
             .eq("athlete_name", athlete_name).eq("academy_id", academy_id)
             .gte("created_at", week_start_str).lte("created_at", week_end_str + "T23:59:59")
-            .order("created_at", desc=False).execute()),
-        asyncio.to_thread(lambda: supabase.table("injury_logs").select("*")
+            .order("created_at", desc=False).execute())),
+        asyncio.to_thread(lambda: safe_query(lambda sb: sb.table("injury_logs").select("*")
             .eq("athlete_name", athlete_name).eq("academy_id", academy_id)
-            .in_("status", ["active", "recovering"]).execute()),
-        asyncio.to_thread(lambda: supabase.table("attendance_logs").select("*")
+            .in_("status", ["active", "recovering"]).execute())),
+        asyncio.to_thread(lambda: safe_query(lambda sb: sb.table("attendance_logs").select("*")
             .eq("athlete_name", athlete_name).eq("academy_id", academy_id)
             .gte("date", week_start_str).lte("date", week_end_str)
-            .order("date", desc=False).execute()),
-        asyncio.to_thread(lambda: supabase.table("checkins").select("*")
+            .order("date", desc=False).execute())),
+        asyncio.to_thread(lambda: safe_query(lambda sb: sb.table("checkins").select("*")
             .eq("athlete_name", athlete_name).eq("academy_id", academy_id)
             .gte("created_at", last_week_start).lte("created_at", last_week_end + "T23:59:59")
-            .execute()),
+            .execute())),
     )
 
     checkins = checkins_res.data or []
@@ -355,16 +309,16 @@ async def get_weekly_report(athlete_name: str, academy_id: str = ""):
         days_remaining = week_end.weekday() - today.weekday() + 1  # days until Sunday incl.
         # quick data counts so the frontend can show "X sessions logged so far"
         checkins_count_res = await asyncio.to_thread(
-            lambda: supabase.table("checkins").select("id", count="exact")
+            lambda: safe_query(lambda sb: sb.table("checkins").select("id", count="exact")
             .eq("athlete_name", athlete_name).eq("academy_id", academy_id)
             .gte("created_at", week_start.isoformat())
-            .execute()
+            .execute())
         )
         training_count_res = await asyncio.to_thread(
-            lambda: supabase.table("training_logs").select("id", count="exact")
+            lambda: safe_query(lambda sb: sb.table("training_logs").select("id", count="exact")
             .eq("athlete_name", athlete_name).eq("academy_id", academy_id)
             .gte("created_at", week_start.isoformat())
-            .execute()
+            .execute())
         )
         return {
             "week_in_progress": True,
@@ -379,11 +333,11 @@ async def get_weekly_report(athlete_name: str, academy_id: str = ""):
     week_start_str = week_start.isoformat()
 
     existing = await asyncio.to_thread(
-        lambda: supabase.table("weekly_reports").select("*")
+        lambda: safe_query(lambda sb: sb.table("weekly_reports").select("*")
         .eq("academy_id", academy_id)
         .eq("athlete_name", athlete_name)
         .eq("week_start", week_start_str)
-        .execute()
+        .execute())
     )
 
     if existing.data:
@@ -401,13 +355,13 @@ async def get_weekly_report(athlete_name: str, academy_id: str = ""):
     report_data = await build_report(athlete_name, academy_id, week_start)
 
     saved = await asyncio.to_thread(
-        lambda: supabase.table("weekly_reports").insert({
+        lambda: safe_query(lambda sb: sb.table("weekly_reports").insert({
             "academy_id": academy_id,
             "athlete_name": athlete_name,
             "week_start": week_start_str,
             "report_data": report_data,
             "coach_note": "",
-        }).execute()
+        }).execute())
     )
 
     rec = saved.data[0]
@@ -424,10 +378,14 @@ async def get_weekly_report(athlete_name: str, academy_id: str = ""):
 @router.patch("/weekly/{report_id}/note")
 async def update_coach_note(report_id: str, payload: dict):
     note = payload.get("coach_note", "")
-    res = await asyncio.to_thread(
-        lambda: supabase.table("weekly_reports")
-        .update({"coach_note": note})
-        .eq("id", report_id)
-        .execute()
-    )
-    return res.data[0] if res.data else {}
+    try:
+        res = await asyncio.to_thread(
+            lambda: safe_query(lambda sb: sb.table("weekly_reports")
+            .update({"coach_note": note})
+            .eq("id", report_id)
+            .execute())
+        )
+        return res.data[0] if res.data else {}
+    except Exception as e:
+        log.error("PATCH /reports/weekly/%s/note failed: %s", report_id, e)
+        raise HTTPException(status_code=500, detail="Could not save note.")

@@ -1,39 +1,21 @@
 import asyncio
-import os
+import logging
 import time
 from datetime import datetime, timezone
 
-import httpx
 from fastapi import APIRouter
-from supabase import create_client
 
-from config import AI_PROVIDER, AI_MODEL, GROQ_API_KEY, OPENAI_API_KEY, ANTHROPIC_API_KEY
+from db import safe_query, get_client
+from llm import call_llm
 
 router = APIRouter()
+log = logging.getLogger(__name__)
 
 
-def get_supabase():
-    return create_client(os.getenv("SUPABASE_URL"), os.getenv("SUPABASE_KEY"))
-
-supabase = get_supabase()
-
-
-def safe_supabase_query(query_fn):
-    global supabase
-    try:
-        return query_fn()
-    except (httpx.ReadError, httpx.ConnectError, httpx.RemoteProtocolError):
-        supabase = get_supabase()
-        return query_fn()
-
-
-# In-memory TTL cache for AI endpoint responses.
-# Purpose: a dashboard refresh must not consume Groq tokens. Only the first
-# call per athlete within the TTL window actually hits the LLM; every
-# subsequent view (refresh, modal open, parent view) is served from memory.
-# Lost on process restart, which is rare with UptimeRobot keeping Render warm.
-_AI_CACHE: dict[str, tuple[float, dict]] = {}
-_AI_CACHE_TTL = 12 * 60 * 60  # 12 hours, matches the insights cache pattern
+# ── In-memory TTL cache (bounded) ────────────────────────────────────────────
+_AI_CACHE = {}
+_AI_CACHE_TTL = 12 * 60 * 60   # 12 hours
+_AI_CACHE_MAX = 2000            # cap to prevent OOM on 512 MB
 
 
 def _ai_cache_key(endpoint: str, athlete_name: str, academy_id: str) -> str:
@@ -54,15 +36,20 @@ def _ai_cache_get(endpoint: str, athlete_name: str, academy_id: str):
 
 
 def _ai_cache_set(endpoint: str, athlete_name: str, academy_id: str, value: dict):
+    # Evict oldest entries when cache is full
+    if len(_AI_CACHE) >= _AI_CACHE_MAX:
+        oldest_key = min(_AI_CACHE, key=lambda k: _AI_CACHE[k][0])
+        _AI_CACHE.pop(oldest_key, None)
     key = _ai_cache_key(endpoint, athlete_name, academy_id)
     _AI_CACHE[key] = (time.time(), value)
 
 
+# ── Trial gate ────────────────────────────────────────────────────────────────
 def check_trial_access(academy_id: str):
     if academy_id.startswith("solo_"):
         return True
-    result = safe_supabase_query(
-        lambda: supabase.table("academies")
+    result = safe_query(
+        lambda sb: sb.table("academies")
         .select("plan, trial_ends_at")
         .eq("id", academy_id)
         .execute().data
@@ -77,55 +64,6 @@ def check_trial_access(academy_id: str):
         return False
     expiry = datetime.fromisoformat(trial_ends_at.replace("Z", "+00:00"))
     return datetime.now(timezone.utc) <= expiry
-
-
-def _call_llm_sync(prompt: str, max_tokens: int = 250) -> str:
-    max_tokens = min(max_tokens, 250)
-
-    if AI_PROVIDER == "groq":
-        from groq import Groq
-        client = Groq(api_key=GROQ_API_KEY)
-        try:
-            response = client.chat.completions.create(
-                model=AI_MODEL,
-                max_tokens=max_tokens,
-                temperature=0.7,
-                messages=[{"role": "user", "content": prompt}],
-            )
-            return response.choices[0].message.content.strip()
-        except Exception as e:
-            err = str(e)
-            if "rate_limit_exceeded" in err or "429" in err:
-                return "AI coach is resting — refresh in a moment."
-            raise
-
-    elif AI_PROVIDER == "openai":
-        from openai import OpenAI
-        client = OpenAI(api_key=OPENAI_API_KEY)
-        response = client.chat.completions.create(
-            model=AI_MODEL,
-            max_tokens=max_tokens,
-            temperature=0.7,
-            messages=[{"role": "user", "content": prompt}],
-        )
-        return response.choices[0].message.content.strip()
-
-    elif AI_PROVIDER == "anthropic":
-        import anthropic
-        client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
-        response = client.messages.create(
-            model=AI_MODEL,
-            max_tokens=max_tokens,
-            messages=[{"role": "user", "content": prompt}],
-        )
-        return response.content[0].text.strip()
-
-    else:
-        raise ValueError(f"Unknown AI_PROVIDER: '{AI_PROVIDER}'.")
-
-
-async def call_llm(prompt: str, max_tokens: int = 250) -> str:
-    return await asyncio.to_thread(_call_llm_sync, prompt, max_tokens)
 
 
 def _session_load(log: dict) -> float:
@@ -325,14 +263,16 @@ _RISK_TIER_TO_LEVEL = {
 }
 
 
-async def _get_cached_insight(supabase, athlete_name: str, academy_id: str):
+async def _get_cached_insight(athlete_name: str, academy_id: str):
     try:
         result = await asyncio.to_thread(
-            lambda: supabase.table("ai_insights_cache")
-            .select("insight, metrics, created_at")
-            .eq("athlete_name", athlete_name)
-            .eq("academy_id", academy_id)
-            .execute()
+            lambda: safe_query(
+                lambda sb: sb.table("ai_insights_cache")
+                .select("insight, metrics, created_at")
+                .eq("athlete_name", athlete_name)
+                .eq("academy_id", academy_id)
+                .execute()
+            )
         )
         if not result.data:
             return None
@@ -363,17 +303,19 @@ async def _get_cached_insight(supabase, athlete_name: str, academy_id: str):
         return None
 
 
-async def _save_insight_cache(supabase, athlete_name: str, academy_id: str, insight: str, metrics: dict):
+async def _save_insight_cache(athlete_name: str, academy_id: str, insight: str, metrics: dict):
     try:
         await asyncio.to_thread(
-            lambda: supabase.table("ai_insights_cache")
-            .upsert(
-                {"athlete_name": athlete_name, "academy_id": academy_id,
-                 "insight": insight, "metrics": metrics,
-                 "created_at": datetime.now(timezone.utc).isoformat()},
-                on_conflict="athlete_name,academy_id",
+            lambda: safe_query(
+                lambda sb: sb.table("ai_insights_cache")
+                .upsert(
+                    {"athlete_name": athlete_name, "academy_id": academy_id,
+                     "insight": insight, "metrics": metrics,
+                     "created_at": datetime.now(timezone.utc).isoformat()},
+                    on_conflict="athlete_name,academy_id",
+                )
+                .execute()
             )
-            .execute()
         )
     except Exception:
         pass
@@ -385,26 +327,26 @@ async def get_athlete_insight(athlete_name: str, academy_id: str = ""):
         if not await asyncio.to_thread(check_trial_access, academy_id):
             return {"status": "trial_expired", "message": "Your 14-day trial has expired."}
 
-        cached = await _get_cached_insight(supabase, athlete_name, academy_id)
+        cached = await _get_cached_insight(athlete_name, academy_id)
         if cached:
             return cached
         checkins_result = await asyncio.to_thread(
-            lambda: safe_supabase_query(
-                lambda: supabase.table("checkins").select("*")
+            lambda: safe_query(
+                lambda sb: sb.table("checkins").select("*")
                 .eq("athlete_name", athlete_name).eq("academy_id", academy_id)
                 .order("created_at", desc=True).limit(7).execute()
             )
         )
         training_result = await asyncio.to_thread(
-            lambda: safe_supabase_query(
-                lambda: supabase.table("training_logs").select("*")
+            lambda: safe_query(
+                lambda sb: sb.table("training_logs").select("*")
                 .eq("athlete_name", athlete_name).eq("academy_id", academy_id)
                 .order("created_at", desc=True).limit(28).execute()
             )
         )
 
-        checkins = (checkins_result.data if hasattr(checkins_result, 'data') else checkins_result) or []
-        training = (training_result.data if hasattr(training_result, 'data') else training_result) or []
+        checkins = checkins_result.data or []
+        training = training_result.data or []
 
         if not checkins and not training:
             return {"insight": "No data yet", "risk": "unknown", "score": None, "cached": False}
@@ -453,7 +395,7 @@ ATHLETE_MESSAGE: [one motivating sentence for the athlete]"""
 
         metrics["athlete_message"] = result.get("athlete_message", "")
         result["metrics"] = metrics
-        await _save_insight_cache(supabase, athlete_name, academy_id, result.get("insight", ""), metrics)
+        await _save_insight_cache(athlete_name, academy_id, result.get("insight", ""), metrics)
         return result
     except Exception as e:
         import logging
@@ -464,52 +406,53 @@ ATHLETE_MESSAGE: [one motivating sentence for the athlete]"""
 
 @router.get("/squad-insights")
 async def get_squad_insights(academy_id: str = ""):
-    cached = _ai_cache_get("squad-insights", "squad", academy_id)
-    if cached:
-        return cached
+    try:
+        cached = _ai_cache_get("squad-insights", "squad", academy_id)
+        if cached:
+            return cached
 
-    athletes_result = await asyncio.to_thread(
-        lambda: supabase.table("athletes").select("*").eq("academy_id", academy_id).execute()
-    )
-    checkins_result = await asyncio.to_thread(
-        lambda: supabase.table("checkins").select("*").eq("academy_id", academy_id)
-        .order("created_at", desc=True).execute()
-    )
-    training_result = await asyncio.to_thread(
-        lambda: supabase.table("training_logs").select("*").eq("academy_id", academy_id)
-        .order("created_at", desc=True).execute()
-    )
+        athletes_result = await asyncio.to_thread(
+            lambda: safe_query(lambda sb: sb.table("athletes").select("*").eq("academy_id", academy_id).execute())
+        )
+        checkins_result = await asyncio.to_thread(
+            lambda: safe_query(lambda sb: sb.table("checkins").select("*").eq("academy_id", academy_id)
+            .order("created_at", desc=True).execute())
+        )
+        training_result = await asyncio.to_thread(
+            lambda: safe_query(lambda sb: sb.table("training_logs").select("*").eq("academy_id", academy_id)
+            .order("created_at", desc=True).execute())
+        )
 
-    athletes_data = athletes_result.data or []
-    checkins      = checkins_result.data or []
-    training      = training_result.data or []
+        athletes_data = athletes_result.data or []
+        checkins      = checkins_result.data or []
+        training      = training_result.data or []
 
-    squad_summary = ""
-    for athlete in athletes_data:
-        latest_checkin  = next((c for c in checkins if c["athlete_name"] == athlete["name"]), None)
-        latest_training = next((t for t in training if t["athlete_name"] == athlete["name"]), None)
+        squad_summary = ""
+        for athlete in athletes_data:
+            latest_checkin  = next((c for c in checkins if c["athlete_name"] == athlete["name"]), None)
+            latest_training = next((t for t in training if t["athlete_name"] == athlete["name"]), None)
 
-        if latest_checkin:
-            squad_summary += (
-                f"\n{athlete['name']} ({athlete['sport']}): "
-                f"Energy {latest_checkin['energy']}, Sleep {latest_checkin['sleep']}, Soreness {latest_checkin['soreness']}"
-            )
-            if latest_training:
+            if latest_checkin:
                 squad_summary += (
-                    f", Last training: {latest_training['intensity']} for {latest_training['duration']} mins"
+                    f"\n{athlete['name']} ({athlete['sport']}): "
+                    f"Energy {latest_checkin['energy']}, Sleep {latest_checkin['sleep']}, Soreness {latest_checkin['soreness']}"
+                )
+                if latest_training:
+                    squad_summary += (
+                        f", Last training: {latest_training['intensity']} for {latest_training['duration']} mins"
+                        f", RPE: {latest_training.get('rpe', 'N/A')}/10"
+                    )
+            elif latest_training:
+                squad_summary += (
+                    f"\n{athlete['name']} ({athlete['sport']}): No check-in, "
+                    f"Last training: {latest_training['intensity']} for {latest_training['duration']} mins"
                     f", RPE: {latest_training.get('rpe', 'N/A')}/10"
                 )
-        elif latest_training:
-            squad_summary += (
-                f"\n{athlete['name']} ({athlete['sport']}): No check-in, "
-                f"Last training: {latest_training['intensity']} for {latest_training['duration']} mins"
-                f", RPE: {latest_training.get('rpe', 'N/A')}/10"
-            )
 
-    if not squad_summary:
-        return {"squad_insight": "No data available yet for the squad."}
+        if not squad_summary:
+            return {"squad_insight": "No data available yet for the squad."}
 
-    prompt = f"""You are an elite sports coach analyzing your full squad.
+        prompt = f"""You are an elite sports coach analyzing your full squad.
 
 Squad data:
 {squad_summary}
@@ -517,55 +460,59 @@ Squad data:
 Respond in EXACTLY this format:
 SQUAD_INSIGHT: [2 sentences — one observation about squad state, one actionable recommendation for today]"""
 
-    text = await call_llm(prompt, max_tokens=150)
-    result = {"squad_insight": text.replace("SQUAD_INSIGHT:", "").strip()}
-    _ai_cache_set("squad-insights", "squad", academy_id, result)
-    return {**result, "cached": False}
+        text = await call_llm(prompt, max_tokens=150)
+        result = {"squad_insight": text.replace("SQUAD_INSIGHT:", "").strip()}
+        _ai_cache_set("squad-insights", "squad", academy_id, result)
+        return {**result, "cached": False}
+    except Exception as e:
+        log.error("squad-insights crashed: %s", e)
+        return {"squad_insight": "Squad insight temporarily unavailable.", "cached": False, "error": True}
 
 
 @router.get("/weekly-summary/{athlete_name}")
 async def get_weekly_summary(athlete_name: str, academy_id: str = ""):
-    cached = _ai_cache_get("weekly-summary", athlete_name, academy_id)
-    if cached:
-        return cached
+    try:
+        cached = _ai_cache_get("weekly-summary", athlete_name, academy_id)
+        if cached:
+            return cached
 
-    checkins_result = await asyncio.to_thread(
-        lambda: supabase.table("checkins").select("*")
-        .eq("athlete_name", athlete_name).eq("academy_id", academy_id)
-        .order("created_at", desc=True).limit(7).execute()
-    )
-    training_result = await asyncio.to_thread(
-        lambda: supabase.table("training_logs").select("*")
-        .eq("athlete_name", athlete_name).eq("academy_id", academy_id)
-        .order("created_at", desc=True).limit(7).execute()
-    )
+        checkins_result = await asyncio.to_thread(
+            lambda: safe_query(lambda sb: sb.table("checkins").select("*")
+            .eq("athlete_name", athlete_name).eq("academy_id", academy_id)
+            .order("created_at", desc=True).limit(7).execute())
+        )
+        training_result = await asyncio.to_thread(
+            lambda: safe_query(lambda sb: sb.table("training_logs").select("*")
+            .eq("athlete_name", athlete_name).eq("academy_id", academy_id)
+            .order("created_at", desc=True).limit(7).execute())
+        )
 
-    checkins = checkins_result.data or []
-    training = training_result.data or []
+        checkins = checkins_result.data or []
+        training = training_result.data or []
 
-    if not checkins and not training:
-        return {"summary": "No data available yet to generate a weekly summary."}
+        if not checkins and not training:
+            return {"summary": "No data available yet to generate a weekly summary."}
 
-    metrics = calculate_readiness(training, checkins)
+        metrics = calculate_readiness(training, checkins)
 
-    checkin_summary = (
-        "\n".join([
-            f"- {c['created_at'][:10]}: Energy {c['energy']}/10, Sleep {c['sleep']}/10, "
-            f"Soreness {c['soreness']}/10, Mood {c['mood']}/10"
-            + (f", Notes: {c['notes']}" if c.get("notes") else "")
-            for c in checkins
-        ]) if checkins else "No wellness check-ins this week"
-    )
+        checkin_summary = (
+            "\n".join([
+                f"- {c['created_at'][:10]}: Energy {c['energy']}/10, Sleep {c['sleep']}/10, "
+                f"Soreness {c['soreness']}/10, Mood {c['mood']}/10"
+                + (f", Notes: {c['notes']}" if c.get("notes") else "")
+                for c in checkins
+            ]) if checkins else "No wellness check-ins this week"
+        )
 
-    training_summary = (
-        "\n".join([
-            f"- {t['created_at'][:10]}: {t['intensity']} intensity, {t['duration']} mins, RPE {t.get('rpe', 'N/A')}/10"
-            + (f", Notes: {t['coach_notes']}" if t.get("coach_notes") else "")
-            for t in training
-        ]) if training else "No training logs this week"
-    )
+        training_summary = (
+            "\n".join([
+                f"- {t['created_at'][:10]}: {t['intensity']} intensity, {t['duration']} mins, RPE {t.get('rpe', 'N/A')}/10"
+                + (f", Notes: {t['coach_notes']}" if t.get("coach_notes") else "")
+                for t in training
+            ]) if training else "No training logs this week"
+        )
 
-    prompt = f"""You are an elite sports performance coach writing a weekly progress report.
+        prompt = f"""You are an elite sports performance coach writing a weekly progress report.
 
 Athlete: {athlete_name}
 Workload: {metrics['risk_tier']} (ACWR {metrics['acwr']}) — Readiness {metrics['readiness']}/100
@@ -578,10 +525,13 @@ Training this week:
 
 Write a concise 3-sentence summary: wellness trend, training load assessment, one recommendation for next week. Speak directly to a coach."""
 
-    text = await call_llm(prompt, max_tokens=250)
-    result = {"summary": text}
-    _ai_cache_set("weekly-summary", athlete_name, academy_id, result)
-    return {**result, "cached": False}
+        text = await call_llm(prompt, max_tokens=250)
+        result = {"summary": text}
+        _ai_cache_set("weekly-summary", athlete_name, academy_id, result)
+        return {**result, "cached": False}
+    except Exception as e:
+        log.error("weekly-summary/%s crashed: %s", athlete_name, e)
+        return {"summary": "Weekly summary temporarily unavailable.", "cached": False, "error": True}
 
 
 @router.get("/injury-risk/{athlete_name}")
@@ -592,22 +542,22 @@ async def get_injury_risk(athlete_name: str, academy_id: str = ""):
 
     try:
         checkins_result = await asyncio.to_thread(
-            lambda: safe_supabase_query(
-                lambda: supabase.table("checkins").select("*")
+            lambda: safe_query(
+                lambda sb: sb.table("checkins").select("*")
                 .eq("athlete_name", athlete_name).eq("academy_id", academy_id)
-                .order("created_at", desc=True).limit(28).execute().data
+                .order("created_at", desc=True).limit(28).execute()
             )
         )
         training_result = await asyncio.to_thread(
-            lambda: safe_supabase_query(
-                lambda: supabase.table("training_logs").select("*")
+            lambda: safe_query(
+                lambda sb: sb.table("training_logs").select("*")
                 .eq("athlete_name", athlete_name).eq("academy_id", academy_id)
-                .order("created_at", desc=True).limit(28).execute().data
+                .order("created_at", desc=True).limit(28).execute()
             )
         )
 
-        checkins = checkins_result or []
-        training = training_result or []
+        checkins = checkins_result.data or []
+        training = training_result.data or []
 
         if not checkins and not training:
             return {"injury_risk_score": None, "acwr": None, "signals": [],
@@ -769,53 +719,54 @@ Write a 2-sentence verdict: sentence 1 is the main risk and why, sentence 2 is o
 
 @router.get("/drills/{athlete_name}")
 async def get_drill_suggestions(athlete_name: str, academy_id: str = ""):
-    cached = _ai_cache_get("drills", athlete_name, academy_id)
-    if cached:
-        return cached
+    try:
+        cached = _ai_cache_get("drills", athlete_name, academy_id)
+        if cached:
+            return cached
 
-    checkins_result = await asyncio.to_thread(
-        lambda: supabase.table("checkins").select("*")
-        .eq("athlete_name", athlete_name).eq("academy_id", academy_id)
-        .order("created_at", desc=True).limit(3).execute()
-    )
-    training_result = await asyncio.to_thread(
-        lambda: supabase.table("training_logs").select("*")
-        .eq("athlete_name", athlete_name).eq("academy_id", academy_id)
-        .order("created_at", desc=True).limit(3).execute()
-    )
-    athletes_result = await asyncio.to_thread(
-        lambda: supabase.table("athletes").select("*")
-        .eq("name", athlete_name).eq("academy_id", academy_id).limit(1).execute()
-    )
+        checkins_result = await asyncio.to_thread(
+            lambda: safe_query(lambda sb: sb.table("checkins").select("*")
+            .eq("athlete_name", athlete_name).eq("academy_id", academy_id)
+            .order("created_at", desc=True).limit(3).execute())
+        )
+        training_result = await asyncio.to_thread(
+            lambda: safe_query(lambda sb: sb.table("training_logs").select("*")
+            .eq("athlete_name", athlete_name).eq("academy_id", academy_id)
+            .order("created_at", desc=True).limit(3).execute())
+        )
+        athletes_result = await asyncio.to_thread(
+            lambda: safe_query(lambda sb: sb.table("athletes").select("*")
+            .eq("name", athlete_name).eq("academy_id", academy_id).limit(1).execute())
+        )
 
-    checkins      = checkins_result.data or []
-    training      = training_result.data or []
-    athletes_data = athletes_result.data or []
+        checkins      = checkins_result.data or []
+        training      = training_result.data or []
+        athletes_data = athletes_result.data or []
 
-    sport = athletes_data[0]["sport"] if athletes_data else "General"
-    age   = athletes_data[0].get("age") if athletes_data else None
+        sport = athletes_data[0]["sport"] if athletes_data else "General"
+        age   = athletes_data[0].get("age") if athletes_data else None
 
-    if not checkins and not training:
-        return {"drills": [], "context": "No data available yet — drills will generate after first check-in."}
+        if not checkins and not training:
+            return {"drills": [], "context": "No data available yet — drills will generate after first check-in."}
 
-    latest = checkins[0] if checkins else None
-    wellness_context = (
-        f"Energy: {latest['energy']}/10, Sleep: {latest['sleep']}/10, "
-        f"Soreness: {latest['soreness']}/10, Mood: {latest['mood']}/10"
-        if latest else "No wellness data"
-    )
+        latest = checkins[0] if checkins else None
+        wellness_context = (
+            f"Energy: {latest['energy']}/10, Sleep: {latest['sleep']}/10, "
+            f"Soreness: {latest['soreness']}/10, Mood: {latest['mood']}/10"
+            if latest else "No wellness data"
+        )
 
-    training_context = (
-        "\n".join([
-            f"- {t['intensity']} intensity, {t['duration']} mins, RPE {t.get('rpe', 'N/A')}/10"
-            + (f", Notes: {t['coach_notes']}" if t.get("coach_notes") else "")
-            for t in training
-        ]) if training else "No recent training logs"
-    )
+        training_context = (
+            "\n".join([
+                f"- {t['intensity']} intensity, {t['duration']} mins, RPE {t.get('rpe', 'N/A')}/10"
+                + (f", Notes: {t['coach_notes']}" if t.get("coach_notes") else "")
+                for t in training
+            ]) if training else "No recent training logs"
+        )
 
-    age_context = f"Age: {age}" if age else ""
+        age_context = f"Age: {age}" if age else ""
 
-    prompt = f"""You are an elite {sport} coach with 20+ years experience.
+        prompt = f"""You are an elite {sport} coach with 20+ years experience.
 
 Athlete: {athlete_name} | Sport: {sport} | {age_context}
 Wellness today: {wellness_context}
@@ -837,97 +788,101 @@ INTENSITY: [Low/Medium/High]
 REASON: [one sentence referencing today's wellness numbers]
 ---"""
 
-    raw    = await call_llm(prompt, max_tokens=250)
-    drills = []
+        raw    = await call_llm(prompt, max_tokens=250)
+        drills = []
 
-    for block in raw.split("---"):
-        block = block.strip()
-        if not block:
-            continue
-        drill = {}
-        for line in block.split("\n"):
-            line = line.strip()
-            if line.startswith("DRILL:"):      drill["name"]      = line.replace("DRILL:", "").strip()
-            elif line.startswith("CATEGORY:"): drill["category"]  = line.replace("CATEGORY:", "").strip()
-            elif line.startswith("DURATION:"): drill["duration"]  = line.replace("DURATION:", "").strip()
-            elif line.startswith("INTENSITY:"): drill["intensity"] = line.replace("INTENSITY:", "").strip()
-            elif line.startswith("REASON:"):   drill["reason"]    = line.replace("REASON:", "").strip()
-        if drill.get("name"):
-            drills.append(drill)
+        for block in raw.split("---"):
+            block = block.strip()
+            if not block:
+                continue
+            drill = {}
+            for line in block.split("\n"):
+                line = line.strip()
+                if line.startswith("DRILL:"):      drill["name"]      = line.replace("DRILL:", "").strip()
+                elif line.startswith("CATEGORY:"): drill["category"]  = line.replace("CATEGORY:", "").strip()
+                elif line.startswith("DURATION:"): drill["duration"]  = line.replace("DURATION:", "").strip()
+                elif line.startswith("INTENSITY:"): drill["intensity"] = line.replace("INTENSITY:", "").strip()
+                elif line.startswith("REASON:"):   drill["reason"]    = line.replace("REASON:", "").strip()
+            if drill.get("name"):
+                drills.append(drill)
 
-    result = {
-        "drills":  drills[:3],
-        "sport":   sport,
-        "context": wellness_context if latest else "No check-in data",
-        "athlete": athlete_name,
-    }
-    _ai_cache_set("drills", athlete_name, academy_id, result)
-    return {**result, "cached": False}
+        result = {
+            "drills":  drills[:3],
+            "sport":   sport,
+            "context": wellness_context if latest else "No check-in data",
+            "athlete": athlete_name,
+        }
+        _ai_cache_set("drills", athlete_name, academy_id, result)
+        return {**result, "cached": False}
+    except Exception as e:
+        log.error("drills/%s crashed: %s", athlete_name, e)
+        return {"drills": [], "sport": "General", "cached": False, "error": True}
 
 
 @router.get("/parent-recovery/{athlete_name}")
 async def get_parent_recovery(athlete_name: str, academy_id: str = ""):
-    cached = _ai_cache_get("parent-recovery", athlete_name, academy_id)
-    if cached:
-        return cached
+    try:
+        cached = _ai_cache_get("parent-recovery", athlete_name, academy_id)
+        if cached:
+            return cached
 
-    athletes_result = await asyncio.to_thread(
-        lambda: supabase.table("athletes").select("*")
-        .eq("name", athlete_name).eq("academy_id", academy_id).limit(1).execute()
-    )
-    checkins_result = await asyncio.to_thread(
-        lambda: supabase.table("checkins").select("*")
-        .eq("athlete_name", athlete_name).eq("academy_id", academy_id)
-        .order("created_at", desc=True).limit(7).execute()
-    )
+        athletes_result = await asyncio.to_thread(
+            lambda: safe_query(lambda sb: sb.table("athletes").select("*")
+            .eq("name", athlete_name).eq("academy_id", academy_id).limit(1).execute())
+        )
+        checkins_result = await asyncio.to_thread(
+            lambda: safe_query(lambda sb: sb.table("checkins").select("*")
+            .eq("athlete_name", athlete_name).eq("academy_id", academy_id)
+            .order("created_at", desc=True).limit(7).execute())
+        )
 
-    athletes_data = athletes_result.data or []
-    checkins      = checkins_result.data or []
+        athletes_data = athletes_result.data or []
+        checkins      = checkins_result.data or []
 
-    sport  = athletes_data[0]["sport"] if athletes_data else "General"
-    age    = athletes_data[0].get("age") if athletes_data else None
-    latest = checkins[0] if checkins else None
+        sport  = athletes_data[0]["sport"] if athletes_data else "General"
+        age    = athletes_data[0].get("age") if athletes_data else None
+        latest = checkins[0] if checkins else None
 
-    risk_level, risk_signals = "green", []
+        risk_level, risk_signals = "green", []
 
-    if latest:
-        soreness = latest.get("soreness", 5)
-        energy   = latest.get("energy", 5)
-        sleep    = latest.get("sleep", 5)
-        mood     = latest.get("mood", 5)
+        if latest:
+            soreness = latest.get("soreness", 5)
+            energy   = latest.get("energy", 5)
+            sleep    = latest.get("sleep", 5)
+            mood     = latest.get("mood", 5)
 
-        if soreness >= 7 or energy <= 3:
-            risk_level = "red"
-            if soreness >= 7: risk_signals.append(f"high soreness ({soreness}/10)")
-            if energy <= 3:   risk_signals.append(f"very low energy ({energy}/10)")
-        elif soreness >= 5 or energy <= 5 or sleep <= 4:
-            risk_level = "yellow"
-            if soreness >= 5: risk_signals.append(f"moderate soreness ({soreness}/10)")
-            if energy <= 5:   risk_signals.append(f"below average energy ({energy}/10)")
-            if sleep <= 4:    risk_signals.append(f"poor sleep ({sleep}/10)")
+            if soreness >= 7 or energy <= 3:
+                risk_level = "red"
+                if soreness >= 7: risk_signals.append(f"high soreness ({soreness}/10)")
+                if energy <= 3:   risk_signals.append(f"very low energy ({energy}/10)")
+            elif soreness >= 5 or energy <= 5 or sleep <= 4:
+                risk_level = "yellow"
+                if soreness >= 5: risk_signals.append(f"moderate soreness ({soreness}/10)")
+                if energy <= 5:   risk_signals.append(f"below average energy ({energy}/10)")
+                if sleep <= 4:    risk_signals.append(f"poor sleep ({sleep}/10)")
 
-        wellness_text = f"Energy: {energy}/10, Sleep: {sleep}/10, Soreness: {soreness}/10, Mood: {mood}/10"
-    else:
-        wellness_text = "No recent check-in data available"
+            wellness_text = f"Energy: {energy}/10, Sleep: {sleep}/10, Soreness: {soreness}/10, Mood: {mood}/10"
+        else:
+            wellness_text = "No recent check-in data available"
 
-    if risk_level == "green":
-        green_result = {
-            "risk_level":    "green",
-            "coach_message": (
-                f"{athlete_name.split(' ')[0]} is in good shape! "
-                "Wellness numbers look healthy. Keep encouraging regular sleep, hydration, and balanced meals."
-            ),
-            "exercises": [],
-            "athlete":   athlete_name,
-            "sport":     sport,
-        }
-        _ai_cache_set("parent-recovery", athlete_name, academy_id, green_result)
-        return {**green_result, "cached": False}
+        if risk_level == "green":
+            green_result = {
+                "risk_level":    "green",
+                "coach_message": (
+                    f"{athlete_name.split(' ')[0]} is in good shape! "
+                    "Wellness numbers look healthy. Keep encouraging regular sleep, hydration, and balanced meals."
+                ),
+                "exercises": [],
+                "athlete":   athlete_name,
+                "sport":     sport,
+            }
+            _ai_cache_set("parent-recovery", athlete_name, academy_id, green_result)
+            return {**green_result, "cached": False}
 
-    age_text = f"Age: {age}" if age else ""
-    severity = "HIGH RISK" if risk_level == "red" else "MODERATE CONCERN"
+        age_text = f"Age: {age}" if age else ""
+        severity = "HIGH RISK" if risk_level == "red" else "MODERATE CONCERN"
 
-    prompt = f"""You are a sports physiotherapist writing a home recovery plan for a parent. The parent has no sports background.
+        prompt = f"""You are a sports physiotherapist writing a home recovery plan for a parent. The parent has no sports background.
 
 Athlete: {athlete_name} | Sport: {sport} | {age_text}
 Risk: {severity}
@@ -959,33 +914,37 @@ DURATION: [e.g. 10 minutes]
 WHY: [1 sentence]
 ---"""
 
-    raw           = await call_llm(prompt, max_tokens=250)
-    coach_message = ""
-    exercises     = []
+        raw           = await call_llm(prompt, max_tokens=250)
+        coach_message = ""
+        exercises     = []
 
-    for block in raw.split("---"):
-        block = block.strip()
-        if not block:
-            continue
-        if block.startswith("COACH_MESSAGE:"):
-            coach_message = block.replace("COACH_MESSAGE:", "").strip()
-            continue
-        exercise = {}
-        for line in block.split("\n"):
-            line = line.strip()
-            if line.startswith("EXERCISE:"):  exercise["name"]     = line.replace("EXERCISE:", "").strip()
-            elif line.startswith("HOW:"):     exercise["how"]      = line.replace("HOW:", "").strip()
-            elif line.startswith("DURATION:"): exercise["duration"] = line.replace("DURATION:", "").strip()
-            elif line.startswith("WHY:"):     exercise["why"]      = line.replace("WHY:", "").strip()
-        if exercise.get("name"):
-            exercises.append(exercise)
+        for block in raw.split("---"):
+            block = block.strip()
+            if not block:
+                continue
+            if block.startswith("COACH_MESSAGE:"):
+                coach_message = block.replace("COACH_MESSAGE:", "").strip()
+                continue
+            exercise = {}
+            for line in block.split("\n"):
+                line = line.strip()
+                if line.startswith("EXERCISE:"):  exercise["name"]     = line.replace("EXERCISE:", "").strip()
+                elif line.startswith("HOW:"):     exercise["how"]      = line.replace("HOW:", "").strip()
+                elif line.startswith("DURATION:"): exercise["duration"] = line.replace("DURATION:", "").strip()
+                elif line.startswith("WHY:"):     exercise["why"]      = line.replace("WHY:", "").strip()
+            if exercise.get("name"):
+                exercises.append(exercise)
 
-    result = {
-        "risk_level":    risk_level,
-        "coach_message": coach_message,
-        "exercises":     exercises[:3],
-        "athlete":       athlete_name,
-        "sport":         sport,
-    }
-    _ai_cache_set("parent-recovery", athlete_name, academy_id, result)
-    return {**result, "cached": False}
+        result = {
+            "risk_level":    risk_level,
+            "coach_message": coach_message,
+            "exercises":     exercises[:3],
+            "athlete":       athlete_name,
+            "sport":         sport,
+        }
+        _ai_cache_set("parent-recovery", athlete_name, academy_id, result)
+        return {**result, "cached": False}
+    except Exception as e:
+        log.error("parent-recovery/%s crashed: %s", athlete_name, e)
+        return {"risk_level": "unknown", "coach_message": "Recovery plan temporarily unavailable.",
+                "exercises": [], "cached": False, "error": True}

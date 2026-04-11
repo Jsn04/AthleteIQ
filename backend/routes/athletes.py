@@ -1,34 +1,11 @@
-import os
+import logging
 
-import httpx
 from fastapi import APIRouter, Query, HTTPException
-from supabase import create_client
+
+from db import safe_query
 
 router = APIRouter()
-
-
-def get_supabase():
-    return create_client(os.getenv("SUPABASE_URL"), os.getenv("SUPABASE_KEY"))
-
-
-supabase = get_supabase()
-
-
-def safe_supabase_query(query_fn):
-    """Run a Supabase query with one reconnect + retry on stale HTTP/2 connections.
-
-    Render's free tier keeps processes warm for long periods, and the module-level
-    Supabase client's underlying httpx pool can go stale, throwing ReadError/
-    ConnectError on the first hit after an idle window. Without this wrapper the
-    dashboard flashes "No athletes found" on back-navigation while the first
-    request silently fails — see project_bug_fixes_apr8.md.
-    """
-    global supabase
-    try:
-        return query_fn()
-    except (httpx.ReadError, httpx.ConnectError, httpx.RemoteProtocolError):
-        supabase = get_supabase()
-        return query_fn()
+log = logging.getLogger(__name__)
 
 
 def require_academy(academy_id: str):
@@ -40,48 +17,62 @@ def require_academy(academy_id: str):
 @router.get("")
 def get_athletes(academy_id: str = Query(...)):
     require_academy(academy_id)
-    response = safe_supabase_query(
-        lambda: supabase.table("athletes")
-        .select("*")
-        .eq("academy_id", academy_id)
-        .eq("is_deleted", False)
-        .execute()
-    )
-    return response.data
+    try:
+        response = safe_query(
+            lambda sb: sb.table("athletes")
+            .select("*")
+            .eq("academy_id", academy_id)
+            .eq("is_deleted", False)
+            .execute()
+        )
+        return response.data
+    except Exception as e:
+        log.error("GET /athletes failed: %s", e)
+        return []
 
 
 @router.post("")
 def add_athlete(athlete: dict, academy_id: str = Query(...)):
     require_academy(academy_id)
-    athlete["academy_id"] = academy_id
-    athlete["is_deleted"] = False
-    response = safe_supabase_query(
-        lambda: supabase.table("athletes").insert(athlete).execute()
-    )
-    return response.data
+    try:
+        athlete["academy_id"] = academy_id
+        athlete["is_deleted"] = False
+        response = safe_query(lambda sb: sb.table("athletes").insert(athlete).execute())
+        return response.data
+    except Exception as e:
+        log.error("POST /athletes failed: %s", e)
+        raise HTTPException(status_code=500, detail="Could not add athlete. Try again.")
 
 
 @router.delete("/{athlete_id}")
 def delete_athlete(athlete_id: str, academy_id: str = Query(...)):
     require_academy(academy_id)
-    safe_supabase_query(
-        lambda: supabase.table("athletes")
-        .update({"is_deleted": True})
-        .eq("id", athlete_id)
-        .eq("academy_id", academy_id)
-        .execute()
-    )
-    return {"message": "Athlete deleted"}
+    try:
+        safe_query(
+            lambda sb: sb.table("athletes")
+            .update({"is_deleted": True})
+            .eq("id", athlete_id)
+            .eq("academy_id", academy_id)
+            .execute()
+        )
+        return {"message": "Athlete deleted"}
+    except Exception as e:
+        log.error("DELETE /athletes/%s failed: %s", athlete_id, e)
+        raise HTTPException(status_code=500, detail="Could not delete athlete. Try again.")
 
 
 @router.patch("/{athlete_id}")
 def update_athlete(athlete_id: str, updates: dict, academy_id: str = Query(...)):
     require_academy(academy_id)
-    safe_supabase_query(
-        lambda: supabase.table("athletes")
-        .update(updates)
-        .eq("id", athlete_id)
-        .eq("academy_id", academy_id)
-        .execute()
-    )
-    return {"status": "updated"}
+    try:
+        safe_query(
+            lambda sb: sb.table("athletes")
+            .update(updates)
+            .eq("id", athlete_id)
+            .eq("academy_id", academy_id)
+            .execute()
+        )
+        return {"status": "updated"}
+    except Exception as e:
+        log.error("PATCH /athletes/%s failed: %s", athlete_id, e)
+        raise HTTPException(status_code=500, detail="Could not update athlete. Try again.")
