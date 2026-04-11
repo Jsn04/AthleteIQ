@@ -65,7 +65,7 @@ export default function AthleteDashboard() {
           setAthleteProfile(found);
           if (!found.parent_phone) setShowProfileForm(true);
         }
-      } catch {}
+      } catch { }
 
       try {
         const injuriesRes = await api.get(
@@ -427,12 +427,12 @@ export default function AthleteDashboard() {
                       </div>
                       <div className="flex items-center gap-2">
                         <span className={`text-xs font-black px-3 py-1 rounded-full border ${inj.severity === 'severe' ? 'bg-rose-500/10 border-rose-500/30 text-rose-400' :
-                            inj.severity === 'moderate' ? 'bg-amber-500/10 border-amber-500/30 text-amber-400' :
-                              'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
+                          inj.severity === 'moderate' ? 'bg-amber-500/10 border-amber-500/30 text-amber-400' :
+                            'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
                           }`}>{inj.severity.toUpperCase()}</span>
                         <span className={`text-xs font-bold px-2 py-1 rounded-lg ${inj.status === 'active' ? 'text-rose-400 bg-rose-500/10' :
-                            inj.status === 'recovering' ? 'text-amber-400 bg-amber-500/10' :
-                              'text-emerald-400 bg-emerald-500/10'
+                          inj.status === 'recovering' ? 'text-amber-400 bg-amber-500/10' :
+                            'text-emerald-400 bg-emerald-500/10'
                           }`}>{inj.status.charAt(0).toUpperCase() + inj.status.slice(1)}</span>
                       </div>
                     </div>

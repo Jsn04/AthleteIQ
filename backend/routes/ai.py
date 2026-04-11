@@ -36,7 +36,6 @@ def _ai_cache_get(endpoint: str, athlete_name: str, academy_id: str):
 
 
 def _ai_cache_set(endpoint: str, athlete_name: str, academy_id: str, value: dict):
-    # Evict oldest entries when cache is full
     if len(_AI_CACHE) >= _AI_CACHE_MAX:
         oldest_key = min(_AI_CACHE, key=lambda k: _AI_CACHE[k][0])
         _AI_CACHE.pop(oldest_key, None)
@@ -92,15 +91,12 @@ def calculate_readiness(training_logs: list, checkins=None) -> dict:
 
     Coach pillar (60%):
       - Load trend: last session vs 3-session baseline (always available)
-      - ACWR:       proper 7-day / 28-day date windows (only when 7+ days of data)
+      - ACWR:       proper 7-day / 28-day date windows (only when enough data)
       - Coach notes: keyword sentiment on last 5 sessions
 
     Athlete pillar (40%):
       - Energy 30%, Sleep 30%, Soreness 25% (inverted), Mood 15%
       - Uses last 3 check-ins
-
-    Weights shift when data is limited so the score is never dominated by
-    a single missing dimension.
     """
     checkins = checkins or []
     now = datetime.now(timezone.utc)
@@ -111,25 +107,23 @@ def calculate_readiness(training_logs: list, checkins=None) -> dict:
     loads_7d  = [l for l in loads_7d  if l > 0]
     loads_28d = [l for l in loads_28d if l > 0]
 
-    # ACWR is only meaningful with enough history in both windows
-    has_acwr = len(loads_7d) >= 2 and len(loads_28d) >= 5
+    # ACWR needs at least 1 session this week and 5 across the month
+    has_acwr = len(loads_7d) >= 1 and len(loads_28d) >= 5
 
     acute_load_total   = sum(loads_7d)
     chronic_load_total = sum(loads_28d)
 
     acwr_val = 0.0
     if has_acwr and chronic_load_total > 0:
-        # Standard formula: acute weekly sum / chronic weekly average (over 4 wks)
         chronic_weekly_avg = chronic_load_total / 4
         acwr_val = round(acute_load_total / chronic_weekly_avg, 2)
 
     # ── PILLAR 1: COACH DATA (60%) ────────────────────────────────────────────
-    coach_score = 70  # neutral fallback when no training data at all
+    coach_score = 70
 
     if training_logs:
         all_loads = [_session_load(l) for l in training_logs if _session_load(l) > 0]
 
-        # A. Load trend — last session vs 3-session rolling baseline
         trend_score = 75
         if all_loads:
             recent_load = all_loads[0]
@@ -140,11 +134,10 @@ def calculate_readiness(training_logs: list, checkins=None) -> dict:
                 if   ratio > 1.6:  trend_score = max(25, int(75 - (ratio - 1.6) * 60))
                 elif ratio > 1.3:  trend_score = max(48, int(75 - (ratio - 1.3) * 45))
                 elif ratio > 1.1:  trend_score = 72
-                elif ratio >= 0.7: trend_score = 85   # good consistency
-                elif ratio >= 0.5: trend_score = 74   # deliberate taper — ok
-                else:              trend_score = 60   # significant drop
+                elif ratio >= 0.7: trend_score = 85
+                elif ratio >= 0.5: trend_score = 74
+                else:              trend_score = 60
 
-            # Last session RPE / intensity modifier
             last_rpe       = training_logs[0].get("rpe") or 5
             last_intensity = training_logs[0].get("intensity", "Medium")
             if last_rpe >= 9 or last_intensity == "High" and last_rpe >= 8:
@@ -152,7 +145,6 @@ def calculate_readiness(training_logs: list, checkins=None) -> dict:
             elif last_rpe <= 3 and last_intensity == "Low":
                 trend_score = min(trend_score + 8, 92)
 
-        # B. ACWR score — continuous curve, only when data is sufficient
         acwr_score = None
         if has_acwr and acwr_val > 0:
             if   acwr_val < 0.5:   acwr_score = 35
@@ -162,12 +154,11 @@ def calculate_readiness(training_logs: list, checkins=None) -> dict:
             elif acwr_val <= 1.5:  acwr_score = int(66 - (acwr_val - 1.3)  / 0.2  * 28)
             else:                  acwr_score = max(15, int(38 - (acwr_val - 1.5) / 0.5 * 23))
 
-        # C. Coach notes sentiment (last 5 sessions)
         notes_text = " ".join(
             t.get("coach_notes", "").lower()
             for t in training_logs[:5] if t.get("coach_notes")
         )
-        notes_score = 75  # neutral baseline
+        notes_score = 75
         if any(kw in notes_text for kw in [
             "pain", "sore", "aching", "tight", "injury", "discomfort",
             "tender", "limping", "hurts", "hurting",
@@ -190,16 +181,13 @@ def calculate_readiness(training_logs: list, checkins=None) -> dict:
             notes_score += 10
         notes_score = max(20, min(95, notes_score))
 
-        # Combine sub-pillars — weights shift when ACWR is unavailable
         if acwr_score is not None:
-            # Full data: load trend 40%, ACWR 35%, notes 25%
             coach_score = int(trend_score * 0.40 + acwr_score * 0.35 + notes_score * 0.25)
         else:
-            # Insufficient history for ACWR: load trend 65%, notes 35%
             coach_score = int(trend_score * 0.65 + notes_score * 0.35)
 
     # ── PILLAR 2: ATHLETE WELLNESS (40%) ──────────────────────────────────────
-    wellness_score = 70  # neutral fallback when no check-ins
+    wellness_score = 70
 
     if checkins:
         recent = checkins[:3]
@@ -208,13 +196,11 @@ def calculate_readiness(training_logs: list, checkins=None) -> dict:
         avg_soreness = sum(c.get("soreness", 5) for c in recent) / len(recent)
         avg_mood     = sum(c.get("mood",     5) for c in recent) / len(recent)
 
-        # Normalise each to 0-100; soreness is inverted (high soreness = low score)
         e_score  = int((avg_energy          / 10) * 100)
         sl_score = int((avg_sleep           / 10) * 100)
         so_score = int(((10 - avg_soreness) / 10) * 100)
         m_score  = int((avg_mood            / 10) * 100)
 
-        # energy 30%, sleep 30%, soreness 25%, mood 15%
         wellness_score = int(
             e_score  * 0.30 +
             sl_score * 0.30 +
@@ -225,7 +211,6 @@ def calculate_readiness(training_logs: list, checkins=None) -> dict:
     # ── FINAL SCORE: 60% coach + 40% athlete ──────────────────────────────────
     final_readiness = max(5, min(98, int(coach_score * 0.60 + wellness_score * 0.40)))
 
-    # Risk tier — prefer ACWR when available; fall back to readiness band
     if has_acwr and acwr_val > 0:
         if   acwr_val > 1.5:  risk_tier = "High Risk"
         elif acwr_val > 1.3:  risk_tier = "Caution"
@@ -248,12 +233,10 @@ def calculate_readiness(training_logs: list, checkins=None) -> dict:
     }
 
 
-# Keep thin alias so any code referencing calculate_acwr still works
 def calculate_acwr(training_logs: list) -> dict:
     return calculate_readiness(training_logs, [])
 
 
-# Maps the workload tier to the green/yellow/red buckets the frontend uses
 _RISK_TIER_TO_LEVEL = {
     "Optimal": "green",
     "Undertraining": "green",
@@ -282,12 +265,6 @@ async def _get_cached_insight(athlete_name: str, academy_id: str):
         if age_hours >= 12:
             return None
 
-        # Reconstruct the full response shape from the stored row. The cache
-        # table only has `insight` + `metrics` columns, so score / risk /
-        # athlete_message have to be derived (or read from the metrics dict
-        # if newer rows stuffed them in on save). Without this, the athlete
-        # and coach dashboards render "—" for Avg Readiness on every refresh
-        # because insight.score is undefined on cache hits.
         metrics = cached.get("metrics") or {}
         athlete_message = metrics.get("athlete_message", "")
         return {
@@ -330,6 +307,7 @@ async def get_athlete_insight(athlete_name: str, academy_id: str = ""):
         cached = await _get_cached_insight(athlete_name, academy_id)
         if cached:
             return cached
+
         checkins_result = await asyncio.to_thread(
             lambda: safe_query(
                 lambda sb: sb.table("checkins").select("*")
@@ -398,8 +376,7 @@ ATHLETE_MESSAGE: [one motivating sentence for the athlete]"""
         await _save_insight_cache(athlete_name, academy_id, result.get("insight", ""), metrics)
         return result
     except Exception as e:
-        import logging
-        logging.error("insights/%s crashed: %s", athlete_name, e)
+        log.error("insights/%s crashed: %s", athlete_name, e)
         return {"insight": "Insight temporarily unavailable", "risk": "unknown",
                 "score": None, "cached": False, "error": True}
 
@@ -561,10 +538,22 @@ async def get_injury_risk(athlete_name: str, academy_id: str = ""):
 
         if not checkins and not training:
             return {"injury_risk_score": None, "acwr": None, "signals": [],
-                    "verdict": "No data available yet", "risk_level": "unknown", "deception_flag": False}
+                    "verdict": "No data available yet", "risk_level": "unknown",
+                    "deception_flag": False, "sessions_28d": 0, "days_with_data": 0}
 
         metrics = calculate_readiness(training, checkins)
         acwr    = metrics["acwr"]
+        now_utc = datetime.now(timezone.utc)
+
+        # Sessions with valid load in last 28 days
+        loads_28d = [l for l in training if _days_ago(l, now_utc) <= 28 and _session_load(l) > 0]
+        sessions_28d = len(loads_28d)
+
+        # Unique calendar days with training data in last 28 days
+        days_with_data = len(set(
+            l["created_at"][:10] for l in training
+            if _days_ago(l, now_utc) <= 28 and _session_load(l) > 0
+        ))
 
         coach_notes_combined = " ".join([
             t.get("coach_notes", "").lower() for t in training[:7] if t.get("coach_notes")
@@ -706,15 +695,16 @@ Write a 2-sentence verdict: sentence 1 is the main risk and why, sentence 2 is o
             "risk_level":        risk_level,
             "deception_flag":    deception_flag,
             "metrics":           metrics,
+            "sessions_28d":      sessions_28d,
+            "days_with_data":    days_with_data,
         }
         _ai_cache_set("injury-risk", athlete_name, academy_id, result)
         return {**result, "cached": False}
     except Exception as e:
-        import logging
-        logging.error("injury-risk/%s crashed: %s", athlete_name, e)
+        log.error("injury-risk/%s crashed: %s", athlete_name, e)
         return {"injury_risk_score": None, "acwr": None, "signals": [],
                 "verdict": "Risk assessment temporarily unavailable", "risk_level": "unknown",
-                "deception_flag": False, "error": True}
+                "deception_flag": False, "sessions_28d": 0, "days_with_data": 0, "error": True}
 
 
 @router.get("/drills/{athlete_name}")
@@ -798,11 +788,11 @@ REASON: [one sentence referencing today's wellness numbers]
             drill = {}
             for line in block.split("\n"):
                 line = line.strip()
-                if line.startswith("DRILL:"):      drill["name"]      = line.replace("DRILL:", "").strip()
-                elif line.startswith("CATEGORY:"): drill["category"]  = line.replace("CATEGORY:", "").strip()
-                elif line.startswith("DURATION:"): drill["duration"]  = line.replace("DURATION:", "").strip()
+                if line.startswith("DRILL:"):       drill["name"]      = line.replace("DRILL:", "").strip()
+                elif line.startswith("CATEGORY:"):  drill["category"]  = line.replace("CATEGORY:", "").strip()
+                elif line.startswith("DURATION:"):  drill["duration"]  = line.replace("DURATION:", "").strip()
                 elif line.startswith("INTENSITY:"): drill["intensity"] = line.replace("INTENSITY:", "").strip()
-                elif line.startswith("REASON:"):   drill["reason"]    = line.replace("REASON:", "").strip()
+                elif line.startswith("REASON:"):    drill["reason"]    = line.replace("REASON:", "").strip()
             if drill.get("name"):
                 drills.append(drill)
 
@@ -928,10 +918,10 @@ WHY: [1 sentence]
             exercise = {}
             for line in block.split("\n"):
                 line = line.strip()
-                if line.startswith("EXERCISE:"):  exercise["name"]     = line.replace("EXERCISE:", "").strip()
-                elif line.startswith("HOW:"):     exercise["how"]      = line.replace("HOW:", "").strip()
+                if line.startswith("EXERCISE:"):   exercise["name"]     = line.replace("EXERCISE:", "").strip()
+                elif line.startswith("HOW:"):      exercise["how"]      = line.replace("HOW:", "").strip()
                 elif line.startswith("DURATION:"): exercise["duration"] = line.replace("DURATION:", "").strip()
-                elif line.startswith("WHY:"):     exercise["why"]      = line.replace("WHY:", "").strip()
+                elif line.startswith("WHY:"):      exercise["why"]      = line.replace("WHY:", "").strip()
             if exercise.get("name"):
                 exercises.append(exercise)
 

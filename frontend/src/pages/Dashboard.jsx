@@ -148,8 +148,8 @@ function SportSection({ sport, athletes, insights, injuryRisks, checkins, onNavi
             return (
               <div key={athlete.id}
                 className={`bg-gray-800 rounded-2xl p-4 sm:p-5 border transition-all hover:border-gray-600 cursor-pointer ${insight?.risk === 'red' ? 'border-rose-500/30'
-                  : insight?.risk === 'yellow' ? 'border-amber-500/20'
-                    : 'border-gray-700'
+                    : insight?.risk === 'yellow' ? 'border-amber-500/20'
+                      : 'border-gray-700'
                   }`}
                 onClick={() => onNavigate(`/athlete/${encodeURIComponent(athlete.name)}`)}>
 
@@ -169,8 +169,8 @@ function SportSection({ sport, athletes, insights, injuryRisks, checkins, onNavi
                     {insight?.score != null && isCheckedIn && (
                       <div className="text-center bg-gray-900 rounded-xl px-3 py-1.5 border border-gray-700">
                         <p className={`text-xl sm:text-2xl font-black ${insight.risk === 'red' ? 'text-rose-400'
-                          : insight.risk === 'yellow' ? 'text-amber-400'
-                            : 'text-emerald-400'
+                            : insight.risk === 'yellow' ? 'text-amber-400'
+                              : 'text-emerald-400'
                           }`}>{insight.score}</p>
                         <p className="text-[10px] text-gray-500 font-bold uppercase">Ready</p>
                       </div>
@@ -222,8 +222,8 @@ function SportSection({ sport, athletes, insights, injuryRisks, checkins, onNavi
                           onClick={e => { e.stopPropagation(); onMarkAttendance(athlete, 'present'); }}
                           disabled={loading}
                           className={`text-[10px] font-black px-3 py-1 rounded-lg border transition ${status === 'present'
-                            ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-400'
-                            : 'border-gray-700 text-gray-600 hover:border-emerald-500/40 hover:text-emerald-400'
+                              ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-400'
+                              : 'border-gray-700 text-gray-600 hover:border-emerald-500/40 hover:text-emerald-400'
                             }`}>
                           ✓ Present
                         </button>
@@ -231,8 +231,8 @@ function SportSection({ sport, athletes, insights, injuryRisks, checkins, onNavi
                           onClick={e => { e.stopPropagation(); onMarkAttendance(athlete, 'absent'); }}
                           disabled={loading}
                           className={`text-[10px] font-black px-3 py-1 rounded-lg border transition ${status === 'absent'
-                            ? 'bg-rose-500/20 border-rose-500/40 text-rose-400'
-                            : 'border-gray-700 text-gray-600 hover:border-rose-500/40 hover:text-rose-400'
+                              ? 'bg-rose-500/20 border-rose-500/40 text-rose-400'
+                              : 'border-gray-700 text-gray-600 hover:border-rose-500/40 hover:text-rose-400'
                             }`}>
                           ✗ Absent
                         </button>
@@ -248,15 +248,30 @@ function SportSection({ sport, athletes, insights, injuryRisks, checkins, onNavi
                   })()}
                 </div>
 
+                {/* ACWR + AI Insight */}
                 <div className="flex flex-col gap-3">
-                  {injuryData?.acwr != null && (
+                  {injuryData && (
                     <div className="flex items-center gap-3 text-xs font-bold flex-wrap">
                       <span className="text-gray-500 uppercase tracking-widest text-[10px]">ACWR</span>
-                      <span className={`px-2 py-0.5 rounded bg-gray-900 border border-gray-700 ${injuryData.acwr > 1.5 ? 'text-rose-400'
-                        : injuryData.acwr > 1.3 ? 'text-amber-400'
-                          : injuryData.acwr < 0.8 ? 'text-blue-400'
-                            : 'text-emerald-400'
-                        }`}>{injuryData.acwr}</span>
+                      {injuryData.metrics?.has_acwr && injuryData.acwr > 0 ? (
+                        <span className={`px-2 py-0.5 rounded bg-gray-900 border border-gray-700 ${injuryData.acwr > 1.5 ? 'text-rose-400'
+                            : injuryData.acwr > 1.3 ? 'text-amber-400'
+                              : injuryData.acwr < 0.8 ? 'text-blue-400'
+                                : 'text-emerald-400'
+                          }`}>{injuryData.acwr}</span>
+                      ) : (
+                        <div className="flex items-center gap-2">
+                          <div className="w-20 h-1.5 bg-gray-700 rounded-full overflow-hidden">
+                            <div
+                              className="h-full bg-indigo-500 rounded-full transition-all duration-700"
+                              style={{ width: `${Math.min(((injuryData.sessions_28d || 0) / 12) * 100, 95)}%` }}
+                            />
+                          </div>
+                          <span className="text-gray-600 text-[10px] font-bold">
+                            {injuryData.sessions_28d || 0}/12 sessions
+                          </span>
+                        </div>
+                      )}
                       {injuryData.deception_flag && (
                         <span className="text-orange-400 text-[10px] font-bold uppercase animate-pulse">
                           ⚠️ Deception Flagged
@@ -313,7 +328,6 @@ function Dashboard() {
         api.get(`/wellness`, { params: { academy_id: academyId } }),
       ]);
 
-      // If athletes failed, bail out (nothing to render)
       if (athletesRes.status !== 'fulfilled') throw new Error('Athletes fetch failed');
       const athletesData = athletesRes.value.data;
       const checkinsData = checkinsRes.status === 'fulfilled' ? checkinsRes.value.data : [];
@@ -358,10 +372,6 @@ function Dashboard() {
       }
     } catch (err) {
       console.error('Error fetching data:', err);
-      // Don't clobber any previously loaded athletes — surface a soft error banner
-      // instead. On first-load failure (athletes still empty) the effect below
-      // schedules a fast 3s retry so the user isn't stuck on "No athletes found"
-      // for 30s while the polling interval limps to the rescue.
       setLoadError(true);
     } finally {
       setLoading(false);
@@ -369,14 +379,11 @@ function Dashboard() {
   }, [academyId]);
 
   useEffect(() => {
-    // Wake up Render before loading real data
     warmup().then(() => fetchData());
     const interval = setInterval(() => fetchData(true), 30000);
     return () => clearInterval(interval);
   }, [fetchData]);
 
-  // Fast retry on initial load failure — handles Render cold starts and
-  // transient Supabase stale-connection errors without waiting for the 30s poll.
   useEffect(() => {
     if (loadError && athletes.length === 0) {
       if (retryTimerRef.current) clearTimeout(retryTimerRef.current);
@@ -424,15 +431,12 @@ function Dashboard() {
 
     let msg = `👋 Hello from *${academyName}*\n\n`;
     msg += `Here's a quick update on *${athlete.name}* from today's session:\n\n`;
-
     if (aiText && aiText !== 'No data yet') {
       msg += `📊 *Performance Note:*\n${aiText}\n\n`;
     }
-
     msg += `✅ ${firstName} has been monitored today using AthleteIQ — our performance tracking system.\n\n`;
     msg += `If you have any questions about ${firstName}'s training, feel free to reach out directly.\n\n`;
     msg += `— Coach, ${academyName}`;
-
     return msg;
   };
 
@@ -441,7 +445,6 @@ function Dashboard() {
     const msg = buildMessage(athlete);
     const url = `https://wa.me/91${athlete.parent_phone.replace(/\D/g, '')}?text=${encodeURIComponent(msg)}`;
     window.open(url, '_blank');
-
     const key = `broadcast_sent_${new Date().toDateString()}`;
     const updated = [...sentToday, athlete.name];
     setSentToday(updated);
@@ -450,13 +453,11 @@ function Dashboard() {
 
   const handleSendRecovery = async (athlete) => {
     if (!athlete.parent_phone) return;
-
     const recoveryKey = `recovery_sent_${athlete.name}_${new Date().toDateString()}`;
     if (localStorage.getItem(recoveryKey)) {
       alert(`Recovery message already sent to ${athlete.name.split(' ')[0]}'s parent today.`);
       return;
     }
-
     setLoadingRecovery(prev => ({ ...prev, [athlete.name]: true }));
     try {
       const res = await api.get(
@@ -468,11 +469,7 @@ function Dashboard() {
 
       let msg = `🚨 *Recovery Alert — ${athlete.name}*\n`;
       msg += `${localStorage.getItem('academyName') || 'Academy'}\n\n`;
-
-      if (data.coach_message) {
-        msg += `*Coach's Note:*\n${data.coach_message}\n\n`;
-      }
-
+      if (data.coach_message) msg += `*Coach's Note:*\n${data.coach_message}\n\n`;
       if (data.exercises?.length > 0) {
         msg += `*Home Recovery Exercises:*\n`;
         data.exercises.forEach((ex, i) => {
@@ -480,13 +477,11 @@ function Dashboard() {
           if (ex.how) msg += `   ${ex.how}\n`;
         });
       }
-
       msg += `\n🔗 View detailed stats: ${window.location.origin}/login\n`;
       msg += `— AthleteIQ`;
 
       const url = `https://wa.me/91${athlete.parent_phone.replace(/\D/g, '')}?text=${encodeURIComponent(msg)}`;
       window.open(url, '_blank');
-
       localStorage.setItem(recoveryKey, 'true');
     } catch (err) {
       console.error('Recovery fetch failed:', err);
@@ -551,7 +546,6 @@ function Dashboard() {
               </p>
             </div>
 
-            {/* Hamburger — mobile only */}
             <button
               onClick={() => setMenuOpen(o => !o)}
               className="sm:hidden flex flex-col gap-1.5 p-2 rounded-xl bg-gray-800 border border-gray-700 shrink-0 mt-1">
@@ -561,26 +555,20 @@ function Dashboard() {
             </button>
           </div>
 
-          {/* Desktop nav — ← ONLY CHANGE IS HERE: /drills → /session-planner */}
           <div className="hidden sm:flex gap-2 flex-wrap">
-            <Link to="/athletes"
-              className="bg-gray-800 text-white px-5 py-2.5 rounded-xl text-xs font-bold hover:bg-gray-700 transition-all">
+            <Link to="/athletes" className="bg-gray-800 text-white px-5 py-2.5 rounded-xl text-xs font-bold hover:bg-gray-700 transition-all">
               Manage Athletes
             </Link>
-            <Link to="/session-planner"
-              className="bg-gray-800 text-white px-5 py-2.5 rounded-xl text-xs font-bold hover:bg-gray-700 transition-all">
+            <Link to="/session-planner" className="bg-gray-800 text-white px-5 py-2.5 rounded-xl text-xs font-bold hover:bg-gray-700 transition-all">
               📋 Session Planner
             </Link>
-            <Link to="/meditation"
-              className="bg-gray-800 text-white px-5 py-2.5 rounded-xl text-xs font-bold hover:bg-gray-700 transition-all">
+            <Link to="/meditation" className="bg-gray-800 text-white px-5 py-2.5 rounded-xl text-xs font-bold hover:bg-gray-700 transition-all">
               🧘 Meditate
             </Link>
-            <button
-              onClick={() => setShowBroadcast(true)}
+            <button onClick={() => setShowBroadcast(true)}
               className="bg-green-700 hover:bg-green-600 text-white px-5 py-2.5 rounded-xl text-xs font-bold transition-all">
               📲 Broadcast
             </button>
-
             <button
               onClick={() => {
                 const present = visibleAthletes.filter(a => attendance[a.name.toLowerCase().trim()] === 'present');
@@ -594,37 +582,27 @@ function Dashboard() {
               className="bg-emerald-600 text-white px-6 py-2.5 rounded-xl text-xs font-bold hover:bg-emerald-500 disabled:bg-gray-700 disabled:text-gray-500 transition-all">
               + Log Session
             </button>
-            <button
-              onClick={handleLogout}
+            <button onClick={handleLogout}
               className="text-rose-500 font-bold px-4 py-2.5 rounded-xl text-xs hover:bg-rose-500/10 transition-all">
               Logout
             </button>
           </div>
 
-          {/* Mobile dropdown — ← SAME CHANGE HERE */}
           {menuOpen && (
             <div className="sm:hidden mt-3 flex flex-col gap-2">
-              <Link to="/athletes"
-                className="bg-gray-800 text-white px-5 py-3 rounded-xl text-sm font-bold text-center"
-                onClick={() => setMenuOpen(false)}>
+              <Link to="/athletes" className="bg-gray-800 text-white px-5 py-3 rounded-xl text-sm font-bold text-center" onClick={() => setMenuOpen(false)}>
                 Manage Athletes
               </Link>
-              <Link to="/session-planner"
-                className="bg-gray-800 text-white px-5 py-3 rounded-xl text-sm font-bold text-center"
-                onClick={() => setMenuOpen(false)}>
+              <Link to="/session-planner" className="bg-gray-800 text-white px-5 py-3 rounded-xl text-sm font-bold text-center" onClick={() => setMenuOpen(false)}>
                 📋 Session Planner
               </Link>
-              <Link to="/meditation"
-                className="bg-gray-800 text-white px-5 py-3 rounded-xl text-sm font-bold text-center"
-                onClick={() => setMenuOpen(false)}>
+              <Link to="/meditation" className="bg-gray-800 text-white px-5 py-3 rounded-xl text-sm font-bold text-center" onClick={() => setMenuOpen(false)}>
                 🧘 Meditate
               </Link>
-              <button
-                onClick={() => { setShowBroadcast(true); setMenuOpen(false); }}
+              <button onClick={() => { setShowBroadcast(true); setMenuOpen(false); }}
                 className="bg-green-700 text-white px-5 py-3 rounded-xl text-sm font-bold text-center">
                 📲 Broadcast
               </button>
-
               <button
                 onClick={() => {
                   const present = visibleAthletes.filter(a => attendance[a.name.toLowerCase().trim()] === 'present');
@@ -639,8 +617,7 @@ function Dashboard() {
                 className="bg-emerald-600 text-white px-5 py-3 rounded-xl text-sm font-bold disabled:bg-gray-700 disabled:text-gray-500">
                 + Log Today's Session
               </button>
-              <button
-                onClick={handleLogout}
+              <button onClick={handleLogout}
                 className="text-rose-500 font-bold px-5 py-3 rounded-xl text-sm border border-rose-500/20 hover:bg-rose-500/10">
                 Logout
               </button>
@@ -669,11 +646,8 @@ function Dashboard() {
                 <span className="w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse" />
                 <h2 className="text-xl sm:text-2xl font-black text-white">Reconnecting…</h2>
               </div>
-              <p className="text-gray-500 mb-6 font-medium text-sm">
-                Couldn't reach the server. Retrying automatically.
-              </p>
-              <button
-                onClick={() => fetchData(false)}
+              <p className="text-gray-500 mb-6 font-medium text-sm">Couldn't reach the server. Retrying automatically.</p>
+              <button onClick={() => fetchData(false)}
                 className="inline-block bg-blue-600 hover:bg-blue-500 text-white px-8 py-3 rounded-xl font-bold transition-all">
                 Retry now
               </button>
@@ -731,7 +705,6 @@ function Dashboard() {
           <div className="bg-gray-900 border border-gray-700 rounded-2xl w-full max-w-lg max-h-[85vh] flex flex-col"
             onClick={e => e.stopPropagation()}>
 
-            {/* Header */}
             <div className="flex justify-between items-center p-6 border-b border-gray-700 shrink-0">
               <div>
                 <h2 className="text-lg font-black text-white">📲 Parent Broadcast</h2>
@@ -739,32 +712,29 @@ function Dashboard() {
                   {visibleAthletes.filter(a => checkins.find(c => norm(c.athlete_name) === norm(a.name))).length} athletes checked in today
                 </p>
               </div>
-              <button onClick={() => setShowBroadcast(false)}
-                className="text-gray-500 hover:text-white text-xl">✕</button>
+              <button onClick={() => setShowBroadcast(false)} className="text-gray-500 hover:text-white text-xl">✕</button>
             </div>
 
-            {/* List */}
             <div className="overflow-y-auto flex-1 p-4 space-y-3">
               {visibleAthletes.map(athlete => {
                 const checkedIn = !!checkins.find(c => norm(c.athlete_name) === norm(athlete.name));
                 const hasPhone = !!athlete.parent_phone;
                 const alreadySent = sentToday.includes(athlete.name);
                 const insight = insights[athlete.name];
-                const readiness = insight?.score ?? '—';
                 const risk = insight?.risk;
 
                 return (
-                  <div key={athlete.id}
-                    className="bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 gap-3">
+                  <div key={athlete.id} className="bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 gap-3">
                     <div className="flex items-center justify-between gap-3">
                       <div className="min-w-0">
                         <p className="text-white font-black text-sm truncate">{athlete.name}</p>
-                        <p className={`text-xs font-bold mt-0.5 ${!checkedIn ? 'text-gray-600' :
-                          risk === 'red' ? 'text-rose-400' :
-                            risk === 'yellow' ? 'text-amber-400' : 'text-emerald-400'
+                        <p className={`text-xs font-bold mt-0.5 ${!checkedIn ? 'text-gray-600'
+                            : risk === 'red' ? 'text-rose-400'
+                              : risk === 'yellow' ? 'text-amber-400'
+                                : 'text-emerald-400'
                           }`}>
-                          {!checkedIn ? 'No check-in today' :
-                            (insight?.insight || insight?.athlete_message)
+                          {!checkedIn ? 'No check-in today'
+                            : (insight?.insight || insight?.athlete_message)
                               ? `${(insight.insight || insight.athlete_message).slice(0, 50)}...`
                               : 'No insight yet today'}
                         </p>
@@ -778,21 +748,18 @@ function Dashboard() {
                         <span className="text-gray-600 text-xs font-bold shrink-0">Skipped</span>
                       ) : risk === 'red' ? (
                         <div className="flex flex-col gap-1.5 shrink-0">
-                          <button
-                            onClick={() => handleBroadcastSend(athlete)}
+                          <button onClick={() => handleBroadcastSend(athlete)}
                             className="bg-green-600 hover:bg-green-500 text-white text-xs font-black px-3 py-1.5 rounded-xl transition">
                             Send update →
                           </button>
-                          <button
-                            onClick={() => handleSendRecovery(athlete)}
+                          <button onClick={() => handleSendRecovery(athlete)}
                             disabled={loadingRecovery[athlete.name]}
                             className="bg-rose-600 hover:bg-rose-500 disabled:bg-gray-700 disabled:text-gray-500 text-white text-xs font-black px-3 py-1.5 rounded-xl transition">
                             {loadingRecovery[athlete.name] ? 'Loading...' : '🚨 Send recovery'}
                           </button>
                         </div>
                       ) : (
-                        <button
-                          onClick={() => handleBroadcastSend(athlete)}
+                        <button onClick={() => handleBroadcastSend(athlete)}
                           className="bg-green-600 hover:bg-green-500 text-white text-xs font-black px-4 py-2 rounded-xl transition shrink-0">
                           Send →
                         </button>
@@ -803,7 +770,6 @@ function Dashboard() {
               })}
             </div>
 
-            {/* Footer note */}
             <div className="p-4 border-t border-gray-700 shrink-0">
               <p className="text-gray-600 text-[10px] text-center">
                 Only athletes who checked in today are included · Sent status resets daily
