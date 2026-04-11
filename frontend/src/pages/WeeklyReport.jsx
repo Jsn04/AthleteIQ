@@ -69,7 +69,7 @@ function WeeklyReport({ athleteName, academyId, onClose }) {
     if (!reportRef.current) return;
     setDownloading(true);
     try {
-      const html2pdf = (await import('https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js')).default;
+      const html2pdf = (await import('html2pdf.js')).default;
       const weekLabel = report?.week_start
         ? new Date(report.week_start).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
         : 'Week';
