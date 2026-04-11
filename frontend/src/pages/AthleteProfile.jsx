@@ -250,9 +250,151 @@ function AthleteProfile() {
             value={injuryRisk?.acwr && injuryRisk.acwr > 0 ? injuryRisk.acwr : '—'}
             color="text-blue-400"
             subtitle={!injuryRisk?.acwr || injuryRisk.acwr === 0 ? "7+ days needed" : null}
+            info="Acute:Chronic Workload Ratio — compares your last 7 days of training load to your 28-day average to flag injury risk from sudden spikes."
           />
           <StatCard label="Active Days" value={history.length} color="text-white" />
         </div>
+
+        {/* Baseline Intelligence Card */}
+        {insight && (
+          <div className="bg-gray-800 rounded-2xl p-6 border border-gray-700 mb-8">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <h2 className="text-sm font-black uppercase tracking-tight text-white">Baseline Intelligence</h2>
+                {insight.baseline_active ? (
+                  <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-lg">
+                    Active
+                  </span>
+                ) : (
+                  <span className="text-[10px] font-bold text-gray-400 bg-gray-700/50 border border-gray-600 px-2.5 py-1 rounded-lg">
+                    Building
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {!insight.baseline_active ? (
+              /* Baseline still building — show progress bar */
+              <div>
+                <p className="text-gray-400 text-sm mb-3">
+                  Personal baseline requires 14 days of check-in data
+                </p>
+                <div className="flex items-center gap-3">
+                  <div className="flex-1 h-2 bg-gray-700 rounded-full overflow-hidden">
+                    <div className="h-full bg-indigo-500 rounded-full transition-all duration-700"
+                      style={{ width: `${Math.min(((insight.baseline_days || 0) / 14) * 100, 95)}%` }} />
+                  </div>
+                  <span className="text-gray-400 text-xs font-bold">{insight.baseline_days || 0}/14 days</span>
+                </div>
+                <p className="text-gray-600 text-[10px] mt-2">
+                  Using generic thresholds until baseline is ready. Scores will become more personalized after {Math.max(0, 14 - (insight.baseline_days || 0))} more days.
+                </p>
+              </div>
+            ) : (
+              /* Baseline active — show deviation bars + confidence */
+              <div>
+                <p className="text-gray-400 text-xs mb-4">
+                  Personal baseline built from {insight.baseline_days} days of data
+                </p>
+
+                {/* Deviation bars */}
+                {insight.deviations && Object.keys(insight.deviations).length > 0 && (
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
+                    {[
+                      { key: 'energy', label: 'Energy', color: 'blue' },
+                      { key: 'sleep', label: 'Sleep', color: 'indigo' },
+                      { key: 'soreness', label: 'Soreness', color: 'rose' },
+                      { key: 'mood', label: 'Mood', color: 'amber' },
+                    ].map(({ key, label, color }) => {
+                      const dev = insight.deviations[key];
+                      if (!dev) return null;
+                      const statusColor = dev.status === 'below' || dev.status === 'low'
+                        ? 'text-amber-400'
+                        : dev.status === 'above'
+                          ? 'text-blue-400'
+                          : 'text-emerald-400';
+                      const statusIcon = dev.status === 'below'
+                        ? '↓'
+                        : dev.status === 'low'
+                          ? '↘'
+                          : dev.status === 'above'
+                            ? '↑'
+                            : '↔';
+                      const statusLabel = dev.status === 'normal'
+                        ? 'normal'
+                        : dev.status === 'below'
+                          ? 'below normal'
+                          : dev.status === 'low'
+                            ? 'slightly low'
+                            : 'above normal';
+                      return (
+                        <div key={key} className="bg-gray-900/50 rounded-xl p-3 border border-gray-700/50">
+                          <div className="flex justify-between items-center mb-1.5">
+                            <span className="text-[10px] text-gray-500 font-bold uppercase">{label}</span>
+                            <span className={`text-xs font-black ${statusColor}`}>{dev.value}/10</span>
+                          </div>
+                          <div className="w-full bg-gray-700/50 rounded-full h-1.5 overflow-hidden">
+                            <div className={`h-full rounded-full transition-all duration-700 bg-${color}-500`}
+                              style={{ width: `${dev.value * 10}%` }} />
+                          </div>
+                          <div className="flex items-center gap-1 mt-1.5">
+                            <span className={`text-[10px] font-bold ${statusColor}`}>{statusIcon} {statusLabel}</span>
+                            <span className="text-gray-600 text-[9px]">(avg {dev.mean})</span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* Confidence card */}
+                {insight.confidence?.enough_data && (
+                  <div className={`rounded-xl p-4 border ${
+                    insight.confidence.score >= 85
+                      ? 'bg-emerald-500/5 border-emerald-500/20'
+                      : insight.confidence.score >= 70
+                        ? 'bg-blue-500/5 border-blue-500/20'
+                        : 'bg-amber-500/5 border-amber-500/20'
+                  }`}>
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs font-black text-gray-300">Data Trust</span>
+                      <span className={`text-sm font-black ${
+                        insight.confidence.score >= 85 ? 'text-emerald-400'
+                          : insight.confidence.score >= 70 ? 'text-blue-400'
+                            : 'text-amber-400'
+                      }`}>
+                        {insight.confidence.score}% · {insight.confidence.label}
+                      </span>
+                    </div>
+                    {/* Confidence bar */}
+                    <div className="w-full bg-gray-700/50 rounded-full h-1.5 overflow-hidden mb-2">
+                      <div className={`h-full rounded-full transition-all duration-700 ${
+                        insight.confidence.score >= 85 ? 'bg-emerald-500'
+                          : insight.confidence.score >= 70 ? 'bg-blue-500'
+                            : 'bg-amber-500'
+                      }`} style={{ width: `${insight.confidence.score}%` }} />
+                    </div>
+                    {/* Check-in consistency */}
+                    <div className="flex items-center justify-between text-[10px] text-gray-500">
+                      <span>Check-in consistency: {insight.baseline_days}/14 days</span>
+                    </div>
+                    {/* Flags */}
+                    {insight.confidence.flags?.length > 0 && (
+                      <div className="mt-3 space-y-1">
+                        {insight.confidence.flags.map((flag, i) => (
+                          <p key={i} className="text-amber-400/80 text-[10px] flex items-start gap-1.5">
+                            <span className="shrink-0 mt-0.5">⚠</span>
+                            <span>{flag}</span>
+                          </p>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2 space-y-6">
@@ -326,6 +468,20 @@ function AthleteProfile() {
                       <span className="inline-block mt-3 text-orange-400 font-bold text-[10px] bg-orange-400/10 px-2 py-0.5 rounded border border-orange-400/20">
                         ⚠️ Deception Warning
                       </span>
+                    )}
+                    {injuryRisk.signals?.length > 0 && (
+                      <div className="mt-4 space-y-1.5">
+                        <p className="text-[10px] font-black text-gray-500 uppercase">Risk Signals</p>
+                        {injuryRisk.signals.map((sig, i) => (
+                          <div key={i} className={`text-xs px-2.5 py-1.5 rounded-lg border ${
+                            sig.startsWith('Baseline alert')
+                              ? 'text-indigo-300 bg-indigo-500/10 border-indigo-500/20'
+                              : 'text-gray-400 bg-gray-700/50 border-gray-700'
+                          }`}>
+                            {sig}
+                          </div>
+                        ))}
+                      </div>
                     )}
                   </div>
                 ) : (

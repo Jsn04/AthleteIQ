@@ -248,7 +248,7 @@ function SportSection({ sport, athletes, insights, injuryRisks, checkins, onNavi
                   })()}
                 </div>
 
-                {/* ACWR + AI Insight */}
+                {/* ACWR + Baseline + AI Insight */}
                 <div className="flex flex-col gap-3">
                   {injuryData && (
                     <div className="flex items-center gap-3 text-xs font-bold flex-wrap">
@@ -279,6 +279,38 @@ function SportSection({ sport, athletes, insights, injuryRisks, checkins, onNavi
                       )}
                     </div>
                   )}
+
+                  {/* Baseline Status + Data Trust */}
+                  {insight && (
+                    <div className="flex items-center gap-3 flex-wrap">
+                      {insight.baseline_active ? (
+                        <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-lg">
+                          Baseline Active ({insight.baseline_days}d)
+                        </span>
+                      ) : insight.baseline_days > 0 ? (
+                        <span className="flex items-center gap-1.5 text-[10px] font-bold text-gray-400">
+                          <span className="text-gray-500">Baseline:</span>
+                          <div className="w-14 h-1.5 bg-gray-700 rounded-full overflow-hidden">
+                            <div className="h-full bg-indigo-500 rounded-full transition-all duration-700"
+                              style={{ width: `${Math.min((insight.baseline_days / 14) * 100, 95)}%` }} />
+                          </div>
+                          <span className="text-gray-600">{insight.baseline_days}/14d</span>
+                        </span>
+                      ) : null}
+                      {insight.confidence?.enough_data && (
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-lg border ${
+                          insight.confidence.score >= 85
+                            ? 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20'
+                            : insight.confidence.score >= 70
+                              ? 'text-blue-400 bg-blue-500/10 border-blue-500/20'
+                              : 'text-amber-400 bg-amber-500/10 border-amber-500/20'
+                        }`}>
+                          Trust {insight.confidence.score}%
+                        </span>
+                      )}
+                    </div>
+                  )}
+
                   {insight?.insight && insight.insight !== 'No data yet' && (
                     <div className="bg-gray-900/80 rounded-xl p-4 border border-gray-700">
                       <p className="text-[10px] text-blue-400 uppercase font-black mb-2">🤖 AI Insight</p>

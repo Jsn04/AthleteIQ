@@ -85,21 +85,221 @@ def _days_ago(log: dict, now: datetime) -> float:
         return 999.0
 
 
+def _compute_baseline(checkins: list) -> dict:
+    """
+    Build personal baseline from check-in history.
+    Requires 14+ check-ins. Returns per-metric mean + std dev, or None if
+    insufficient data.
+    """
+    if len(checkins) < 14:
+        return None
+
+    baseline_data = checkins[:28]  # use up to 28 most recent
+    metrics_config = ["energy", "sleep", "soreness", "mood"]
+    result = {}
+
+    for metric in metrics_config:
+        vals = [c.get(metric) for c in baseline_data if c.get(metric) is not None]
+        if len(vals) < 10:
+            continue
+        mean = sum(vals) / len(vals)
+        variance = sum((v - mean) ** 2 for v in vals) / len(vals)
+        std = max(variance ** 0.5, 0.5)  # floor at 0.5 to prevent division issues
+        result[metric] = {"mean": round(mean, 2), "std": round(std, 2)}
+
+    if len(result) < 4:
+        return None
+
+    return {"metrics": result, "sample_size": len(baseline_data)}
+
+
+def _z_score(value, mean, std):
+    """How many standard deviations value is from mean."""
+    return round((value - mean) / std, 2)
+
+
+def calculate_confidence(checkins: list, training_logs=None) -> dict:
+    """
+    Data reliability score (0-100). Detects auto-filling, cross-metric
+    contradictions, and missing check-ins. Designed to NOT false-flag
+    genuine bad days — only flags sustained suspicious patterns.
+
+    Rules (from founder spec):
+    - Same values 3+ consecutive days across 2+ metrics = suspicious
+    - Cross-metric contradictions (high soreness + high energy) for 3+ days
+    - Missing check-ins: first 2 free, then -5% per miss after the 2nd
+    - Single outlier days (10,10,0,10) are NEVER penalized
+    - Max penalty from any single factor: -25%
+    """
+    training_logs = training_logs or []
+    score = 100
+    flags = []
+
+    if len(checkins) < 5:
+        return {"score": 100, "flags": [], "label": "New", "enough_data": False}
+
+    recent_14 = checkins[:14]
+
+    # ── 1. REPETITION DETECTION ──────────────────────────────────────────────
+    # Check last 7 days for consecutive identical values per metric
+    recent_7 = checkins[:7]
+    metrics_with_repeats = 0
+    repeat_details = []
+
+    for metric in ["energy", "sleep", "soreness", "mood"]:
+        vals = [c.get(metric) for c in recent_7 if c.get(metric) is not None]
+        if len(vals) < 3:
+            continue
+
+        # Find longest consecutive run of identical values
+        max_run = 1
+        current_run = 1
+        for i in range(1, len(vals)):
+            if vals[i] == vals[i - 1]:
+                current_run += 1
+                max_run = max(max_run, current_run)
+            else:
+                current_run = 1
+
+        if max_run >= 3:
+            metrics_with_repeats += 1
+            repeat_details.append(f"{metric} ({vals[0]} for {max_run} days)")
+
+    # Only flag if 2+ metrics show repetition (single metric being stable is normal)
+    if metrics_with_repeats >= 2:
+        penalty = min(25, metrics_with_repeats * 10)
+        score -= penalty
+        flags.append(f"Repeated identical values: {', '.join(repeat_details)}")
+
+    # ── 2. CROSS-METRIC CONTRADICTION ────────────────────────────────────────
+    # High soreness should correlate with lower energy/mood
+    # Only flag if contradiction persists 3+ consecutive days
+    contradiction_streak = 0
+    for c in recent_7:
+        soreness = c.get("soreness", 5)
+        energy = c.get("energy", 5)
+        mood = c.get("mood", 5)
+        sleep_val = c.get("sleep", 5)
+
+        is_contradictory = (
+            (soreness >= 7 and energy >= 8 and mood >= 8) or
+            (energy <= 3 and mood >= 8) or
+            (sleep_val <= 4 and energy >= 9)
+        )
+
+        if is_contradictory:
+            contradiction_streak += 1
+        else:
+            contradiction_streak = 0
+
+    if contradiction_streak >= 3:
+        penalty = min(25, contradiction_streak * 8)
+        score -= penalty
+        flags.append(f"Contradictory metrics for {contradiction_streak} consecutive days (e.g., high soreness + high energy)")
+
+    # ── 3. MISSING CHECK-INS ─────────────────────────────────────────────────
+    # Count check-in days in the last 14 calendar days
+    now = datetime.now(timezone.utc)
+    checkin_dates = set()
+    for c in recent_14:
+        try:
+            dt = datetime.fromisoformat(c["created_at"].replace("Z", "+00:00"))
+            if (now - dt).days <= 14:
+                checkin_dates.add(dt.strftime("%Y-%m-%d"))
+        except Exception:
+            pass
+
+    # Expected: ~14 days. Calculate misses.
+    missed = max(0, 14 - len(checkin_dates))
+    # First 2 misses are free, then -5% per miss
+    if missed > 2:
+        penalty = min(25, (missed - 2) * 5)
+        score -= penalty
+        flags.append(f"Missed {missed} check-ins in last 14 days")
+
+    # ── 4. COACH-ATHLETE MISMATCH (if training data available) ───────────────
+    # Only flag when pattern persists 3+ sessions
+    if training_logs and len(checkins) >= 3:
+        mismatch_count = 0
+        for i in range(min(5, len(training_logs), len(checkins))):
+            t = training_logs[i]
+            c = checkins[i]
+            coach_rpe = t.get("rpe")
+            athlete_soreness = c.get("soreness")
+
+            if coach_rpe is not None and athlete_soreness is not None:
+                # Coach says hard session (RPE 8+) but athlete says no soreness (<= 2)
+                if coach_rpe >= 8 and athlete_soreness <= 2:
+                    mismatch_count += 1
+
+        if mismatch_count >= 3:
+            penalty = min(25, mismatch_count * 7)
+            score -= penalty
+            flags.append(f"Coach RPE contradicts athlete soreness in {mismatch_count} recent sessions")
+
+    # ── FINAL ────────────────────────────────────────────────────────────────
+    score = max(0, min(100, score))
+
+    if score >= 85:
+        label = "Strong"
+    elif score >= 70:
+        label = "Good"
+    elif score >= 50:
+        label = "Low"
+    else:
+        label = "Unreliable"
+
+    return {
+        "score": score,
+        "flags": flags,
+        "label": label,
+        "enough_data": True,
+    }
+
+
 def calculate_readiness(training_logs: list, checkins=None) -> dict:
     """
-    Multi-factor readiness score: 60% coach data + 40% athlete check-in.
+    Multi-factor readiness score with personal baseline system.
 
-    Coach pillar (60%):
+    When baseline is available (14+ check-ins):
+      - Athlete pillar uses z-scores from personal baseline instead of
+        generic thresholds. This eliminates false alerts for athletes
+        whose "normal" differs from the population average.
+
+    Weight split: 60% coach / 40% athlete (default)
+      - If confidence < 70%: shifts to 80% coach / 20% athlete
+
+    Coach pillar:
       - Load trend: last session vs 3-session baseline (always available)
       - ACWR:       proper 7-day / 28-day date windows (only when enough data)
       - Coach notes: keyword sentiment on last 5 sessions
 
-    Athlete pillar (40%):
+    Athlete pillar:
       - Energy 30%, Sleep 30%, Soreness 25% (inverted), Mood 15%
-      - Uses last 3 check-ins
+      - With baseline: z-score deviations from personal normal
+      - Without baseline: raw values on generic 0-10 scale
     """
     checkins = checkins or []
     now = datetime.now(timezone.utc)
+
+    # ── PERSONAL BASELINE ────────────────────────────────────────────────────
+    baseline = _compute_baseline(checkins)
+    baseline_active = baseline is not None
+    baseline_days = len(checkins) if len(checkins) <= 28 else 28
+
+    # ── CONFIDENCE SCORE ─────────────────────────────────────────────────────
+    confidence = calculate_confidence(checkins, training_logs)
+    confidence_score = confidence["score"]
+
+    # Dynamic weight split based on confidence
+    if confidence_score < 70:
+        coach_weight = 0.80
+        athlete_weight = 0.20
+    else:
+        coach_weight = 0.60
+        athlete_weight = 0.40
+
+    weight_split = f"{int(coach_weight * 100)}/{int(athlete_weight * 100)}"
 
     # ── ACWR: proper 7-day / 28-day windows ──────────────────────────────────
     loads_7d  = [_session_load(l) for l in training_logs if _days_ago(l, now) <=  7]
@@ -118,7 +318,7 @@ def calculate_readiness(training_logs: list, checkins=None) -> dict:
         chronic_weekly_avg = chronic_load_total / 4
         acwr_val = round(acute_load_total / chronic_weekly_avg, 2)
 
-    # ── PILLAR 1: COACH DATA (60%) ────────────────────────────────────────────
+    # ── PILLAR 1: COACH DATA ─────────────────────────────────────────────────
     coach_score = 70
 
     if training_logs:
@@ -127,10 +327,10 @@ def calculate_readiness(training_logs: list, checkins=None) -> dict:
         trend_score = 75
         if all_loads:
             recent_load = all_loads[0]
-            baseline    = (sum(all_loads[1:4]) / len(all_loads[1:4])
-                           if len(all_loads) > 1 else recent_load)
-            if baseline > 0:
-                ratio = recent_load / baseline
+            baseline_load = (sum(all_loads[1:4]) / len(all_loads[1:4])
+                             if len(all_loads) > 1 else recent_load)
+            if baseline_load > 0:
+                ratio = recent_load / baseline_load
                 if   ratio > 1.6:  trend_score = max(25, int(75 - (ratio - 1.6) * 60))
                 elif ratio > 1.3:  trend_score = max(48, int(75 - (ratio - 1.3) * 45))
                 elif ratio > 1.1:  trend_score = 72
@@ -140,7 +340,7 @@ def calculate_readiness(training_logs: list, checkins=None) -> dict:
 
             last_rpe       = training_logs[0].get("rpe") or 5
             last_intensity = training_logs[0].get("intensity", "Medium")
-            if last_rpe >= 9 or last_intensity == "High" and last_rpe >= 8:
+            if last_rpe >= 9 or (last_intensity == "High" and last_rpe >= 8):
                 trend_score = max(trend_score - 12, 20)
             elif last_rpe <= 3 and last_intensity == "Low":
                 trend_score = min(trend_score + 8, 92)
@@ -186,8 +386,9 @@ def calculate_readiness(training_logs: list, checkins=None) -> dict:
         else:
             coach_score = int(trend_score * 0.65 + notes_score * 0.35)
 
-    # ── PILLAR 2: ATHLETE WELLNESS (40%) ──────────────────────────────────────
+    # ── PILLAR 2: ATHLETE WELLNESS ───────────────────────────────────────────
     wellness_score = 70
+    deviations = {}
 
     if checkins:
         recent = checkins[:3]
@@ -196,10 +397,52 @@ def calculate_readiness(training_logs: list, checkins=None) -> dict:
         avg_soreness = sum(c.get("soreness", 5) for c in recent) / len(recent)
         avg_mood     = sum(c.get("mood",     5) for c in recent) / len(recent)
 
-        e_score  = int((avg_energy          / 10) * 100)
-        sl_score = int((avg_sleep           / 10) * 100)
-        so_score = int(((10 - avg_soreness) / 10) * 100)
-        m_score  = int((avg_mood            / 10) * 100)
+        if baseline_active:
+            # ── Z-SCORE BASED SCORING (personal baseline) ────────────────────
+            bm = baseline["metrics"]
+
+            for metric, avg_val, invert in [
+                ("energy",   avg_energy,   False),
+                ("sleep",    avg_sleep,    False),
+                ("soreness", avg_soreness, True),
+                ("mood",     avg_mood,     False),
+            ]:
+                z = _z_score(avg_val, bm[metric]["mean"], bm[metric]["std"])
+                # For soreness, HIGHER is worse, so invert the z interpretation
+                effective_z = -z if invert else z
+
+                deviations[metric] = {
+                    "value": round(avg_val, 1),
+                    "mean": bm[metric]["mean"],
+                    "z_score": z,
+                    "status": (
+                        "below" if effective_z <= -1.5
+                        else "low" if effective_z <= -0.5
+                        else "above" if effective_z >= 1.5
+                        else "normal"
+                    ),
+                }
+
+            # Convert z-scores to 0-100 sub-scores
+            def z_to_score(z, invert=False):
+                ez = -z if invert else z
+                if ez <= -2.0:   return 20
+                elif ez <= -1.5: return 35
+                elif ez <= -0.5: return 60
+                elif ez <= 0.5:  return 80
+                elif ez <= 1.5:  return 90
+                else:            return 95
+
+            e_score  = z_to_score(deviations["energy"]["z_score"])
+            sl_score = z_to_score(deviations["sleep"]["z_score"])
+            so_score = z_to_score(deviations["soreness"]["z_score"], invert=True)
+            m_score  = z_to_score(deviations["mood"]["z_score"])
+        else:
+            # ── GENERIC SCORING (no baseline yet) ────────────────────────────
+            e_score  = int((avg_energy          / 10) * 100)
+            sl_score = int((avg_sleep           / 10) * 100)
+            so_score = int(((10 - avg_soreness) / 10) * 100)
+            m_score  = int((avg_mood            / 10) * 100)
 
         wellness_score = int(
             e_score  * 0.30 +
@@ -208,8 +451,10 @@ def calculate_readiness(training_logs: list, checkins=None) -> dict:
             m_score  * 0.15
         )
 
-    # ── FINAL SCORE: 60% coach + 40% athlete ──────────────────────────────────
-    final_readiness = max(5, min(98, int(coach_score * 0.60 + wellness_score * 0.40)))
+    # ── FINAL SCORE: dynamic weight split ────────────────────────────────────
+    final_readiness = max(5, min(98, int(
+        coach_score * coach_weight + wellness_score * athlete_weight
+    )))
 
     if has_acwr and acwr_val > 0:
         if   acwr_val > 1.5:  risk_tier = "High Risk"
@@ -222,14 +467,19 @@ def calculate_readiness(training_logs: list, checkins=None) -> dict:
         else:                        risk_tier = "High Risk"
 
     return {
-        "readiness":      final_readiness,
-        "acwr":           acwr_val,
-        "acute_load":     round(acute_load_total),
-        "chronic_load":   round(chronic_load_total),
-        "risk_tier":      risk_tier,
-        "coach_score":    coach_score,
-        "wellness_score": wellness_score,
-        "has_acwr":       has_acwr,
+        "readiness":          final_readiness,
+        "acwr":               acwr_val,
+        "acute_load":         round(acute_load_total),
+        "chronic_load":       round(chronic_load_total),
+        "risk_tier":          risk_tier,
+        "coach_score":        coach_score,
+        "wellness_score":     wellness_score,
+        "has_acwr":           has_acwr,
+        "baseline_active":    baseline_active,
+        "baseline_days":      baseline_days,
+        "confidence":         confidence,
+        "weight_split":       weight_split,
+        "deviations":         deviations,
     }
 
 
@@ -266,6 +516,9 @@ async def _get_cached_insight(athlete_name: str, academy_id: str):
             return None
 
         metrics = cached.get("metrics") or {}
+        # Invalidate cache entries saved before baseline system was added
+        if "baseline_days" not in metrics:
+            return None
         athlete_message = metrics.get("athlete_message", "")
         return {
             "insight": cached["insight"],
@@ -275,6 +528,11 @@ async def _get_cached_insight(athlete_name: str, academy_id: str):
             "athlete_message": athlete_message,
             "cached": True,
             "cache_age_mins": round(age_hours * 60),
+            "baseline_active": metrics.get("baseline_active", False),
+            "baseline_days": metrics.get("baseline_days", 0),
+            "confidence": metrics.get("confidence", {}),
+            "weight_split": metrics.get("weight_split", "60/40"),
+            "deviations": metrics.get("deviations", {}),
         }
     except Exception:
         return None
@@ -312,7 +570,7 @@ async def get_athlete_insight(athlete_name: str, academy_id: str = ""):
             lambda: safe_query(
                 lambda sb: sb.table("checkins").select("*")
                 .eq("athlete_name", athlete_name).eq("academy_id", academy_id)
-                .order("created_at", desc=True).limit(7).execute()
+                .order("created_at", desc=True).limit(28).execute()
             )
         )
         training_result = await asyncio.to_thread(
@@ -327,7 +585,10 @@ async def get_athlete_insight(athlete_name: str, academy_id: str = ""):
         training = training_result.data or []
 
         if not checkins and not training:
-            return {"insight": "No data yet", "risk": "unknown", "score": None, "cached": False}
+            return {"insight": "No data yet", "risk": "unknown", "score": None, "cached": False,
+                    "baseline_active": False, "baseline_days": 0,
+                    "confidence": {"score": 100, "flags": [], "label": "New", "enough_data": False},
+                    "weight_split": "60/40", "deviations": {}}
 
         metrics        = calculate_readiness(training, checkins)
         latest_checkin = checkins[0] if checkins else {}
@@ -373,6 +634,11 @@ ATHLETE_MESSAGE: [one motivating sentence for the athlete]"""
 
         metrics["athlete_message"] = result.get("athlete_message", "")
         result["metrics"] = metrics
+        result["baseline_active"] = metrics.get("baseline_active", False)
+        result["baseline_days"] = metrics.get("baseline_days", 0)
+        result["confidence"] = metrics.get("confidence", {})
+        result["weight_split"] = metrics.get("weight_split", "60/40")
+        result["deviations"] = metrics.get("deviations", {})
         await _save_insight_cache(athlete_name, academy_id, result.get("insight", ""), metrics)
         return result
     except Exception as e:
@@ -687,6 +953,34 @@ Write a 2-sentence verdict: sentence 1 is the main risk and why, sentence 2 is o
 
         verdict = await call_llm(prompt, max_tokens=150)
 
+        # ── Baseline deviation signals ───────────────────────────────────────
+        baseline_signals = []
+        deviations = metrics.get("deviations", {})
+        for metric_name, dev in deviations.items():
+            z = dev.get("z_score", 0)
+            status = dev.get("status", "normal")
+            if metric_name == "soreness":
+                # For soreness, positive z = higher than normal = worse
+                if z >= 1.5:
+                    baseline_signals.append(
+                        f"Baseline alert: Soreness {z} std devs above personal normal"
+                    )
+            else:
+                # For energy/sleep/mood, negative z = lower than normal = worse
+                if z <= -1.5:
+                    baseline_signals.append(
+                        f"Baseline alert: {metric_name.title()} {abs(z)} std devs below personal normal"
+                    )
+
+        all_signals = baseline_signals + acwr_signals + notes_signals + mismatch_signals + athlete_signals
+
+        # Recalculate total with baseline signal contribution
+        baseline_risk_add = min(15, len(baseline_signals) * 8)
+        total_score = min(notes_score + athlete_score + acwr_score + baseline_risk_add, 100)
+        risk_level  = "red" if total_score >= 70 else ("yellow" if total_score >= 40 else "green")
+
+        confidence_data = metrics.get("confidence", {})
+
         result = {
             "injury_risk_score": total_score,
             "acwr":              acwr,
@@ -697,6 +991,9 @@ Write a 2-sentence verdict: sentence 1 is the main risk and why, sentence 2 is o
             "metrics":           metrics,
             "sessions_28d":      sessions_28d,
             "days_with_data":    days_with_data,
+            "baseline_active":   metrics.get("baseline_active", False),
+            "confidence":        confidence_data,
+            "weight_split":      metrics.get("weight_split", "60/40"),
         }
         _ai_cache_set("injury-risk", athlete_name, academy_id, result)
         return {**result, "cached": False}
