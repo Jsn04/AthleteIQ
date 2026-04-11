@@ -4,6 +4,7 @@ import axios from 'axios';
 import API_BASE_URL from '../config';
 import RiskBadge from '../components/common/RiskBadge';
 import LoadingSkeleton from '../components/common/LoadingSkeleton';
+import WeeklyReport from './WeeklyReport';
 import logo from '../assets/athleteiq_logo.svg';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
@@ -154,6 +155,7 @@ function ParentView() {
   const [loading, setLoading] = useState(true);
   const [injuries, setInjuries] = useState([]);
   const [notFound, setNotFound] = useState(false);
+  const [showWeeklyReport, setShowWeeklyReport] = useState(false);
   const navigate = useNavigate();
   const childName = localStorage.getItem('parentChildName') || '';
   const academyId = getAcademyId();
@@ -302,6 +304,23 @@ function ParentView() {
             <p className="text-gray-200 text-sm leading-relaxed">{insight.athlete_message}</p>
           </div>
         )}
+
+        {/* Weekly Report CTA */}
+        <div className="bg-gray-800 rounded-2xl p-4 sm:p-5 border border-gray-700 mb-5">
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <div>
+              <p className="text-sm font-bold text-gray-300 uppercase tracking-widest">📊 Weekly Performance Report</p>
+              <p className="text-gray-500 text-xs mt-1">
+                Full breakdown — energy, attendance, training load, and coach recommendations
+              </p>
+            </div>
+            <button
+              onClick={() => setShowWeeklyReport(true)}
+              className="bg-indigo-600 hover:bg-indigo-500 text-white px-5 py-2.5 rounded-xl text-xs font-black transition shrink-0">
+              View Report →
+            </button>
+          </div>
+        </div>
 
         {injuries.length > 0 && (
           <div className="bg-rose-500/10 border border-rose-500/20 rounded-2xl p-4 sm:p-5 mb-5">
@@ -476,6 +495,15 @@ function ParentView() {
         </div>
 
       </div>
+
+      {showWeeklyReport && (
+        <WeeklyReport
+          athleteName={childName}
+          academyId={academyId}
+          onClose={() => setShowWeeklyReport(false)}
+          isParentView={true}
+        />
+      )}
     </div>
   );
 }

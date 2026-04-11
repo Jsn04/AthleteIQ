@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import axios from 'axios';
-import API_BASE_URL from '../config';
+import api from '../api';
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer,
@@ -14,7 +13,7 @@ const TAG_STYLES = {
 
 const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
-function WeeklyReport({ athleteName, academyId, onClose }) {
+function WeeklyReport({ athleteName, academyId, onClose, isParentView = false }) {
   const [report, setReport] = useState(null);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
@@ -22,19 +21,28 @@ function WeeklyReport({ athleteName, academyId, onClose }) {
   const [savingNote, setSavingNote] = useState(false);
   const [noteSaved, setNoteSaved] = useState(false);
   const [downloading, setDownloading] = useState(false);
+  const [parentPhone, setParentPhone] = useState(null);
   const reportRef = useRef(null);
 
   useEffect(() => {
     fetchReport();
+    if (!isParentView) fetchParentPhone();
   }, []);
+
+  const fetchParentPhone = async () => {
+    try {
+      const res = await api.get('/athletes', { params: { academy_id: academyId } });
+      const athlete = (res.data || []).find(a => a.name === athleteName);
+      if (athlete?.parent_phone) setParentPhone(athlete.parent_phone);
+    } catch { }
+  };
 
   const fetchReport = async () => {
     setLoading(true);
     setGenerating(false);
     try {
-      // first check if already exists — instant
-      const res = await axios.get(
-        `${API_BASE_URL}/reports/weekly/${encodeURIComponent(athleteName)}`,
+      const res = await api.get(
+        `/reports/weekly/${encodeURIComponent(athleteName)}`,
         { params: { academy_id: academyId } }
       );
       setReport(res.data);
@@ -52,8 +60,8 @@ function WeeklyReport({ athleteName, academyId, onClose }) {
     if (!report?.report_id) return;
     setSavingNote(true);
     try {
-      await axios.patch(
-        `${API_BASE_URL}/reports/weekly/${report.report_id}/note`,
+      await api.patch(
+        `/reports/weekly/${report.report_id}/note`,
         { coach_note: coachNote }
       );
       setNoteSaved(true);
@@ -63,6 +71,68 @@ function WeeklyReport({ athleteName, academyId, onClose }) {
     } finally {
       setSavingNote(false);
     }
+  };
+
+  const buildWhatsAppMessage = () => {
+    if (!report) return '';
+    const firstName = athleteName.split(' ')[0];
+    const academyName = localStorage.getItem('academyName') || 'Academy';
+    const weekStart = new Date(report.week_start).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+    const weekEnd = new Date(report.week_end).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+
+    let msg = `📊 *${athleteName} — Weekly Report*\n`;
+    msg += `${academyName} · Week of ${weekStart} – ${weekEnd}\n\n`;
+
+    msg += `*${report.verdict}*\n\n`;
+
+    msg += `⚡ *Energy:* ${Math.round(report.avg_readiness * 10)}/100`;
+    const delta = Math.round((report.delta || 0) * 10);
+    if (delta !== 0) msg += ` (${delta >= 0 ? '+' : ''}${delta} vs last week)`;
+    msg += `\n`;
+
+    msg += `📅 *Attendance:* ${report.sessions_present}/${report.sessions_total} sessions (${report.attendance_pct}%)\n`;
+
+    if (report.acwr > 0) {
+      const acwrLabel = report.acwr > 1.5 ? 'Too much — rest needed'
+        : report.acwr > 1.3 ? 'Getting high — ease off'
+        : report.acwr < 0.8 ? 'Too little — increase load'
+        : 'Good balance';
+      msg += `🏋️ *Training Load:* ${acwrLabel}\n`;
+    }
+
+    const alertCount = (report.flags?.length || 0) + (report.injuries?.length || 0);
+    if (alertCount > 0) {
+      msg += `\n⚠️ *${alertCount} Alert${alertCount > 1 ? 's' : ''} This Week*\n`;
+      report.flags?.forEach(f => {
+        msg += `  • Energy drop on ${new Date(f.date).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' })}\n`;
+      });
+      report.injuries?.forEach(inj => {
+        msg += `  • ${inj.body_part} ${inj.injury_type} — ${inj.status}\n`;
+      });
+    }
+
+    if (report.next_steps?.length > 0) {
+      msg += `\n📋 *Focus Areas for Next Week:*\n`;
+      report.next_steps.forEach((step, i) => {
+        msg += `${i + 1}. ${step.title}\n`;
+      });
+    }
+
+    if (coachNote) {
+      msg += `\n✍️ *Coach's Note:*\n${coachNote}\n`;
+    }
+
+    msg += `\n🔗 View full report: ${window.location.origin}/login\n`;
+    msg += `— ${academyName} via AthleteIQ`;
+
+    return msg;
+  };
+
+  const handleSendWhatsApp = () => {
+    if (!parentPhone) return;
+    const msg = buildWhatsAppMessage();
+    const url = `https://wa.me/91${parentPhone.replace(/\D/g, '')}?text=${encodeURIComponent(msg)}`;
+    window.open(url, '_blank');
   };
 
   const handleDownloadPDF = async () => {
@@ -242,11 +312,18 @@ function WeeklyReport({ athleteName, academyId, onClose }) {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          {!isParentView && parentPhone && (
+            <button
+              onClick={handleSendWhatsApp}
+              className="bg-green-600 hover:bg-green-500 text-white px-4 py-2 rounded-xl text-xs font-black transition">
+              📲 Send to Parent
+            </button>
+          )}
           <button
             onClick={handleDownloadPDF}
             disabled={downloading}
-            className="bg-blue-600 hover:bg-blue-500 disabled:bg-gray-700 disabled:text-gray-500 text-white px-4 py-2 rounded-xl text-xs font-black transition flex items-center gap-2">
-            {downloading ? '⏳ Generating PDF...' : '⬇ Download PDF'}
+            className="bg-blue-600 hover:bg-blue-500 disabled:bg-gray-700 disabled:text-gray-500 text-white px-4 py-2 rounded-xl text-xs font-black transition">
+            {downloading ? '⏳ Generating...' : '⬇ PDF'}
           </button>
           <button
             onClick={onClose}
@@ -447,26 +524,35 @@ function WeeklyReport({ athleteName, academyId, onClose }) {
           </div>
         </div>
 
-        {/* coach note */}
-        <div className="bg-gray-800 rounded-2xl p-5 border border-gray-700">
-          <p className="text-gray-500 text-[10px] uppercase font-bold mb-3">Coach's personal note (optional)</p>
-          <textarea
-            rows={3}
-            value={coachNote}
-            onChange={e => setCoachNote(e.target.value)}
-            placeholder={`Add a personal note for ${athleteName.split(' ')[0]}'s parent...`}
-            className="w-full bg-gray-900 border border-gray-700 text-white text-sm px-4 py-3 rounded-xl focus:outline-none focus:border-blue-500 resize-none placeholder-gray-600 leading-relaxed"
-          />
-          <div className="flex items-center justify-between mt-3">
-            <p className="text-gray-600 text-[10px]">This note will appear at the bottom of the PDF</p>
-            <button
-              onClick={handleSaveNote}
-              disabled={savingNote}
-              className="bg-blue-600 hover:bg-blue-500 disabled:bg-gray-700 text-white px-4 py-2 rounded-xl text-xs font-black transition">
-              {noteSaved ? '✓ Saved' : savingNote ? 'Saving...' : 'Save Note'}
-            </button>
+        {/* coach note — editable for coaches, read-only for parents */}
+        {isParentView ? (
+          coachNote && (
+            <div className="bg-gray-800 rounded-2xl p-5 border border-gray-700">
+              <p className="text-gray-500 text-[10px] uppercase font-bold mb-3">Coach's Note</p>
+              <p className="text-gray-200 text-sm leading-relaxed">{coachNote}</p>
+            </div>
+          )
+        ) : (
+          <div className="bg-gray-800 rounded-2xl p-5 border border-gray-700">
+            <p className="text-gray-500 text-[10px] uppercase font-bold mb-3">Coach's personal note (optional)</p>
+            <textarea
+              rows={3}
+              value={coachNote}
+              onChange={e => setCoachNote(e.target.value)}
+              placeholder={`Add a personal note for ${athleteName.split(' ')[0]}'s parent...`}
+              className="w-full bg-gray-900 border border-gray-700 text-white text-sm px-4 py-3 rounded-xl focus:outline-none focus:border-blue-500 resize-none placeholder-gray-600 leading-relaxed"
+            />
+            <div className="flex items-center justify-between mt-3">
+              <p className="text-gray-600 text-[10px]">This note will appear at the bottom of the PDF</p>
+              <button
+                onClick={handleSaveNote}
+                disabled={savingNote}
+                className="bg-blue-600 hover:bg-blue-500 disabled:bg-gray-700 text-white px-4 py-2 rounded-xl text-xs font-black transition">
+                {noteSaved ? '✓ Saved' : savingNote ? 'Saving...' : 'Save Note'}
+              </button>
+            </div>
           </div>
-        </div>
+        )}
 
         {/* footer */}
         <div className="text-center text-gray-600 text-[10px] pt-2 pb-4 leading-relaxed">
