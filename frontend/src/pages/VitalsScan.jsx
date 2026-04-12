@@ -217,8 +217,9 @@ function fftHeartRate(signal, sampleRate) {
 /**
  * Adaptive peak detection for HRV calculation (time-domain).
  * Only used for RMSSD — FFT handles the HR.
+ * Uses FFT-derived HR to set expected peak spacing for guided detection.
  */
-function detectPeaks(signal, sampleRate) {
+function detectPeaks(signal, sampleRate, expectedHR) {
   // Simple moving average subtraction (detrend)
   const windowSize = Math.round(sampleRate * 1.5);
   const detrended = new Array(signal.length);
@@ -230,10 +231,12 @@ function detectPeaks(signal, sampleRate) {
     detrended[i] = signal[i] - sum / (end - start);
   }
 
-  const minPeakDistance = Math.round(sampleRate * 0.3); // max 200 BPM
+  // Use expected HR to set min peak distance (allow 40% faster than expected)
+  const expectedInterval = expectedHR ? (60 / expectedHR) * sampleRate : sampleRate * 0.3;
+  const minPeakDistance = Math.round(expectedInterval * 0.6);
   const peaks = [];
 
-  // Adaptive threshold (40% of rolling max amplitude)
+  // Adaptive threshold — lower to 25% to catch more peaks (outlier rejection handles noise)
   const windowLen = Math.round(sampleRate * 2);
   const threshold = new Array(signal.length).fill(0);
   for (let i = 0; i < signal.length; i++) {
@@ -243,16 +246,14 @@ function detectPeaks(signal, sampleRate) {
     for (let j = start; j < end; j++) {
       maxVal = Math.max(maxVal, Math.abs(detrended[j]));
     }
-    threshold[i] = maxVal * 0.35;
+    threshold[i] = maxVal * 0.25;
   }
 
   let lastPeak = -minPeakDistance;
   for (let i = 2; i < detrended.length - 2; i++) {
     if (
       detrended[i] > detrended[i - 1] &&
-      detrended[i] > detrended[i - 2] &&
       detrended[i] > detrended[i + 1] &&
-      detrended[i] > detrended[i + 2] &&
       detrended[i] > threshold[i] &&
       i - lastPeak >= minPeakDistance
     ) {
@@ -270,7 +271,7 @@ function detectPeaks(signal, sampleRate) {
  * Caps RMSSD at 150ms (physiological maximum for healthy athletes).
  */
 function calculateHRV(peaks, sampleRate) {
-  if (peaks.length < 5) return null;
+  if (peaks.length < 4) return null;
 
   // Collect raw IBIs
   const rawIbis = [];
@@ -279,12 +280,12 @@ function calculateHRV(peaks, sampleRate) {
     if (ibi >= 300 && ibi <= 1500) rawIbis.push(ibi);
   }
 
-  if (rawIbis.length < 4) return null;
+  if (rawIbis.length < 3) return null;
 
-  // Median-based outlier rejection: remove IBIs deviating >30% from median
+  // Median-based outlier rejection: remove IBIs deviating >35% from median
   const sorted = [...rawIbis].sort((a, b) => a - b);
   const median = sorted[Math.floor(sorted.length / 2)];
-  const ibis = rawIbis.filter(ibi => Math.abs(ibi - median) / median <= 0.30);
+  const ibis = rawIbis.filter(ibi => Math.abs(ibi - median) / median <= 0.35);
 
   if (ibis.length < 3) return null;
 
@@ -331,8 +332,8 @@ function _processPass(samples, sampleRate) {
   const fftResult = fftHeartRate(samples, sampleRate);
   if (!fftResult) return null;
 
-  // Peak-based HR + HRV
-  const peaks = detectPeaks(samples, sampleRate);
+  // Peak-based HR + HRV — pass FFT HR to guide peak spacing
+  const peaks = detectPeaks(samples, sampleRate, fftResult.heartRate);
   let peakHR = null;
 
   if (peaks.length >= 4) {
@@ -383,12 +384,12 @@ function _processPass(samples, sampleRate) {
   const expectedSamples = sampleRate * SCAN_DURATION;
   const dataScore = Math.min(20, (samples.length / expectedSamples) * 20);
   // Cross-validation bonus: both methods agreeing = much higher confidence
-  const validationBonus = crossValidated ? 10 : (hrv && hrv > 0 ? 5 : 0);
+  const validationBonus = crossValidated ? 10 : (hrv != null ? 5 : 0);
   const accuracy = Math.min(99, Math.max(30, Math.round(snrScore + qualityScore + dataScore + validationBonus)));
 
   return {
     heartRate: finalHR,
-    hrv: hrv || 0,
+    hrv: hrv != null ? hrv : null,
     quality: fftResult.quality,
     snr: fftResult.snr,
     accuracy,
@@ -646,7 +647,7 @@ export default function VitalsScan() {
         {
           athlete_name: athleteName,
           heart_rate: metrics.heartRate,
-          hrv: metrics.hrv,
+          hrv: metrics.hrv != null ? metrics.hrv : 0,
           signal_quality: metrics.quality,
         }
       );
@@ -674,7 +675,7 @@ export default function VitalsScan() {
   };
 
   const getHRVStatus = (hrv) => {
-    if (!hrv) return { label: '—', color: 'text-gray-500' };
+    if (hrv == null || hrv === '—') return { label: '—', color: 'text-gray-500' };
     if (hrv >= 50) return { label: 'Excellent Recovery', color: 'text-emerald-400' };
     if (hrv >= 30) return { label: 'Good Recovery', color: 'text-blue-400' };
     if (hrv >= 20) return { label: 'Moderate', color: 'text-amber-400' };
@@ -859,11 +860,13 @@ export default function VitalsScan() {
                 </span>
               </div>
               <div className="flex items-baseline gap-2">
-                <span className="text-5xl font-black text-indigo-400">{results.hrv}</span>
-                <span className="text-gray-500 font-bold text-sm">ms</span>
+                <span className="text-5xl font-black text-indigo-400">{results.hrv != null ? results.hrv : '—'}</span>
+                <span className="text-gray-500 font-bold text-sm">{results.hrv != null ? 'ms' : ''}</span>
               </div>
               <p className="text-gray-600 text-[10px] mt-2">
-                Higher HRV = better recovery. Tracks how ready your body is for training.
+                {results.hrv != null
+                  ? 'Higher HRV = better recovery. Tracks how ready your body is for training.'
+                  : 'HRV could not be measured this scan. Try holding steadier next time.'}
               </p>
             </div>
 
