@@ -308,6 +308,11 @@ function SportSection({ sport, athletes, insights, injuryRisks, checkins, onNavi
                           Trust {insight.confidence.score}%
                         </span>
                       )}
+                      {insight.deviations?.hrv && (
+                        <span className="text-[10px] font-bold text-rose-400 bg-rose-500/10 border border-rose-500/20 px-2 py-0.5 rounded-lg">
+                          ❤️ {insight.deviations.heart_rate?.value || '—'} BPM · HRV {insight.deviations.hrv.value}ms
+                        </span>
+                      )}
                     </div>
                   )}
 

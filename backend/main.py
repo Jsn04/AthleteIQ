@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-from routes import athletes, wellness, ai, auth, session_planner, injuries, attendance, reports, payments
+from routes import athletes, wellness, ai, auth, session_planner, injuries, attendance, reports, payments, vitals
 
 app = FastAPI()
 
@@ -47,6 +47,7 @@ app.include_router(injuries.router, prefix="/injuries")
 app.include_router(attendance.router, prefix="/attendance")
 app.include_router(reports.router, prefix="/reports")
 app.include_router(payments.router, prefix="/payments")
+app.include_router(vitals.router, prefix="/vitals")
 
 @app.api_route("/health", methods=["GET", "HEAD"])
 async def health():
