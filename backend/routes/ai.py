@@ -543,8 +543,11 @@ def calculate_readiness(training_logs: list, checkins=None, vitals=None) -> dict
         elif acwr_val < 0.8:  risk_tier = "Undertraining"
         else:                  risk_tier = "Optimal"
     else:
-        if   final_readiness >= 78: risk_tier = "Optimal"
-        elif final_readiness >= 55: risk_tier = "Caution"
+        # Readiness-only risk tier (no ACWR data available)
+        # Thresholds aligned with injury risk so badges are consistent:
+        # >= 60 is fine, 45-59 warrants monitoring, <45 is concerning
+        if   final_readiness >= 60: risk_tier = "Optimal"
+        elif final_readiness >= 45: risk_tier = "Caution"
         else:                        risk_tier = "High Risk"
 
     return {

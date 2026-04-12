@@ -56,8 +56,19 @@ function SportSection({ sport, athletes, insights, injuryRisks, checkins, onNavi
   const getLatestCheckin = (athleteName) =>
     checkins.find(c => norm(c.athlete_name) === norm(athleteName));
 
-  const sportRed = athletes.filter(a => insights[a.name]?.risk === 'red').length;
-  const sportYellow = athletes.filter(a => insights[a.name]?.risk === 'yellow').length;
+  // Combined risk: worst of readiness risk + injury risk
+  const getCombinedRisk = (athleteName) => {
+    const readinessRisk = insights[athleteName]?.risk || 'unknown';
+    const injuryRisk = injuryRisks[athleteName]?.risk_level || 'unknown';
+    // red > yellow > green > unknown
+    if (readinessRisk === 'red' || injuryRisk === 'red') return 'red';
+    if (readinessRisk === 'yellow' || injuryRisk === 'yellow') return 'yellow';
+    if (readinessRisk === 'green' || injuryRisk === 'green') return 'green';
+    return readinessRisk;
+  };
+
+  const sportRed = athletes.filter(a => getCombinedRisk(a.name) === 'red').length;
+  const sportYellow = athletes.filter(a => getCombinedRisk(a.name) === 'yellow').length;
   const checkedIn = athletes.filter(a => getLatestCheckin(a.name)).length;
 
   const handleUnlock = () => {
@@ -147,8 +158,8 @@ function SportSection({ sport, athletes, insights, injuryRisks, checkins, onNavi
             const isCheckedIn = !!checkin;
             return (
               <div key={athlete.id}
-                className={`bg-gray-800 rounded-2xl p-4 sm:p-5 border transition-all hover:border-gray-600 cursor-pointer ${insight?.risk === 'red' ? 'border-rose-500/30'
-                    : insight?.risk === 'yellow' ? 'border-amber-500/20'
+                className={`bg-gray-800 rounded-2xl p-4 sm:p-5 border transition-all hover:border-gray-600 cursor-pointer ${getCombinedRisk(athlete.name) === 'red' ? 'border-rose-500/30'
+                    : getCombinedRisk(athlete.name) === 'yellow' ? 'border-amber-500/20'
                       : 'border-gray-700'
                   }`}
                 onClick={() => onNavigate(`/athlete/${encodeURIComponent(athlete.name)}`)}>
@@ -168,14 +179,14 @@ function SportSection({ sport, athletes, insights, injuryRisks, checkins, onNavi
                   <div className="flex items-center gap-2 shrink-0">
                     {insight?.score != null && isCheckedIn && (
                       <div className="text-center bg-gray-900 rounded-xl px-3 py-1.5 border border-gray-700">
-                        <p className={`text-xl sm:text-2xl font-black ${insight.risk === 'red' ? 'text-rose-400'
-                            : insight.risk === 'yellow' ? 'text-amber-400'
+                        <p className={`text-xl sm:text-2xl font-black ${getCombinedRisk(athlete.name) === 'red' ? 'text-rose-400'
+                            : getCombinedRisk(athlete.name) === 'yellow' ? 'text-amber-400'
                               : 'text-emerald-400'
                           }`}>{insight.score}</p>
                         <p className="text-[10px] text-gray-500 font-bold uppercase">Ready</p>
                       </div>
                     )}
-                    <RiskBadge risk={insight?.risk} checkedIn={isCheckedIn} />
+                    <RiskBadge risk={getCombinedRisk(athlete.name)} checkedIn={isCheckedIn} />
                   </div>
                 </div>
 
@@ -457,8 +468,16 @@ function Dashboard() {
   const checkedInToday = visibleAthletes.filter(a =>
     checkins.find(c => norm(c.athlete_name) === norm(a.name))
   ).length;
-  const highRiskCount = visibleAthletes.filter(a => insights[a.name]?.risk === 'red').length;
-  const cautionCount = visibleAthletes.filter(a => insights[a.name]?.risk === 'yellow').length;
+  const getCombinedRiskTop = (name) => {
+    const rr = insights[name]?.risk || 'unknown';
+    const ir = injuryRisks[name]?.risk_level || 'unknown';
+    if (rr === 'red' || ir === 'red') return 'red';
+    if (rr === 'yellow' || ir === 'yellow') return 'yellow';
+    if (rr === 'green' || ir === 'green') return 'green';
+    return rr;
+  };
+  const highRiskCount = visibleAthletes.filter(a => getCombinedRiskTop(a.name) === 'red').length;
+  const cautionCount = visibleAthletes.filter(a => getCombinedRiskTop(a.name) === 'yellow').length;
 
   const sportGroups = visibleAthletes.reduce((groups, athlete) => {
     const sport = athlete.sport || 'General';
@@ -849,7 +868,7 @@ function Dashboard() {
                 const hasPhone = !!athlete.parent_phone;
                 const alreadySent = sentToday.includes(athlete.name);
                 const insight = insights[athlete.name];
-                const risk = insight?.risk;
+                const risk = getCombinedRiskTop(athlete.name);
 
                 return (
                   <div key={athlete.id} className="bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 gap-3">
