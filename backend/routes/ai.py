@@ -464,7 +464,7 @@ def calculate_readiness(training_logs: list, checkins=None, vitals=None) -> dict
             sig_q = latest_vital.get("signal_quality", 0)
 
             # Only use if signal quality is decent
-            if hrv_val is not None and sig_q >= 0.4:
+            if hrv_val is not None and sig_q >= 0.6:
                 # HRV scoring: higher = better recovery
                 # Population norms: 20-40ms = average, 50+ = excellent, <20 = poor
                 if hrv_val >= 60:   hrv_score = 95
