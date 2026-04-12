@@ -195,6 +195,10 @@ function AthleteCheckIn() {
 
           {/* Nav buttons — full width row on mobile */}
           <div className="flex gap-2 mt-4">
+            <button onClick={() => navigate('/vitals')}
+              className="flex-1 border border-rose-500/30 text-rose-400 py-2.5 rounded-xl text-xs hover:bg-rose-500/10 font-bold transition text-center">
+              ❤️ Vitals Scan
+            </button>
             <button onClick={() => navigate('/athlete-dashboard')}
               className="flex-1 border border-gray-600 text-gray-500 py-2.5 rounded-xl text-xs hover:border-blue-500 hover:text-blue-400 font-bold transition text-center">
               Dashboard
