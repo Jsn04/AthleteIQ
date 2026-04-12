@@ -868,6 +868,13 @@ Write a concise 3-sentence summary: wellness trend, training load assessment, on
         return {"summary": "Weekly summary temporarily unavailable.", "cached": False, "error": True}
 
 
+@router.delete("/cache/{athlete_name}")
+async def clear_cache(athlete_name: str, academy_id: str = ""):
+    """Manual cache clear for an athlete — use when data seems stale."""
+    invalidate_ai_cache(athlete_name, academy_id)
+    return {"message": f"Cache cleared for {athlete_name}"}
+
+
 @router.get("/injury-risk/{athlete_name}")
 async def get_injury_risk(athlete_name: str, academy_id: str = ""):
     cached = _ai_cache_get("injury-risk", athlete_name, academy_id)

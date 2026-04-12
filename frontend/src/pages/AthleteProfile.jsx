@@ -47,10 +47,19 @@ function AthleteProfile() {
   const [fetchTick, setFetchTick] = useState(0);
   const [partialLoad, setPartialLoad] = useState(false);
 
-  const fetchData = useCallback(async (isSilent = false) => {
+  const fetchData = useCallback(async (isSilent = false, bustCache = false) => {
     if (!isSilent) setLoading(true);
     setError(null);
     try {
+      // Clear backend cache first when explicitly requested
+      if (bustCache) {
+        try {
+          await axios.delete(
+            `${API_BASE_URL}/ai/cache/${encodeURIComponent(name)}`,
+            { params: { academy_id: academyId } }
+          );
+        } catch { /* ignore — cache clear is best-effort */ }
+      }
       const params = { academy_id: academyId };
       const [historyRes, logsRes, insightRes, injuryRes] = await Promise.allSettled([
         axios.get(`${API_BASE_URL}/wellness/history/${encodeURIComponent(name)}`, { params }),
@@ -222,7 +231,7 @@ function AthleteProfile() {
               className="bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded-xl text-xs font-bold transition">
               + Log Session
             </button>
-            <button onClick={() => fetchData(false)}
+            <button onClick={() => fetchData(false, true)}
               className="bg-gray-800 hover:bg-gray-700 text-white px-4 py-2 rounded-xl text-xs font-bold transition">
               Refresh Data
             </button>
@@ -741,7 +750,7 @@ function AthleteProfile() {
       )}
 
       {showBulkModal && (
-        <BulkLogModal athletes={singleAthleteList} onClose={() => setShowBulkModal(false)} onSuccess={() => fetchData(false)} />
+        <BulkLogModal athletes={singleAthleteList} onClose={() => setShowBulkModal(false)} onSuccess={() => fetchData(false, true)} />
       )}
       {showWeeklyReport && (
         <WeeklyReport athleteName={name} academyId={academyId} onClose={() => setShowWeeklyReport(false)} />
