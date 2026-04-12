@@ -106,26 +106,20 @@ function parabolicInterp(mag, peakIdx) {
 }
 
 /**
- * FFT-based heart rate detection with harmonic correction.
- * Finds dominant frequency in 0.75–3.33 Hz band (45–200 BPM).
- * Detects sub-harmonic trap: if the peak is below 55 BPM, checks if the
- * 2x harmonic is strong — if so, the real HR is the harmonic (doubled).
+ * Single-window FFT heart rate with harmonic correction.
+ * Returns { heartRate, quality, snr } or null.
  */
-function fftHeartRate(signal, sampleRate) {
-  // Detrend → Hann window → FFT
+function _fftSingleWindow(signal, sampleRate) {
   const detrended = detrend(signal);
   const windowed = hannWindow(detrended);
   const { mag, n } = fft(windowed);
 
-  const freqResolution = sampleRate / n;
-
-  // HR band: 0.75–3.33 Hz (45–200 BPM)
-  const minBin = Math.ceil(0.75 / freqResolution);
-  const maxBin = Math.floor(3.33 / freqResolution);
-
+  const freqRes = sampleRate / n;
+  const minBin = Math.ceil(0.75 / freqRes);
+  const maxBin = Math.floor(3.33 / freqRes);
   if (minBin >= maxBin || maxBin >= mag.length) return null;
 
-  // Find top 3 peaks in the band for harmonic analysis
+  // Find spectral peaks
   const peaks = [];
   for (let i = minBin + 1; i < maxBin; i++) {
     if (mag[i] > mag[i - 1] && mag[i] > mag[i + 1]) {
@@ -133,85 +127,85 @@ function fftHeartRate(signal, sampleRate) {
     }
   }
   peaks.sort((a, b) => b.val - a.val);
-
   if (peaks.length === 0) return null;
 
   let peakIdx = peaks[0].idx;
   let peakVal = peaks[0].val;
 
-  // Band average for SNR
-  let bandSum = 0;
-  let bandCount = 0;
-  for (let i = minBin; i <= maxBin; i++) {
-    bandSum += mag[i];
-    bandCount++;
-  }
-
+  // Band stats
+  let bandSum = 0, bandCount = 0;
+  for (let i = minBin; i <= maxBin; i++) { bandSum += mag[i]; bandCount++; }
   if (peakVal < 1e-6) return null;
 
   // ── Harmonic correction ──
-  // If dominant peak is below 55 BPM (sub-harmonic territory),
-  // check if 2x that frequency has a strong peak — if so, use it.
-  const peakFreqRaw = peakIdx * freqResolution;
-  const peakBPM = peakFreqRaw * 60;
+  // Sub-harmonics are very common in PPG — the dicrotic notch creates
+  // a half-frequency peak that can be STRONGER than the true HR peak.
+  // Strategy: always check if 2x frequency has any presence.
+  const peakBPM = peakIdx * freqRes * 60;
 
-  if (peakBPM < 55) {
+  if (peakBPM < 75) {
     const harmonicBin = Math.round(peakIdx * 2);
-    if (harmonicBin < mag.length) {
-      // Check a ±2 bin window around the expected harmonic
-      let harmonicMax = 0;
-      let harmonicIdx = harmonicBin;
-      for (let i = Math.max(minBin, harmonicBin - 2); i <= Math.min(maxBin, harmonicBin + 2); i++) {
-        if (mag[i] > harmonicMax) {
-          harmonicMax = mag[i];
-          harmonicIdx = i;
-        }
+    if (harmonicBin <= maxBin && harmonicBin < mag.length) {
+      let hMax = 0, hIdx = harmonicBin;
+      for (let i = Math.max(minBin, harmonicBin - 3); i <= Math.min(maxBin, harmonicBin + 3); i++) {
+        if (mag[i] > hMax) { hMax = mag[i]; hIdx = i; }
       }
-      // Use harmonic if it's at least 30% of the sub-harmonic peak strength
-      // Sub-harmonics are often stronger than the fundamental in PPG
-      if (harmonicMax > peakVal * 0.3) {
-        peakIdx = harmonicIdx;
-        peakVal = harmonicMax;
+      // For <55 BPM: use harmonic if it has ANY meaningful energy (>20% of peak)
+      // For 55-75 BPM: use harmonic only if it's comparable (>60% of peak)
+      const threshold = peakBPM < 55 ? 0.20 : 0.60;
+      if (hMax > peakVal * threshold) {
+        peakIdx = hIdx;
+        peakVal = hMax;
       }
     }
   }
 
-  // Also check: if peak is in 55-75 BPM range, see if 2x harmonic is
-  // actually stronger or comparable — PPG can pick up half-rate artifacts
-  if (peakBPM >= 55 && peakBPM < 75) {
-    const harmonicBin = Math.round(peakIdx * 2);
-    if (harmonicBin < mag.length && harmonicBin <= maxBin) {
-      let harmonicMax = 0;
-      let harmonicIdx = harmonicBin;
-      for (let i = Math.max(minBin, harmonicBin - 2); i <= Math.min(maxBin, harmonicBin + 2); i++) {
-        if (mag[i] > harmonicMax) {
-          harmonicMax = mag[i];
-          harmonicIdx = i;
-        }
-      }
-      // Only switch if harmonic is stronger (real HR is at the harmonic)
-      if (harmonicMax > peakVal * 0.8) {
-        peakIdx = harmonicIdx;
-        peakVal = harmonicMax;
-      }
-    }
-  }
-
-  // Parabolic interpolation for sub-bin accuracy
   const refinedIdx = parabolicInterp(mag, peakIdx);
-  const peakFreq = refinedIdx * freqResolution;
-  const heartRate = Math.round(peakFreq * 60);
-
-  // Reject physiologically impossible values
+  const heartRate = Math.round(refinedIdx * freqRes * 60);
   if (heartRate < 45 || heartRate > 200) return null;
 
-  // SNR: peak vs average band magnitude
   const bandAvg = bandSum / bandCount;
   const snr = bandAvg > 0 ? peakVal / bandAvg : 0;
-  // Map SNR to quality: snr 3+ = excellent, snr 1.5 = marginal
   const quality = Math.max(0, Math.min(1, (snr - 1.2) / 4));
 
-  return { heartRate, quality, snr, peakFreq };
+  return { heartRate, quality, snr };
+}
+
+/**
+ * Ensemble FFT: splits signal into overlapping windows, runs FFT on each,
+ * takes the median HR. This eliminates outlier windows caused by motion
+ * artifacts and gives much more consistent results scan-to-scan.
+ *
+ * For a 15s signal at 30fps (450 samples), uses ~6 overlapping 8s windows.
+ */
+function fftHeartRate(signal, sampleRate) {
+  const windowLen = Math.round(sampleRate * 8); // 8-second windows
+  const stepSize = Math.round(sampleRate * 2);  // 2-second steps (75% overlap)
+
+  if (signal.length < windowLen) {
+    // Signal too short for windowing — single pass
+    return _fftSingleWindow(signal, sampleRate);
+  }
+
+  const results = [];
+  for (let start = 0; start + windowLen <= signal.length; start += stepSize) {
+    const window = signal.slice(start, start + windowLen);
+    const r = _fftSingleWindow(window, sampleRate);
+    if (r) results.push(r);
+  }
+
+  if (results.length === 0) return _fftSingleWindow(signal, sampleRate);
+
+  // Take median HR from all windows (robust to outlier windows)
+  const hrs = results.map(r => r.heartRate).sort((a, b) => a - b);
+  const medianHR = hrs[Math.floor(hrs.length / 2)];
+
+  // Average quality and SNR from windows within ±10 BPM of median
+  const close = results.filter(r => Math.abs(r.heartRate - medianHR) <= 10);
+  const avgQuality = close.reduce((s, r) => s + r.quality, 0) / close.length;
+  const avgSNR = close.reduce((s, r) => s + r.snr, 0) / close.length;
+
+  return { heartRate: medianHR, quality: avgQuality, snr: avgSNR };
 }
 
 /**
@@ -428,6 +422,7 @@ export default function VitalsScan() {
   const scanStartRef = useRef(null);
   const liveBufferRef = useRef([]);
   const fingerGraceRef = useRef(0);
+  const liveHRHistoryRef = useRef([]); // rolling median for stable live HR
 
   // Check if already submitted today
   useEffect(() => {
@@ -561,13 +556,18 @@ export default function VitalsScan() {
         setSignalStrength(Math.min(1, variance / 6));
       }
 
-      // Live HR preview via FFT (every ~2 seconds once we have 5s+ of data)
+      // Live HR preview — rolling median of recent FFT estimates for stability
       liveBufferRef.current.push(avgRed);
-      if (liveBufferRef.current.length > TARGET_FPS * 6 && liveBufferRef.current.length % (TARGET_FPS * 2) < 2) {
-        const buf = liveBufferRef.current.slice(-TARGET_FPS * 5);
-        const fftResult = fftHeartRate(buf, TARGET_FPS);
-        if (fftResult && fftResult.heartRate >= 40 && fftResult.heartRate <= 200 && fftResult.quality > 0.05) {
-          setLiveHR(fftResult.heartRate);
+      if (liveBufferRef.current.length > TARGET_FPS * 8 && liveBufferRef.current.length % (TARGET_FPS * 2) < 2) {
+        const buf = liveBufferRef.current.slice(-TARGET_FPS * 8);
+        const fftResult = _fftSingleWindow(buf, TARGET_FPS);
+        if (fftResult && fftResult.heartRate >= 45 && fftResult.heartRate <= 200) {
+          const history = liveHRHistoryRef.current;
+          history.push(fftResult.heartRate);
+          if (history.length > 5) history.shift();
+          // Show median of last 5 estimates — much more stable
+          const sorted = [...history].sort((a, b) => a - b);
+          setLiveHR(sorted[Math.floor(sorted.length / 2)]);
         }
       }
 
@@ -589,6 +589,7 @@ export default function VitalsScan() {
     frameTimesRef.current = [];
     liveBufferRef.current = [];
     fingerGraceRef.current = 0;
+    liveHRHistoryRef.current = [];
     setCountdown(SCAN_DURATION);
     setLiveHR(null);
     setSignalStrength(0);
@@ -666,11 +667,16 @@ export default function VitalsScan() {
 
   // ── RENDER ──────────────────────────────────────────────────────────────────
 
+  // HR zones based on AHA (American Heart Association) clinical guidelines
+  // Normal resting HR: 60-100 BPM for adults
+  // Athletes: 40-60 BPM is common due to cardiovascular conditioning
+  // Tachycardia: >100 BPM at rest
   const getHRZone = (hr) => {
     if (!hr) return { label: '—', color: 'text-gray-500' };
-    if (hr < 60) return { label: 'Resting', color: 'text-blue-400' };
-    if (hr < 80) return { label: 'Normal', color: 'text-emerald-400' };
-    if (hr < 100) return { label: 'Elevated', color: 'text-amber-400' };
+    if (hr < 50) return { label: 'Athletic', color: 'text-blue-400' };
+    if (hr < 60) return { label: 'Low Normal', color: 'text-cyan-400' };
+    if (hr <= 100) return { label: 'Normal', color: 'text-emerald-400' };
+    if (hr <= 120) return { label: 'Elevated', color: 'text-amber-400' };
     return { label: 'High', color: 'text-rose-400' };
   };
 
