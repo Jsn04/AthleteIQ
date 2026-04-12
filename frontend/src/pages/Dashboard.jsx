@@ -346,6 +346,11 @@ function Dashboard() {
   const [attendance, setAttendance] = useState({});
   const [markingAttendance, setMarkingAttendance] = useState({});
   const [loadError, setLoadError] = useState(false);
+  const [sessionStatus, setSessionStatus] = useState(null);
+  const [showSessionSetup, setShowSessionSetup] = useState(false);
+  const [sessionStart, setSessionStart] = useState('17:00');
+  const [sessionEnd, setSessionEnd] = useState('19:00');
+  const [savingSessionTime, setSavingSessionTime] = useState(false);
   const navigate = useNavigate();
   const prevCheckinsRef = useRef(null);
   const retryTimerRef = useRef(null);
@@ -401,6 +406,20 @@ function Dashboard() {
         setAttendance(attendanceMap);
       } catch {
         // attendance fetch failure should not block dashboard
+      }
+
+      // Fetch session logging status
+      try {
+        const statusRes = await api.get(`/wellness/session-status`, {
+          params: { academy_id: academyId }
+        });
+        setSessionStatus(statusRes.data);
+        // If no session_time configured yet, prompt setup (only once per session)
+        if (!statusRes.data.session_time && !sessionStorage.getItem('session_setup_dismissed')) {
+          setShowSessionSetup(true);
+        }
+      } catch {
+        // session status failure should not block dashboard
       }
     } catch (err) {
       console.error('Error fetching data:', err);
@@ -540,6 +559,25 @@ function Dashboard() {
     }
   };
 
+  const handleSaveSessionTime = async () => {
+    setSavingSessionTime(true);
+    try {
+      await api.post(`/wellness/session-time`, {
+        start: sessionStart,
+        end: sessionEnd,
+      }, { params: { academy_id: academyId } });
+      setShowSessionSetup(false);
+      setSessionStatus(prev => ({
+        ...prev,
+        session_time: { start: sessionStart, end: sessionEnd },
+      }));
+    } catch (err) {
+      console.error('Failed to save session time:', err);
+    } finally {
+      setSavingSessionTime(false);
+    }
+  };
+
   if (loading && athletes.length === 0) return (
     <div className="min-h-screen bg-gray-950 p-6 flex items-center justify-center">
       <p className="text-gray-400">Loading dashboard...</p>
@@ -669,6 +707,59 @@ function Dashboard() {
             color="text-gray-400"
           />
         </div>
+
+        {/* ── Session Logging Reminder ── */}
+        {sessionStatus && sessionStatus.reminder_level !== 'none' && !sessionStatus.logged_today && (
+          <div className={`rounded-2xl p-4 mb-6 border flex items-center justify-between gap-4 flex-wrap ${
+            sessionStatus.reminder_level === 'urgent'
+              ? 'bg-rose-500/10 border-rose-500/30'
+              : 'bg-amber-500/10 border-amber-500/30'
+          }`}>
+            <div className="flex items-center gap-3">
+              <span className={`relative flex h-3 w-3 shrink-0 ${sessionStatus.reminder_level === 'urgent' ? '' : ''}`}>
+                <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${
+                  sessionStatus.reminder_level === 'urgent' ? 'bg-rose-400' : 'bg-amber-400'
+                }`} />
+                <span className={`relative inline-flex rounded-full h-3 w-3 ${
+                  sessionStatus.reminder_level === 'urgent' ? 'bg-rose-500' : 'bg-amber-500'
+                }`} />
+              </span>
+              <div>
+                <p className={`text-sm font-black ${
+                  sessionStatus.reminder_level === 'urgent' ? 'text-rose-400' : 'text-amber-400'
+                }`}>
+                  {sessionStatus.reminder_level === 'urgent'
+                    ? "Today's session not logged"
+                    : "Log today's session"}
+                </p>
+                <p className="text-gray-500 text-xs">
+                  Session was {sessionStatus.session_time?.start}–{sessionStatus.session_time?.end}
+                  {sessionStatus.sessions_not_logged > 0 && (
+                    <span className="text-rose-400 font-bold ml-2">
+                      · {sessionStatus.sessions_not_logged} session{sessionStatus.sessions_not_logged > 1 ? 's' : ''} not logged this week
+                    </span>
+                  )}
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => {
+                const present = visibleAthletes.filter(a => attendance[a.name.toLowerCase().trim()] === 'present');
+                if (present.length === 0) {
+                  alert('Mark at least one athlete as Present before logging a session.');
+                  return;
+                }
+                setShowBulkModal(true);
+              }}
+              className={`px-5 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all shrink-0 ${
+                sessionStatus.reminder_level === 'urgent'
+                  ? 'bg-rose-500 hover:bg-rose-400 text-white'
+                  : 'bg-amber-500 hover:bg-amber-400 text-gray-900'
+              }`}>
+              Log Session Now
+            </button>
+          </div>
+        )}
 
         {/* ── Athletes ── */}
         {visibleAthletes.length === 0 ? (
@@ -807,6 +898,50 @@ function Dashboard() {
                 Only athletes who checked in today are included · Sent status resets daily
               </p>
             </div>
+          </div>
+        </div>
+      )}
+      {/* ── Session Time Setup Modal ── */}
+      {showSessionSetup && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+          onClick={() => { setShowSessionSetup(false); sessionStorage.setItem('session_setup_dismissed', 'true'); }}>
+          <div className="bg-gray-900 border border-gray-700 rounded-2xl w-full max-w-sm p-6"
+            onClick={e => e.stopPropagation()}>
+            <h2 className="text-lg font-black text-white mb-1">Set Session Timing</h2>
+            <p className="text-gray-500 text-xs mb-5">
+              We'll remind you to log sessions if you forget. You can change this anytime.
+            </p>
+            <div className="grid grid-cols-2 gap-4 mb-5">
+              <div>
+                <label className="text-gray-500 text-[10px] uppercase tracking-widest font-bold block mb-2">Start Time</label>
+                <input
+                  type="time"
+                  value={sessionStart}
+                  onChange={e => setSessionStart(e.target.value)}
+                  className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2.5 text-white text-sm focus:outline-none focus:border-indigo-500"
+                />
+              </div>
+              <div>
+                <label className="text-gray-500 text-[10px] uppercase tracking-widest font-bold block mb-2">End Time</label>
+                <input
+                  type="time"
+                  value={sessionEnd}
+                  onChange={e => setSessionEnd(e.target.value)}
+                  className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2.5 text-white text-sm focus:outline-none focus:border-indigo-500"
+                />
+              </div>
+            </div>
+            <button
+              onClick={handleSaveSessionTime}
+              disabled={savingSessionTime}
+              className="w-full bg-indigo-600 hover:bg-indigo-500 disabled:bg-gray-700 text-white font-black py-3 rounded-xl text-sm uppercase tracking-wider transition-all">
+              {savingSessionTime ? 'Saving...' : 'Save Session Time'}
+            </button>
+            <button
+              onClick={() => { setShowSessionSetup(false); sessionStorage.setItem('session_setup_dismissed', 'true'); }}
+              className="w-full text-gray-600 hover:text-gray-400 text-xs font-bold mt-3 py-2 transition-all">
+              Skip for now
+            </button>
           </div>
         </div>
       )}

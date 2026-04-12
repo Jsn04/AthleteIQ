@@ -68,6 +68,7 @@ export default function AcademyLogin() {
         localStorage.setItem('academyName', data.academy_name);
         localStorage.setItem('plan', data.plan);
         localStorage.setItem('trialEndsAt', data.trial_ends_at || '');
+        if (data.session_time) localStorage.setItem('sessionTime', JSON.stringify(data.session_time));
         navigate('/login');
     };
 

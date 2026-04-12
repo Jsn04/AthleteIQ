@@ -62,6 +62,7 @@ def register_academy(body: AcademyRegisterRequest):
             "academy_name":  result[0]["name"],
             "plan":          "free",
             "trial_ends_at": trial_ends_at,
+            "session_time":  None,
         }
     except HTTPException:
         raise
@@ -101,6 +102,7 @@ def academy_login(body: AcademyLoginRequest):
             "academy_name":  academy["name"],
             "plan":          academy["plan"],
             "trial_ends_at": academy.get("trial_ends_at"),
+            "session_time":  academy.get("session_time"),
         }
     except HTTPException:
         raise
