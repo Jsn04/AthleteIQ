@@ -230,7 +230,7 @@ function AthleteProfile() {
         </div>
 
         {/* Stat Cards — Readiness and Injury Risk show /100 */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           <StatCard
             label="Avg Readiness"
             value={
@@ -254,26 +254,6 @@ function AthleteProfile() {
           />
           <StatCard label="Active Days" value={history.length} color="text-white" />
         </div>
-
-        {/* Vitals Cards — only show when vitals data exists */}
-        {insight?.deviations?.hrv && (
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-            <StatCard
-              label="Heart Rate"
-              value={insight.deviations.heart_rate ? `${insight.deviations.heart_rate.value}` : '—'}
-              sub={insight.deviations.heart_rate?.status?.toUpperCase()}
-              color="text-rose-400"
-              info="Resting heart rate measured via phone camera PPG. Lower resting HR generally indicates better cardiovascular fitness."
-            />
-            <StatCard
-              label="HRV"
-              value={`${insight.deviations.hrv.value}`}
-              sub={insight.deviations.hrv.status?.toUpperCase()}
-              color="text-indigo-400"
-              info="Heart Rate Variability (RMSSD) — measures beat-to-beat variation. Higher HRV means better recovery and readiness to train."
-            />
-          </div>
-        )}
 
         {/* Baseline Intelligence Card */}
         {insight && (

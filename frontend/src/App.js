@@ -12,7 +12,6 @@ import AthleteDashboard from './pages/AthleteDashboard';
 import SessionPlannerPage from './pages/SessionPlannerPage';
 import MeditationPage from './pages/MeditationPage';
 import AcademyProfile from './pages/AcademyProfile';
-import VitalsScan from './pages/VitalsScan';
 
 
 const ProtectedRoute = ({ children, allowedRole }) => {
@@ -57,9 +56,6 @@ function App() {
           <ProtectedRoute allowedRole="coach"><SessionPlannerPage /></ProtectedRoute>
         } />
 
-        <Route path="/vitals" element={
-          <ProtectedRoute allowedRole="athlete"><VitalsScan /></ProtectedRoute>
-        } />
         <Route path="/checkin" element={
           <ProtectedRoute allowedRole="athlete"><AthleteCheckIn /></ProtectedRoute>
         } />

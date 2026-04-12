@@ -267,7 +267,7 @@ def calculate_confidence(checkins: list, training_logs=None) -> dict:
     }
 
 
-def calculate_readiness(training_logs: list, checkins=None, vitals=None) -> dict:
+def calculate_readiness(training_logs: list, checkins=None) -> dict:
     """
     Multi-factor readiness score with personal baseline system.
 
@@ -284,10 +284,10 @@ def calculate_readiness(training_logs: list, checkins=None, vitals=None) -> dict
       - ACWR:       proper 7-day / 28-day date windows (only when enough data)
       - Coach notes: keyword sentiment on last 5 sessions
 
-    Athlete pillar (without vitals):
+    Athlete pillar:
       - Energy 30%, Sleep 30%, Soreness 25% (inverted), Mood 15%
-    Athlete pillar (with HRV from vitals scan):
-      - Energy 25%, Sleep 25%, Soreness 20%, Mood 10%, HRV 20%
+      - With baseline: z-score deviations from personal normal
+      - Without baseline: raw values on generic 0-10 scale
     """
     checkins = checkins or []
     now = datetime.now(timezone.utc)
@@ -454,65 +454,12 @@ def calculate_readiness(training_logs: list, checkins=None, vitals=None) -> dict
             so_score = int(((10 - avg_soreness) / 10) * 100)
             m_score  = int((avg_mood            / 10) * 100)
 
-        # ── HRV from vitals scan (if available today) ────────────────────────
-        hrv_score = None
-        vitals = vitals or []
-        if vitals:
-            latest_vital = vitals[0]
-            hr = latest_vital.get("heart_rate")
-            hrv_val = latest_vital.get("hrv")
-            sig_q = latest_vital.get("signal_quality", 0)
-
-            # Only use if signal quality is decent
-            if hrv_val is not None and sig_q >= 0.4:
-                # HRV scoring: higher = better recovery
-                # Population norms: 20-40ms = average, 50+ = excellent, <20 = poor
-                if hrv_val >= 60:   hrv_score = 95
-                elif hrv_val >= 50: hrv_score = 88
-                elif hrv_val >= 40: hrv_score = 78
-                elif hrv_val >= 30: hrv_score = 65
-                elif hrv_val >= 20: hrv_score = 45
-                else:               hrv_score = 25
-
-                deviations["hrv"] = {
-                    "value": hrv_val,
-                    "heart_rate": hr,
-                    "status": (
-                        "excellent" if hrv_val >= 50
-                        else "good" if hrv_val >= 30
-                        else "low" if hrv_val >= 20
-                        else "fatigued"
-                    ),
-                }
-
-                # Also add resting HR deviation
-                if hr:
-                    deviations["heart_rate"] = {
-                        "value": hr,
-                        "status": (
-                            "resting" if hr < 60
-                            else "normal" if hr < 80
-                            else "elevated" if hr < 100
-                            else "high"
-                        ),
-                    }
-
-        # Weighted wellness score — redistribute weights when HRV available
-        if hrv_score is not None:
-            wellness_score = int(
-                e_score   * 0.25 +
-                sl_score  * 0.25 +
-                so_score  * 0.20 +
-                m_score   * 0.10 +
-                hrv_score * 0.20
-            )
-        else:
-            wellness_score = int(
-                e_score  * 0.30 +
-                sl_score * 0.30 +
-                so_score * 0.25 +
-                m_score  * 0.15
-            )
+        wellness_score = int(
+            e_score  * 0.30 +
+            sl_score * 0.30 +
+            so_score * 0.25 +
+            m_score  * 0.15
+        )
 
     # ── FINAL SCORE: dynamic weight split ────────────────────────────────────
     final_readiness = max(5, min(98, int(
@@ -629,33 +576,23 @@ async def get_athlete_insight(athlete_name: str, academy_id: str = ""):
         if cached:
             return cached
 
-        checkins_result, training_result, vitals_result = await asyncio.gather(
-            asyncio.to_thread(
-                lambda: safe_query(
-                    lambda sb: sb.table("checkins").select("*")
-                    .eq("athlete_name", athlete_name).eq("academy_id", academy_id)
-                    .order("created_at", desc=True).limit(28).execute()
-                )
-            ),
-            asyncio.to_thread(
-                lambda: safe_query(
-                    lambda sb: sb.table("training_logs").select("*")
-                    .eq("athlete_name", athlete_name).eq("academy_id", academy_id)
-                    .order("created_at", desc=True).limit(28).execute()
-                )
-            ),
-            asyncio.to_thread(
-                lambda: safe_query(
-                    lambda sb: sb.table("vitals").select("*")
-                    .eq("athlete_name", athlete_name).eq("academy_id", academy_id)
-                    .order("created_at", desc=True).limit(7).execute()
-                )
-            ),
+        checkins_result = await asyncio.to_thread(
+            lambda: safe_query(
+                lambda sb: sb.table("checkins").select("*")
+                .eq("athlete_name", athlete_name).eq("academy_id", academy_id)
+                .order("created_at", desc=True).limit(28).execute()
+            )
+        )
+        training_result = await asyncio.to_thread(
+            lambda: safe_query(
+                lambda sb: sb.table("training_logs").select("*")
+                .eq("athlete_name", athlete_name).eq("academy_id", academy_id)
+                .order("created_at", desc=True).limit(28).execute()
+            )
         )
 
         checkins = checkins_result.data or []
         training = training_result.data or []
-        vitals = vitals_result.data or []
 
         if not checkins and not training:
             return {"insight": "No data yet", "risk": "unknown", "score": None, "cached": False,
@@ -663,7 +600,7 @@ async def get_athlete_insight(athlete_name: str, academy_id: str = ""):
                     "confidence": {"score": 100, "flags": [], "label": "New", "enough_data": False},
                     "weight_split": "60/40", "deviations": {}}
 
-        metrics        = calculate_readiness(training, checkins, vitals)
+        metrics        = calculate_readiness(training, checkins)
         latest_checkin = checkins[0] if checkins else {}
 
         checkin_summary = (
@@ -857,40 +794,30 @@ async def get_injury_risk(athlete_name: str, academy_id: str = ""):
         return cached
 
     try:
-        checkins_result, training_result, vitals_result = await asyncio.gather(
-            asyncio.to_thread(
-                lambda: safe_query(
-                    lambda sb: sb.table("checkins").select("*")
-                    .eq("athlete_name", athlete_name).eq("academy_id", academy_id)
-                    .order("created_at", desc=True).limit(28).execute()
-                )
-            ),
-            asyncio.to_thread(
-                lambda: safe_query(
-                    lambda sb: sb.table("training_logs").select("*")
-                    .eq("athlete_name", athlete_name).eq("academy_id", academy_id)
-                    .order("created_at", desc=True).limit(28).execute()
-                )
-            ),
-            asyncio.to_thread(
-                lambda: safe_query(
-                    lambda sb: sb.table("vitals").select("*")
-                    .eq("athlete_name", athlete_name).eq("academy_id", academy_id)
-                    .order("created_at", desc=True).limit(7).execute()
-                )
-            ),
+        checkins_result = await asyncio.to_thread(
+            lambda: safe_query(
+                lambda sb: sb.table("checkins").select("*")
+                .eq("athlete_name", athlete_name).eq("academy_id", academy_id)
+                .order("created_at", desc=True).limit(28).execute()
+            )
+        )
+        training_result = await asyncio.to_thread(
+            lambda: safe_query(
+                lambda sb: sb.table("training_logs").select("*")
+                .eq("athlete_name", athlete_name).eq("academy_id", academy_id)
+                .order("created_at", desc=True).limit(28).execute()
+            )
         )
 
         checkins = checkins_result.data or []
         training = training_result.data or []
-        vitals = vitals_result.data or []
 
         if not checkins and not training:
             return {"injury_risk_score": None, "acwr": None, "signals": [],
                     "verdict": "No data available yet", "risk_level": "unknown",
                     "deception_flag": False, "sessions_28d": 0, "days_with_data": 0}
 
-        metrics = calculate_readiness(training, checkins, vitals)
+        metrics = calculate_readiness(training, checkins)
         acwr    = metrics["acwr"]
         now_utc = datetime.now(timezone.utc)
 
@@ -1055,25 +982,11 @@ Write a 2-sentence verdict: sentence 1 is the main risk and why, sentence 2 is o
                         f"Baseline alert: {metric_name.title()} {abs(z)} std devs below personal normal"
                     )
 
-        # ── Vitals-based signals (HR/HRV) ──────────────────────────────────────
-        vitals_signals = []
-        hrv_dev = deviations.get("hrv")
-        hr_dev = deviations.get("heart_rate")
-        if hrv_dev and hrv_dev.get("status") in ("low", "fatigued"):
-            vitals_signals.append(
-                f"Vitals alert: HRV {hrv_dev['value']}ms — {hrv_dev['status']} recovery"
-            )
-        if hr_dev and hr_dev.get("status") in ("elevated", "high"):
-            vitals_signals.append(
-                f"Vitals alert: Resting HR {hr_dev['value']} BPM — {hr_dev['status']}"
-            )
+        all_signals = baseline_signals + acwr_signals + notes_signals + mismatch_signals + athlete_signals
 
-        all_signals = baseline_signals + vitals_signals + acwr_signals + notes_signals + mismatch_signals + athlete_signals
-
-        # Recalculate total with baseline + vitals signal contribution
+        # Recalculate total with baseline signal contribution
         baseline_risk_add = min(15, len(baseline_signals) * 8)
-        vitals_risk_add = min(10, len(vitals_signals) * 6)
-        total_score = min(notes_score + athlete_score + acwr_score + baseline_risk_add + vitals_risk_add, 100)
+        total_score = min(notes_score + athlete_score + acwr_score + baseline_risk_add, 100)
         risk_level  = "red" if total_score >= 70 else ("yellow" if total_score >= 40 else "green")
 
         confidence_data = metrics.get("confidence", {})
