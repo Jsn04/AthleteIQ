@@ -43,6 +43,24 @@ def _ai_cache_set(endpoint: str, athlete_name: str, academy_id: str, value: dict
     _AI_CACHE[key] = (time.time(), value)
 
 
+def invalidate_ai_cache(athlete_name: str, academy_id: str):
+    """Clear all cached AI results for an athlete (call after new data is logged)."""
+    for endpoint in ("insights", "injury-risk", "weekly-summary"):
+        key = _ai_cache_key(endpoint, athlete_name, academy_id)
+        _AI_CACHE.pop(key, None)
+    # Also clear the Supabase DB cache for insights
+    try:
+        safe_query(
+            lambda sb: sb.table("ai_insights_cache")
+            .delete()
+            .eq("athlete_name", athlete_name)
+            .eq("academy_id", academy_id)
+            .execute()
+        )
+    except Exception:
+        pass
+
+
 # ── Trial gate ────────────────────────────────────────────────────────────────
 def check_trial_access(academy_id: str):
     if academy_id.startswith("solo_"):

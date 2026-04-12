@@ -4,6 +4,7 @@ from datetime import datetime, timezone, timedelta
 from fastapi import APIRouter, Query, HTTPException
 
 from db import safe_query
+from routes.ai import invalidate_ai_cache
 
 router = APIRouter()
 log = logging.getLogger(__name__)
@@ -45,6 +46,7 @@ def submit_checkin(checkin: dict, academy_id: str = Query(...)):
             checkin["athlete_name"] = checkin["athlete_name"].strip()
         checkin["academy_id"] = academy_id
         response = safe_query(lambda sb: sb.table("checkins").insert(checkin).execute())
+        invalidate_ai_cache(checkin.get("athlete_name", ""), academy_id)
         return response.data
     except Exception as e:
         log.error("POST /wellness failed: %s", e)
@@ -55,8 +57,9 @@ def submit_checkin(checkin: dict, academy_id: str = Query(...)):
 def log_training(data: dict, academy_id: str = Query(...)):
     require_academy(academy_id)
     try:
+        athlete = data["athlete_name"].strip()
         result = safe_query(lambda sb: sb.table("training_logs").insert({
-            "athlete_name": data["athlete_name"].strip(),
+            "athlete_name": athlete,
             "intensity":    data["intensity"],
             "duration":     data["duration"],
             "attended":     data.get("attended", True),
@@ -64,6 +67,7 @@ def log_training(data: dict, academy_id: str = Query(...)):
             "rpe":          data.get("rpe", None),
             "academy_id":   academy_id,
         }).execute())
+        invalidate_ai_cache(athlete, academy_id)
         return {"message": "Training log saved", "data": result.data}
     except Exception as e:
         log.error("POST /wellness/training-log failed: %s", e)
@@ -89,6 +93,9 @@ def bulk_log_training(data: dict, academy_id: str = Query(...)):
                 "academy_id":   academy_id,
             })
         result = safe_query(lambda sb: sb.table("training_logs").insert(rows).execute())
+        # Invalidate cache for all athletes in this bulk log
+        for entry in logs:
+            invalidate_ai_cache(entry["athlete_name"].strip(), academy_id)
         return {"message": f"{len(rows)} training logs saved", "count": len(rows), "data": result.data}
     except Exception as e:
         log.error("POST /wellness/bulk-training-log failed: %s", e)
