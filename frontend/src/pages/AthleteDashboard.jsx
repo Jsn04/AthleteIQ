@@ -251,7 +251,7 @@ export default function AthleteDashboard() {
               {/* Readiness hero card */}
               {insight?.score != null && (
                 <div className={`bg-gray-800 rounded-2xl p-6 border ${insight.risk === 'red' ? 'border-rose-500/30' : insight.risk === 'yellow' ? 'border-amber-500/30' : 'border-emerald-500/30'}`}>
-                  <div className="flex items-center justify-between gap-6 flex-wrap">
+                  <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
                     <div className="flex items-center gap-6">
                       <div className="relative w-24 h-24 shrink-0">
                         <svg viewBox="0 0 80 80" className="w-full h-full -rotate-90">
@@ -282,7 +282,7 @@ export default function AthleteDashboard() {
                       </div>
                     </div>
                     {insight?.athlete_message && insight.athlete_message !== 'No data yet' && (
-                      <div className="flex-1 min-w-0 bg-gray-900/50 rounded-xl px-4 py-3 border border-gray-700 max-w-md">
+                      <div className="w-full md:flex-1 md:min-w-0 md:max-w-md bg-gray-900/50 rounded-xl px-4 py-3 border border-gray-700">
                         <p className="text-indigo-400 text-[10px] font-black uppercase tracking-widest mb-1">🤖 Coach Says</p>
                         <p className="text-gray-300 text-sm leading-relaxed italic">"{insight.athlete_message}"</p>
                       </div>
