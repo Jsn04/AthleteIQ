@@ -347,7 +347,16 @@ export default function AcademyLogin() {
                             </div>
                         </div>
 
-                        <p className="text-center text-gray-800 text-[11px] uppercase tracking-widest font-bold mt-6">
+                        <div className="mt-6 flex flex-wrap items-center justify-center gap-x-4 gap-y-2">
+                            <a href="/terms" className="text-gray-600 hover:text-gray-400 text-[10px] uppercase tracking-widest font-bold transition">Terms</a>
+                            <span className="text-gray-800 text-[10px]">·</span>
+                            <a href="/privacy" className="text-gray-600 hover:text-gray-400 text-[10px] uppercase tracking-widest font-bold transition">Privacy</a>
+                            <span className="text-gray-800 text-[10px]">·</span>
+                            <a href="/refund" className="text-gray-600 hover:text-gray-400 text-[10px] uppercase tracking-widest font-bold transition">Refunds</a>
+                            <span className="text-gray-800 text-[10px]">·</span>
+                            <a href="/contact" className="text-gray-600 hover:text-gray-400 text-[10px] uppercase tracking-widest font-bold transition">Contact</a>
+                        </div>
+                        <p className="text-center text-gray-800 text-[11px] uppercase tracking-widest font-bold mt-3">
                             AthleteIQ · India · © 2026
                         </p>
                     </div>

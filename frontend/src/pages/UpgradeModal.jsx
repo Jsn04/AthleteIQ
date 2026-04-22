@@ -71,6 +71,8 @@ const PLANS = {
 export default function UpgradeModal({ onClose }) {
   const academyId = localStorage.getItem('academyId') || '';
   const academyName = localStorage.getItem('academyName') || 'Your Academy';
+  const academyEmail = localStorage.getItem('academyEmail') || '';
+  const academyPhone = localStorage.getItem('academyPhone') || '';
   const [selected, setSelected] = useState('founding');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -93,7 +95,24 @@ export default function UpgradeModal({ onClose }) {
         name: 'AthleteIQ',
         description: PLANS[selected].label,
         order_id: data.order_id,
-        prefill: { name: academyName },
+        prefill: {
+          name: academyName,
+          email: academyEmail,
+          contact: academyPhone,
+        },
+        method: {
+          card: true,
+          netbanking: true,
+          wallet: true,
+          upi: true,
+          emi: true,
+        },
+        config: {
+          display: {
+            preferences: { show_default_blocks: true },
+          },
+        },
+        notes: { academy_id: academyId, plan: selected },
         theme: { color: '#4F46E5' },
         handler: async (response) => {
           try {

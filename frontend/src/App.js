@@ -13,6 +13,10 @@ import SessionPlannerPage from './pages/SessionPlannerPage';
 import MeditationPage from './pages/MeditationPage';
 import AcademyProfile from './pages/AcademyProfile';
 import VitalsScan from './pages/VitalsScan';
+import Terms from './pages/legal/Terms';
+import Privacy from './pages/legal/Privacy';
+import Refund from './pages/legal/Refund';
+import Contact from './pages/legal/Contact';
 
 
 const ProtectedRoute = ({ children, allowedRole }) => {
@@ -36,6 +40,11 @@ function App() {
     <Router>
       <Routes>
         <Route path="/" element={<AcademyLogin />} />
+
+        <Route path="/terms" element={<Terms />} />
+        <Route path="/privacy" element={<Privacy />} />
+        <Route path="/refund" element={<Refund />} />
+        <Route path="/contact" element={<Contact />} />
 
         <Route path="/login" element={
           <AcademyRoute><Login /></AcademyRoute>
