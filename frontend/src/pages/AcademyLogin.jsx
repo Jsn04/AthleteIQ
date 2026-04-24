@@ -85,6 +85,8 @@ export default function AcademyLogin() {
         @keyframes shimmer { 0% { background-position:-200% center; } 100% { background-position:200% center; } }
         @keyframes scanline{ 0% { top:-10%; } 100% { top:110%; } }
         @keyframes pulse-ring { 0% { transform:scale(1); opacity:.6; } 100% { transform:scale(1.6); opacity:0; } }
+        @keyframes flicker { 0%,100%{opacity:1} 50%{opacity:.7} }
+        @keyframes badge-pulse { 0%,100%{box-shadow:0 0 0 0 rgba(245,158,11,0.4)} 50%{box-shadow:0 0 0 6px rgba(245,158,11,0)} }
         .anim-1{animation:fadeUp .7s ease both} .anim-2{animation:fadeUp .7s ease .1s both}
         .anim-3{animation:fadeUp .7s ease .2s both} .anim-4{animation:fadeUp .7s ease .3s both}
         .anim-5{animation:fadeUp .7s ease .4s both}
@@ -231,6 +233,23 @@ export default function AcademyLogin() {
 
                     {/* Form */}
                     <div className="lg:sticky lg:top-8">
+                        {/* Founding 15 Banner */}
+                        <div className="mb-3 rounded-2xl overflow-hidden" style={{ background: 'linear-gradient(135deg,rgba(245,158,11,0.12),rgba(239,68,68,0.08))', border: '1px solid rgba(245,158,11,0.25)', animation: 'badge-pulse 2.5s ease-in-out infinite' }}>
+                            <div className="px-4 sm:px-5 py-3 flex items-center justify-between gap-3">
+                                <div className="flex items-center gap-3">
+                                    <span className="text-xl shrink-0" style={{ animation: 'flicker 2s ease-in-out infinite' }}>🔥</span>
+                                    <div>
+                                        <p className="text-amber-400 text-xs font-black uppercase tracking-widest leading-tight">Founding 15 — Spots Filling Fast</p>
+                                        <p className="text-amber-300/60 text-[11px] font-medium mt-0.5">₹999/mo locked for life · rises to ₹2,499 after first 15</p>
+                                    </div>
+                                </div>
+                                <div className="shrink-0 text-right bg-amber-500/15 border border-amber-500/30 rounded-xl px-3 py-1.5">
+                                    <p className="text-amber-400 text-lg font-black leading-none">15</p>
+                                    <p className="text-amber-300/60 text-[9px] uppercase tracking-wider font-bold">spots left</p>
+                                </div>
+                            </div>
+                        </div>
+
                         <div className="bg-white/[0.02] rounded-3xl overflow-hidden backdrop-blur-sm" style={{ border: '1px solid rgba(255,255,255,0.07)' }}>
                             <div className="px-5 sm:px-8 pt-6 sm:pt-8 pb-5 border-b border-white/5">
                                 <p className="text-gray-500 text-[11px] uppercase tracking-[0.2em] font-bold mb-1">Academy Portal</p>
@@ -306,6 +325,13 @@ export default function AcademyLogin() {
                                     <div className="flex gap-2.5 items-start bg-green-500/10 border border-green-500/20 rounded-xl px-4 py-3">
                                         <span className="text-green-400 shrink-0 text-sm">✓</span>
                                         <p className="text-green-400 text-sm">{success}</p>
+                                    </div>
+                                )}
+
+                                {tab === 'signup' && (
+                                    <div className="flex items-center justify-center gap-2 bg-amber-500/8 border border-amber-500/20 rounded-xl px-4 py-2.5">
+                                        <span className="text-amber-400 text-xs">🔒</span>
+                                        <p className="text-amber-300/80 text-[11px] font-semibold">Your ₹999/mo rate locks in on signup — forever</p>
                                     </div>
                                 )}
 
