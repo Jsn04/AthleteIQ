@@ -19,20 +19,21 @@ WEBHOOK_SECRET      = os.getenv("RAZORPAY_WEBHOOK_SECRET")
 rz_client = razorpay.Client(auth=(RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET))
 
 PLANS = {
-    "founding": {"amount": 99900,  "name": "Founding 15 — ₹999/mo"},
-    "pro":      {"amount": 249900, "name": "Pro — ₹2,499/mo"},
-    "elite":    {"amount": 499900, "name": "Elite — ₹4,999/mo"},
+    "founding": {"amount": 99900,   "name": "Founding 15 — ₹999/mo"},
+    "coach":    {"amount": 249900,  "name": "Coach — ₹2,499/mo"},
+    "academy":  {"amount": 599900,  "name": "Academy — ₹5,999/mo"},
+    "elite":    {"amount": 1199900, "name": "Elite — ₹11,999/mo"},
 }
 
 
 @router.post("/create-order")
 async def create_order(payload: dict):
     academy_id = payload.get("academy_id")
-    plan       = payload.get("plan", "pro")
+    plan       = payload.get("plan", "academy")
     if not academy_id:
         raise HTTPException(status_code=400, detail="academy_id required")
     try:
-        plan_data = PLANS.get(plan, PLANS["pro"])
+        plan_data = PLANS.get(plan, PLANS["academy"])
         order = rz_client.order.create({
             "amount":   plan_data["amount"],
             "currency": "INR",

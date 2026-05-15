@@ -9,58 +9,82 @@ const PLANS = {
     period: '/month',
     note: 'First 15 academies only — locked for life',
     amount: 99900,
-    badge: '🔥 Best Deal',
-    badgeColor: 'bg-amber-500/20 border-amber-500/30 text-amber-400',
     borderColor: 'border-indigo-500',
     bg: 'bg-indigo-500/5',
+    perAthlete: '₹999/month ÷ 40 athletes = ',
+    perAthleteHighlight: '₹25 per athlete per month',
     features: [
       'Up to 40 athletes',
+      '1 sport section',
       'AI readiness insights (daily)',
       'ACWR injury risk engine',
       'Bulk session logger',
-      'Weekly performance PDF report',
+      'Weekly PDF reports',
       'Parent WhatsApp broadcast',
-      'Attendance tracker',
-      'Injury log',
       'Mental performance tools',
-      'Session planner (AI)',
+      'AI session planner',
     ],
   },
-  pro: {
-    label: 'Pro',
+  coach: {
+    label: 'Coach',
     price: '₹2,499',
     period: '/month',
-    note: 'For growing academies',
+    note: 'For solo coaches, single sport',
     amount: 249900,
-    badge: null,
-    badgeColor: '',
-    borderColor: 'border-gray-700',
-    bg: 'bg-gray-800',
+    borderColor: 'border-emerald-500/40',
+    bg: 'bg-emerald-500/5',
+    perAthlete: '₹2,499/month ÷ 30 athletes = ',
+    perAthleteHighlight: '₹83 per athlete per month',
     features: [
-      'Unlimited athletes',
-      'Everything in Founding 15',
-      'Multiple sport sections',
-      'Multi-coach access',
-      'Priority email support',
-      'Deception flag analytics',
+      'Up to 30 athletes',
+      '1 sport section',
+      '1 coach login',
+      'Daily AI readiness scores',
+      'ACWR injury risk alerts',
+      'Bulk session logger',
+      'Weekly PDF reports',
+      'Parent WhatsApp updates',
+      'Mental wellness suite',
+    ],
+  },
+  academy: {
+    label: 'Academy',
+    price: '₹5,999',
+    period: '/month',
+    note: 'For multi-sport academies',
+    amount: 599900,
+    borderColor: 'border-sky-500/40',
+    bg: 'bg-sky-500/5',
+    perAthlete: '₹5,999/month ÷ 100 athletes = ',
+    perAthleteHighlight: '₹60 per athlete per month',
+    features: [
+      'Up to 100 athletes',
+      'Up to 3 sport sections',
+      'Up to 5 coach logins',
+      'Everything in Coach',
+      'AI training plan generator',
       'Advanced ACWR trends',
+      'Deception flag analytics',
+      'Priority email support',
     ],
   },
   elite: {
     label: 'Elite',
-    price: '₹4,999',
+    price: '₹11,999',
     period: '/month',
-    note: 'For large clubs & institutions',
-    amount: 499900,
-    badge: '🏆 Premium',
-    badgeColor: 'bg-purple-500/20 border-purple-500/30 text-purple-400',
-    borderColor: 'border-gray-700',
-    bg: 'bg-gray-800',
+    note: 'For institutions & large clubs',
+    amount: 1199900,
+    borderColor: 'border-purple-500/40',
+    bg: 'bg-purple-500/5',
+    perAthlete: '₹11,999/month ÷ 300 athletes = ',
+    perAthleteHighlight: '₹40 per athlete per month',
     features: [
-      'Everything in Pro',
+      'Unlimited athletes',
+      'Unlimited sport sections',
+      'Unlimited coach logins',
+      'Everything in Academy',
       'Custom academy branding on PDFs',
       'Monthly strategy call with founder',
-      'Multi-sport club dashboard',
       'Dedicated onboarding session',
       'Direct WhatsApp support',
       'Early access to all new features',
@@ -73,7 +97,7 @@ export default function UpgradeModal({ onClose }) {
   const academyName = localStorage.getItem('academyName') || 'Your Academy';
   const academyEmail = localStorage.getItem('academyEmail') || '';
   const academyPhone = localStorage.getItem('academyPhone') || '';
-  const [selected, setSelected] = useState('founding');
+  const [selected, setSelected] = useState('academy');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -153,7 +177,7 @@ export default function UpgradeModal({ onClose }) {
         </div>
 
         {/* Plan selector tabs */}
-        <div className="grid grid-cols-3 gap-2 bg-gray-800 p-1 rounded-xl">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 bg-gray-800 p-1 rounded-xl">
           {Object.entries(PLANS).map(([key, p]) => (
             <button key={key} onClick={() => setSelected(key)}
               className={`py-2 rounded-lg text-xs font-black transition ${selected === key
@@ -169,14 +193,7 @@ export default function UpgradeModal({ onClose }) {
         <div className={`rounded-2xl border p-5 ${plan.borderColor} ${plan.bg}`}>
           <div className="flex items-start justify-between mb-4">
             <div>
-              <div className="flex items-center gap-2 mb-1">
-                <h3 className="text-white font-black text-xl">{plan.label}</h3>
-                {plan.badge && (
-                  <span className={`text-[10px] font-black border px-2 py-0.5 rounded-full ${plan.badgeColor}`}>
-                    {plan.badge}
-                  </span>
-                )}
-              </div>
+              <h3 className="text-white font-black text-xl mb-1">{plan.label}</h3>
               <p className="text-gray-500 text-xs">{plan.note}</p>
             </div>
             <div className="text-right">
@@ -202,14 +219,8 @@ export default function UpgradeModal({ onClose }) {
         {/* Per athlete math */}
         <div className="bg-gray-800 rounded-xl px-4 py-3 border border-gray-700">
           <p className="text-gray-500 text-xs text-center">
-            {selected === 'founding' && '₹999/month ÷ 30 athletes = '}
-            {selected === 'pro' && '₹2,499/month ÷ 50 athletes = '}
-            {selected === 'elite' && '₹4,999/month ÷ 100 athletes = '}
-            <span className="text-white font-black">
-              {selected === 'founding' && '₹33 per athlete per month'}
-              {selected === 'pro' && '₹50 per athlete per month'}
-              {selected === 'elite' && '₹50 per athlete per month'}
-            </span>
+            {plan.perAthlete}
+            <span className="text-white font-black">{plan.perAthleteHighlight}</span>
             <span className="text-gray-600"> — less than one protein bar</span>
           </p>
         </div>
