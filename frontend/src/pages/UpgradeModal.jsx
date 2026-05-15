@@ -4,17 +4,17 @@ import API_BASE_URL from '../config';
 
 const PLANS = {
   founding: {
-    label: 'Founding 15',
+    label: 'Founding 10',
     price: '₹999',
     period: '/month',
-    note: 'First 15 academies only — locked for life',
+    note: 'First 10 coaches only — locked for life',
     amount: 99900,
     borderColor: 'border-indigo-500',
     bg: 'bg-indigo-500/5',
-    perAthlete: '₹999/month ÷ 40 athletes = ',
-    perAthleteHighlight: '₹25 per athlete per month',
+    perAthlete: '₹999/month ÷ 50 athletes = ',
+    perAthleteHighlight: '₹20 per athlete per month',
     features: [
-      'Up to 40 athletes',
+      'Up to 50 athletes',
       '1 sport section',
       'AI readiness insights (daily)',
       'ACWR injury risk engine',
@@ -58,7 +58,7 @@ const PLANS = {
     perAthlete: '₹5,999/month ÷ 150 athletes = ',
     perAthleteHighlight: '₹40 per athlete per month',
     features: [
-      '150+ athletes',
+      'Up to 150 athletes',
       'Up to 3 sport sections',
       'Up to 5 coach logins',
       'Everything in Coach',
