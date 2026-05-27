@@ -914,17 +914,25 @@ async def get_injury_risk(athlete_name: str, academy_id: str = ""):
             ),
             asyncio.to_thread(
                 lambda: safe_query(
-                    lambda sb: sb.table("injuries").select("*")
+                    lambda sb: sb.table("injury_logs").select("*")
                     .eq("athlete_name", athlete_name).eq("academy_id", academy_id)
                     .eq("status", "active").execute()
                 )
             ),
+            return_exceptions=True,
         )
 
-        checkins = checkins_result.data or []
-        training = training_result.data or []
-        vitals = vitals_result.data or []
-        active_injuries = injuries_result.data or []
+        # Defensive — a single failed query (e.g. table schema drift) must not
+        # zero out the entire risk response.
+        def _data(res):
+            if isinstance(res, Exception) or res is None:
+                return []
+            return getattr(res, "data", None) or []
+
+        checkins = _data(checkins_result)
+        training = _data(training_result)
+        vitals = _data(vitals_result)
+        active_injuries = _data(injuries_result)
 
         if not checkins and not training:
             return {"injury_risk_score": None, "acwr": None, "signals": [],
