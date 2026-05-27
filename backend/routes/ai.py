@@ -890,7 +890,7 @@ async def get_injury_risk(athlete_name: str, academy_id: str = ""):
         return cached
 
     try:
-        checkins_result, training_result, vitals_result = await asyncio.gather(
+        checkins_result, training_result, vitals_result, injuries_result = await asyncio.gather(
             asyncio.to_thread(
                 lambda: safe_query(
                     lambda sb: sb.table("checkins").select("*")
@@ -912,11 +912,19 @@ async def get_injury_risk(athlete_name: str, academy_id: str = ""):
                     .order("created_at", desc=True).limit(7).execute()
                 )
             ),
+            asyncio.to_thread(
+                lambda: safe_query(
+                    lambda sb: sb.table("injuries").select("*")
+                    .eq("athlete_name", athlete_name).eq("academy_id", academy_id)
+                    .eq("status", "active").execute()
+                )
+            ),
         )
 
         checkins = checkins_result.data or []
         training = training_result.data or []
         vitals = vitals_result.data or []
+        active_injuries = injuries_result.data or []
 
         if not checkins and not training:
             return {"injury_risk_score": None, "acwr": None, "signals": [],
@@ -986,6 +994,13 @@ async def get_injury_risk(athlete_name: str, academy_id: str = ""):
             if soreness_vals:
                 avg_soreness = sum(soreness_vals) / len(soreness_vals)
                 last3 = soreness_vals[:3]
+                today_soreness = soreness_vals[0]
+                if today_soreness >= 9:
+                    athlete_score += 18
+                    athlete_signals.append(f"Acute soreness spike today: {today_soreness}/10")
+                elif today_soreness >= 7:
+                    athlete_score += 10
+                    athlete_signals.append(f"High soreness today: {today_soreness}/10")
                 if len(last3) >= 3 and all(s >= 7 for s in last3):
                     athlete_score += 20
                     athlete_signals.append(f"3 consecutive days of high soreness: {last3}")
@@ -1000,6 +1015,10 @@ async def get_injury_risk(athlete_name: str, academy_id: str = ""):
             if sleep_vals:
                 avg_sleep = sum(sleep_vals) / len(sleep_vals)
                 last3_sleep = sleep_vals[:3]
+                today_sleep = sleep_vals[0]
+                if today_sleep <= 3:
+                    athlete_score += 10
+                    athlete_signals.append(f"Severely poor sleep last night: {today_sleep}/10")
                 if len(last3_sleep) >= 3 and all(s <= 5 for s in last3_sleep):
                     athlete_score += 15
                     athlete_signals.append(f"3 consecutive nights of poor sleep: {last3_sleep}")
@@ -1009,6 +1028,16 @@ async def get_injury_risk(athlete_name: str, academy_id: str = ""):
                 elif avg_sleep <= 6:
                     athlete_score += 5
                     athlete_signals.append(f"Below average sleep: avg {round(avg_sleep, 1)}/10")
+
+            energy_vals = [c["energy"] for c in recent_checkins if c.get("energy") is not None]
+            if energy_vals:
+                today_energy = energy_vals[0]
+                if today_energy <= 3:
+                    athlete_score += 10
+                    athlete_signals.append(f"Energy crash today: {today_energy}/10")
+                elif today_energy <= 4:
+                    athlete_score += 5
+                    athlete_signals.append(f"Low energy today: {today_energy}/10")
 
         if training and recent_checkins:
             latest_training  = training[0]
@@ -1033,7 +1062,13 @@ async def get_injury_risk(athlete_name: str, academy_id: str = ""):
                 mismatch_signals.append("Suspicious — near-zero soreness reported after High intensity session")
 
         if acwr:
-            if acwr > 1.5:
+            if acwr > 2.0:
+                acwr_score += 35
+                acwr_signals.append(f"Severe training spike — ACWR {acwr} far above danger threshold")
+            elif acwr > 1.7:
+                acwr_score += 28
+                acwr_signals.append(f"High training spike — ACWR {acwr} well above 1.5 danger threshold")
+            elif acwr > 1.5:
                 acwr_score += 20
                 acwr_signals.append(f"Training spike — ACWR {acwr} above danger threshold of 1.5")
             elif acwr > 1.3:
@@ -1103,10 +1138,27 @@ Write a 2-sentence verdict: sentence 1 is the main risk and why, sentence 2 is o
 
         all_signals = baseline_signals + vitals_signals + acwr_signals + notes_signals + mismatch_signals + athlete_signals
 
-        # Recalculate total with baseline + vitals signal contribution
+        # Recalculate total with baseline + vitals + active-injury contribution
         baseline_risk_add = min(15, len(baseline_signals) * 8)
         vitals_risk_add = min(10, len(vitals_signals) * 6)
-        total_score = min(notes_score + athlete_score + acwr_score + baseline_risk_add + vitals_risk_add, 100)
+        injury_signals = []
+        injury_risk_add = 0
+        if active_injuries:
+            for inj in active_injuries:
+                sev = (inj.get("severity") or "").lower()
+                body = inj.get("body_part") or inj.get("location") or "injury"
+                if sev in ("severe", "high"):
+                    injury_risk_add += 18
+                    injury_signals.append(f"Active {sev} {body} injury")
+                elif sev in ("moderate", "medium"):
+                    injury_risk_add += 12
+                    injury_signals.append(f"Active moderate {body} injury")
+                else:
+                    injury_risk_add += 8
+                    injury_signals.append(f"Active {sev or 'mild'} {body} injury")
+            injury_risk_add = min(injury_risk_add, 25)
+            all_signals = injury_signals + all_signals
+        total_score = min(notes_score + athlete_score + acwr_score + baseline_risk_add + vitals_risk_add + injury_risk_add, 100)
         risk_level  = "red" if total_score >= 70 else ("yellow" if total_score >= 40 else "green")
 
         confidence_data = metrics.get("confidence", {})
