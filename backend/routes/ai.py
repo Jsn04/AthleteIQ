@@ -98,6 +98,11 @@ def _session_load(log: dict) -> float:
 def _days_ago(log: dict, now: datetime) -> float:
     try:
         created = datetime.fromisoformat(log["created_at"].replace("Z", "+00:00"))
+        # If DB returned a naive timestamp, assume UTC so we can subtract from
+        # an aware `now`. Otherwise (aware - naive) raises TypeError and the
+        # session falls out of every ACWR window.
+        if created.tzinfo is None:
+            created = created.replace(tzinfo=timezone.utc)
         return (now - created).total_seconds() / 86400
     except Exception:
         return 999.0
