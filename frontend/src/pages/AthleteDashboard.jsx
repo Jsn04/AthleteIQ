@@ -190,8 +190,20 @@ export default function AthleteDashboard() {
           <StatCard
             label="ACWR"
             value={acwrVal && acwrVal > 0 ? Number(acwrVal).toFixed(2) : '—'}
-            color="text-blue-400"
-            subtitle={!acwrVal || acwrVal === 0 ? 'Need 5+ sessions in last 28 days' : null}
+            color={
+              !acwrVal || acwrVal === 0 ? 'text-blue-400'
+              : acwrVal > 1.5 ? 'text-rose-400'
+              : acwrVal > 1.3 ? 'text-amber-400'
+              : acwrVal < 0.8 ? 'text-amber-400'
+              : 'text-emerald-400'
+            }
+            subtitle={
+              !acwrVal || acwrVal === 0 ? 'Need 5+ sessions in last 28 days'
+              : acwrVal > 1.5 ? 'High risk'
+              : acwrVal > 1.3 ? 'Caution'
+              : acwrVal < 0.8 ? 'Undertraining'
+              : 'Optimal'
+            }
             info="Acute:Chronic Workload Ratio — compares your last 7 days of training load to your 28-day average to flag injury risk from sudden spikes."
           />
           <StatCard
