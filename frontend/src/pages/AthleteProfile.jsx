@@ -258,7 +258,7 @@ function AthleteProfile() {
             label="ACWR"
             value={injuryRisk?.acwr && injuryRisk.acwr > 0 ? injuryRisk.acwr : '—'}
             color="text-blue-400"
-            subtitle={!injuryRisk?.acwr || injuryRisk.acwr === 0 ? "7+ days needed" : null}
+            subtitle={!injuryRisk?.acwr || injuryRisk.acwr === 0 ? "Need 5+ sessions in last 28 days" : null}
             info="Acute:Chronic Workload Ratio — compares your last 7 days of training load to your 28-day average to flag injury risk from sudden spikes."
           />
           <StatCard label="Active Days" value={history.length} color="text-white" />

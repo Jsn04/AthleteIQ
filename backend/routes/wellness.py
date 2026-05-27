@@ -58,7 +58,7 @@ def log_training(data: dict, academy_id: str = Query(...)):
     require_academy(academy_id)
     try:
         athlete = data["athlete_name"].strip()
-        result = safe_query(lambda sb: sb.table("training_logs").insert({
+        row = {
             "athlete_name": athlete,
             "intensity":    data["intensity"],
             "duration":     data["duration"],
@@ -66,7 +66,13 @@ def log_training(data: dict, academy_id: str = Query(...)):
             "coach_notes":  data.get("coach_notes", ""),
             "rpe":          data.get("rpe", None),
             "academy_id":   academy_id,
-        }).execute())
+        }
+        # Optional backdating — accept ISO timestamp or YYYY-MM-DD
+        session_date = data.get("session_date")
+        if session_date:
+            ts = session_date if "T" in session_date else f"{session_date}T12:00:00+00:00"
+            row["created_at"] = ts
+        result = safe_query(lambda sb: sb.table("training_logs").insert(row).execute())
         invalidate_ai_cache(athlete, academy_id)
         return {"message": "Training log saved", "data": result.data}
     except Exception as e:
@@ -83,7 +89,7 @@ def bulk_log_training(data: dict, academy_id: str = Query(...)):
     try:
         rows = []
         for entry in logs:
-            rows.append({
+            row = {
                 "athlete_name": entry["athlete_name"].strip(),
                 "intensity":    entry.get("intensity", "Medium"),
                 "duration":     entry.get("duration", 0),
@@ -91,7 +97,12 @@ def bulk_log_training(data: dict, academy_id: str = Query(...)):
                 "coach_notes":  entry.get("coach_notes", "").strip(),
                 "rpe":          entry.get("rpe", 0),
                 "academy_id":   academy_id,
-            })
+            }
+            session_date = entry.get("session_date")
+            if session_date:
+                ts = session_date if "T" in session_date else f"{session_date}T12:00:00+00:00"
+                row["created_at"] = ts
+            rows.append(row)
         result = safe_query(lambda sb: sb.table("training_logs").insert(rows).execute())
         # Invalidate cache for all athletes in this bulk log
         for entry in logs:

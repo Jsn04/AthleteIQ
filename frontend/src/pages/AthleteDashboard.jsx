@@ -191,7 +191,7 @@ export default function AthleteDashboard() {
             label="ACWR"
             value={acwrVal && acwrVal > 0 ? Number(acwrVal).toFixed(2) : '—'}
             color="text-blue-400"
-            subtitle={!acwrVal || acwrVal === 0 ? '7+ days needed' : null}
+            subtitle={!acwrVal || acwrVal === 0 ? 'Need 5+ sessions in last 28 days' : null}
             info="Acute:Chronic Workload Ratio — compares your last 7 days of training load to your 28-day average to flag injury risk from sudden spikes."
           />
           <StatCard
