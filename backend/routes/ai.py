@@ -7,6 +7,7 @@ from fastapi import APIRouter
 
 from db import safe_query, get_client
 from llm import call_llm
+import ml_model
 
 router = APIRouter()
 log = logging.getLogger(__name__)
@@ -890,7 +891,7 @@ async def get_injury_risk(athlete_name: str, academy_id: str = ""):
         return cached
 
     try:
-        checkins_result, training_result, vitals_result = await asyncio.gather(
+        checkins_result, training_result, vitals_result, injuries_result = await asyncio.gather(
             asyncio.to_thread(
                 lambda: safe_query(
                     lambda sb: sb.table("checkins").select("*")
@@ -912,6 +913,13 @@ async def get_injury_risk(athlete_name: str, academy_id: str = ""):
                     .order("created_at", desc=True).limit(7).execute()
                 )
             ),
+            asyncio.to_thread(
+                lambda: safe_query(
+                    lambda sb: sb.table("injury_logs").select("*")
+                    .eq("athlete_name", athlete_name).eq("academy_id", academy_id)
+                    .order("date_occurred", desc=True).limit(10).execute()
+                )
+            ),
             return_exceptions=True,
         )
 
@@ -925,6 +933,7 @@ async def get_injury_risk(athlete_name: str, academy_id: str = ""):
         checkins = _data(checkins_result)
         training = _data(training_result)
         vitals = _data(vitals_result)
+        injury_history = _data(injuries_result)
 
         if not checkins and not training:
             return {"injury_risk_score": None, "acwr": None, "signals": [],
@@ -1119,6 +1128,12 @@ Write a 2-sentence verdict: sentence 1 is the main risk and why, sentence 2 is o
 
         confidence_data = metrics.get("confidence", {})
 
+        # ── ML model prediction (runs in parallel with rule-based score) ──────
+        # Trained XGBoost model on the same load/wellness features. Returns
+        # None when the model artifact is unavailable, so the endpoint always
+        # works rule-based-only as a fallback.
+        ml_risk_score, ml_features = ml_model.predict_risk(training, checkins, injury_history)
+
         result = {
             "injury_risk_score": total_score,
             "acwr":              acwr,
@@ -1132,6 +1147,9 @@ Write a 2-sentence verdict: sentence 1 is the main risk and why, sentence 2 is o
             "baseline_active":   metrics.get("baseline_active", False),
             "confidence":        confidence_data,
             "weight_split":      metrics.get("weight_split", "60/40"),
+            "ml_risk_score":     ml_risk_score,
+            "model_driven":      ml_risk_score is not None,
+            "ml_features":       ml_features,
         }
         _ai_cache_set("injury-risk", athlete_name, academy_id, result)
         return {**result, "cached": False}

@@ -1,0 +1,20 @@
+{
+  "roc_auc": 0.6763,
+  "pr_auc": 0.4064,
+  "n_train": 10950,
+  "n_test": 3650,
+  "target_rate": 0.2586,
+  "feature_importances": {
+    "days_since_last_injury": 0.2982,
+    "acwr": 0.1351,
+    "session_load": 0.114,
+    "load_spike": 0.0885,
+    "strain": 0.0796,
+    "chronic_load": 0.0685,
+    "days_since_rest": 0.0683,
+    "wellness_trend": 0.0584,
+    "monotony": 0.0453,
+    "acute_load": 0.0388,
+    "consecutive_high_days": 0.0052
+  }
+}

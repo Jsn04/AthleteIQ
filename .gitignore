@@ -1,4 +1,4 @@
-﻿node_modules/
+node_modules/
 .env
 .env.local
 dist/
@@ -6,3 +6,7 @@ __pycache__/
 *.pyc
 .venv/
 venv/
+ml/venv/
+ml/data/raw/*.csv
+.DS_Store
+.ipynb_checkpoints/

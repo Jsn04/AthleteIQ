@@ -8,3 +8,5 @@ pydantic
 groq
 razorpay
 boto3
+xgboost
+numpy
