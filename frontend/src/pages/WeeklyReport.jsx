@@ -21,6 +21,8 @@ function WeeklyReport({ athleteName, academyId, onClose, isParentView = false })
   const [savingNote, setSavingNote] = useState(false);
   const [noteSaved, setNoteSaved] = useState(false);
   const [downloading, setDownloading] = useState(false);
+  const [pdfUrl, setPdfUrl] = useState(null);
+  const [linkCopied, setLinkCopied] = useState(false);
   const [parentPhone, setParentPhone] = useState(null);
   const reportRef = useRef(null);
 
@@ -47,6 +49,7 @@ function WeeklyReport({ athleteName, academyId, onClose, isParentView = false })
       );
       setReport(res.data);
       setCoachNote(res.data.coach_note || '');
+      if (res.data.pdf_url) setPdfUrl(res.data.pdf_url);
       if (!res.data.already_existed) setGenerating(false);
     } catch (err) {
       console.error('Report fetch failed:', err);
@@ -144,20 +147,53 @@ function WeeklyReport({ athleteName, academyId, onClose, isParentView = false })
         ? new Date(report.week_start).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
         : 'Week';
       const filename = `${athleteName.replace(/\s+/g, '_')}_Report_${weekLabel}.pdf`;
-      await html2pdf()
-        .set({
-          margin: [10, 10, 10, 10],
-          filename,
-          image: { type: 'jpeg', quality: 0.98 },
-          html2canvas: { scale: 2, useCORS: true, backgroundColor: '#111827' },
-          jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
-        })
-        .from(reportRef.current)
-        .save();
+      const opts = {
+        margin: [10, 10, 10, 10],
+        filename,
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { scale: 2, useCORS: true, backgroundColor: '#111827' },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+      };
+
+      // Generate blob once — use it for both local download and S3 upload
+      const blob = await html2pdf().set(opts).from(reportRef.current).output('blob');
+
+      // Trigger local download
+      const localUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = localUrl;
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(localUrl);
+
+      // Upload to S3 in the background — silently skip if endpoint returns error
+      if (report?.report_id) {
+        try {
+          const res = await api.post(
+            `/reports/weekly/${report.report_id}/pdf`,
+            blob,
+            { params: { academy_id: academyId }, headers: { 'Content-Type': 'application/pdf' } }
+          );
+          if (res.data?.pdf_url) setPdfUrl(res.data.pdf_url);
+        } catch {
+          // S3 not configured — local download already succeeded, no user impact
+        }
+      }
     } catch (err) {
       console.error('PDF failed:', err);
     } finally {
       setDownloading(false);
+    }
+  };
+
+  const handleCopyLink = async () => {
+    if (!pdfUrl) return;
+    try {
+      await navigator.clipboard.writeText(pdfUrl);
+      setLinkCopied(true);
+      setTimeout(() => setLinkCopied(false), 2000);
+    } catch {
+      window.open(pdfUrl, '_blank');
     }
   };
 
@@ -325,6 +361,13 @@ function WeeklyReport({ athleteName, academyId, onClose, isParentView = false })
             className="bg-blue-600 hover:bg-blue-500 disabled:bg-gray-700 disabled:text-gray-500 text-white px-4 py-2 rounded-xl text-xs font-black transition">
             {downloading ? '⏳ Generating...' : '⬇ PDF'}
           </button>
+          {pdfUrl && (
+            <button
+              onClick={handleCopyLink}
+              className="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-xl text-xs font-black transition">
+              {linkCopied ? '✓ Copied!' : '🔗 Copy Link'}
+            </button>
+          )}
           <button
             onClick={onClose}
             className="bg-gray-800 hover:bg-gray-700 text-white px-4 py-2 rounded-xl text-xs font-black transition">

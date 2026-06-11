@@ -2,10 +2,11 @@ import asyncio
 import json
 import logging
 from datetime import datetime, timezone, date, timedelta
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 
 from db import safe_query
 from llm import call_llm
+import s3_utils
 
 router = APIRouter()
 log = logging.getLogger(__name__)
@@ -292,6 +293,56 @@ Rules:
     return report_data
 
 
+def _attach_pdf_url(report_data: dict) -> dict:
+    """If the report has a stored S3 key, generate a fresh pre-signed URL."""
+    s3_key = report_data.get("pdf_s3_key")
+    if s3_key and s3_utils.s3_enabled():
+        try:
+            report_data = {**report_data, "pdf_url": s3_utils.presigned_url(s3_key)}
+        except Exception:
+            pass
+    return report_data
+
+
+@router.post("/weekly/{report_id}/pdf")
+async def upload_report_pdf(report_id: str, request: Request, academy_id: str = ""):
+    """Receive a PDF blob from the frontend, store it in S3, persist the key."""
+    if not s3_utils.s3_enabled():
+        raise HTTPException(status_code=503, detail="S3 not configured on this deployment.")
+
+    pdf_bytes = await request.body()
+    if not pdf_bytes:
+        raise HTTPException(status_code=400, detail="Empty PDF body.")
+
+    rec_res = await asyncio.to_thread(
+        lambda: safe_query(lambda sb: sb.table("weekly_reports").select("*")
+            .eq("id", report_id).execute())
+    )
+    if not rec_res or not rec_res.data:
+        raise HTTPException(status_code=404, detail="Report not found.")
+
+    rec = rec_res.data[0]
+    report_data = rec.get("report_data") or {}
+    athlete_name = report_data.get("athlete_name", "unknown").replace(" ", "_")
+    week_start = report_data.get("week_start", "unknown")
+    aid = academy_id or rec.get("academy_id", "unknown")
+
+    s3_key = f"reports/{aid}/{athlete_name}/{week_start}.pdf"
+
+    await asyncio.to_thread(lambda: s3_utils.upload_pdf(pdf_bytes, s3_key))
+
+    report_data = {**report_data, "pdf_s3_key": s3_key}
+    await asyncio.to_thread(
+        lambda: safe_query(lambda sb: sb.table("weekly_reports")
+            .update({"report_data": report_data})
+            .eq("id", report_id)
+            .execute())
+    )
+
+    pdf_url = s3_utils.presigned_url(s3_key)
+    return {"pdf_url": pdf_url, "s3_key": s3_key}
+
+
 @router.get("/weekly/{athlete_name}")
 async def get_weekly_report(athlete_name: str, academy_id: str = ""):
     if not academy_id:
@@ -363,7 +414,7 @@ async def get_weekly_report(athlete_name: str, academy_id: str = ""):
                 "already_existed": True,
                 "regenerated": True,
                 "week_in_progress": False,
-                **report_data,
+                **_attach_pdf_url(report_data),
             }
         return {
             "report_id": rec["id"],
@@ -371,7 +422,7 @@ async def get_weekly_report(athlete_name: str, academy_id: str = ""):
             "generated_at": rec["generated_at"],
             "already_existed": True,
             "week_in_progress": False,
-            **rec["report_data"],
+            **_attach_pdf_url(rec["report_data"]),
         }
 
     # Generate fresh (first time hitting on weekend)
@@ -394,7 +445,7 @@ async def get_weekly_report(athlete_name: str, academy_id: str = ""):
         "generated_at": rec["generated_at"],
         "already_existed": False,
         "week_in_progress": False,
-        **report_data,
+        **_attach_pdf_url(report_data),
     }
 
 
