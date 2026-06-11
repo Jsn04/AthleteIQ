@@ -239,7 +239,7 @@ function AthleteProfile() {
         </div>
 
         {/* Stat Cards — Readiness and Injury Risk show /100 */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+        <div className={`grid grid-cols-2 ${injuryRisk?.ml_risk_score != null ? 'lg:grid-cols-5' : 'lg:grid-cols-4'} gap-4 mb-4`}>
           <StatCard
             label="Avg Readiness"
             value={
@@ -254,6 +254,19 @@ function AthleteProfile() {
             value={injuryRisk?.injury_risk_score != null ? `${injuryRisk.injury_risk_score}/100` : '—'}
             color={injuryRisk?.risk_level === 'red' ? 'text-rose-400' : 'text-amber-400'}
           />
+          {injuryRisk?.ml_risk_score != null && (
+            <StatCard
+              label="AI Model Risk"
+              value={`${injuryRisk.ml_risk_score}/100`}
+              color={
+                injuryRisk.ml_risk_score >= 35 ? 'text-rose-400'
+                : injuryRisk.ml_risk_score >= 25 ? 'text-amber-400'
+                : 'text-emerald-400'
+              }
+              subtitle="Experimental"
+              info="Probability of injury within 7 days, predicted by a machine-learning model trained on workload patterns (ACWR, monotony, load spikes, wellness). Runs alongside the rule-based score — experimental until validated on real outcomes."
+            />
+          )}
           <StatCard
             label="ACWR"
             value={injuryRisk?.acwr && injuryRisk.acwr > 0 ? injuryRisk.acwr : '—'}
