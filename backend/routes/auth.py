@@ -2,10 +2,11 @@ import logging
 from datetime import datetime, timezone, timedelta
 
 import bcrypt
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
 from db import safe_query
+from limiter import limiter
 
 router = APIRouter()
 log = logging.getLogger(__name__)
@@ -50,7 +51,8 @@ def founding_status():
 
 
 @router.post("/register-academy")
-def register_academy(body: AcademyRegisterRequest):
+@limiter.limit("10/hour")
+def register_academy(request: Request, body: AcademyRegisterRequest):
     try:
         existing_email = safe_query(
             lambda sb: sb.table("academies")
@@ -102,7 +104,8 @@ def register_academy(body: AcademyRegisterRequest):
 
 
 @router.post("/academy-login")
-def academy_login(body: AcademyLoginRequest):
+@limiter.limit("10/minute")
+def academy_login(request: Request, body: AcademyLoginRequest):
     try:
         result = safe_query(
             lambda sb: sb.table("academies")
