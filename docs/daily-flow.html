@@ -1,0 +1,473 @@
+<title>AthleteIQ — How a Day Runs</title>
+<style>
+  :root {
+    --bg: #0a0e1a;
+    --bg-2: #0e1424;
+    --card: #141b2e;
+    --card-2: #172038;
+    --line: #26304a;
+    --line-soft: #1c2540;
+    --ink: #eef2fb;
+    --ink-soft: #aab4cd;
+    --ink-mute: #6b7793;
+    --indigo: #7c83f7;
+    --blue: #4f9df7;
+    --teal: #3fc9b0;
+    --green: #4ade80;
+    --amber: #fbbf24;
+    --rose: #fb7185;
+    --accent: #7c83f7;
+    --shadow: 0 10px 30px -12px rgba(0,0,0,.6);
+    --radius: 16px;
+  }
+  :root[data-theme="light"] {
+    --bg: #f4f6fc;
+    --bg-2: #eceffa;
+    --card: #ffffff;
+    --card-2: #f7f9ff;
+    --line: #dde3f2;
+    --line-soft: #e8ecf8;
+    --ink: #131a2b;
+    --ink-soft: #46506b;
+    --ink-mute: #7a849e;
+    --indigo: #5a61e6;
+    --blue: #2b7fe0;
+    --teal: #12a892;
+    --green: #16a34a;
+    --amber: #d97706;
+    --rose: #e11d48;
+    --shadow: 0 12px 32px -16px rgba(30,40,80,.28);
+  }
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) {
+      --bg: #f4f6fc;
+      --bg-2: #eceffa;
+      --card: #ffffff;
+      --card-2: #f7f9ff;
+      --line: #dde3f2;
+      --line-soft: #e8ecf8;
+      --ink: #131a2b;
+      --ink-soft: #46506b;
+      --ink-mute: #7a849e;
+      --indigo: #5a61e6;
+      --blue: #2b7fe0;
+      --teal: #12a892;
+      --green: #16a34a;
+      --amber: #d97706;
+      --rose: #e11d48;
+      --shadow: 0 12px 32px -16px rgba(30,40,80,.28);
+    }
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background:
+      radial-gradient(ellipse 70% 40% at 50% -5%, color-mix(in srgb, var(--indigo) 14%, transparent), transparent 70%),
+      var(--bg);
+    color: var(--ink);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 940px; margin: 0 auto; padding: 56px 24px 80px; }
+
+  .display {
+    font-weight: 900;
+    letter-spacing: -0.02em;
+    text-wrap: balance;
+    line-height: 1.02;
+  }
+  .eyebrow {
+    font-size: 12px; font-weight: 800; letter-spacing: .22em;
+    text-transform: uppercase; color: var(--indigo);
+  }
+
+  /* Header */
+  header { margin-bottom: 12px; }
+  h1.display { font-size: clamp(34px, 6vw, 56px); margin: 14px 0 10px; }
+  h1 .hi { color: var(--indigo); }
+  .lede { color: var(--ink-soft); font-size: 17px; max-width: 60ch; margin: 0; }
+
+  /* Legend */
+  .legend { display: flex; flex-wrap: wrap; gap: 10px; margin: 26px 0 8px; }
+  .actor-tag {
+    display: inline-flex; align-items: center; gap: 9px;
+    padding: 8px 14px; border-radius: 999px;
+    border: 1px solid var(--line); background: var(--card);
+    font-size: 13px; font-weight: 700; color: var(--ink-soft);
+  }
+  .dot { width: 9px; height: 9px; border-radius: 50%; flex: none; }
+  .dot.athlete { background: var(--blue); }
+  .dot.coach { background: var(--indigo); }
+  .dot.parent { background: var(--teal); }
+
+  /* Section headings */
+  section { margin-top: 46px; }
+  .sec-head { display: flex; align-items: baseline; gap: 14px; margin-bottom: 6px; }
+  .sec-head h2 {
+    font-size: 13px; font-weight: 800; letter-spacing: .18em;
+    text-transform: uppercase; margin: 0; color: var(--ink);
+  }
+  .sec-head .meta { font-size: 12.5px; color: var(--ink-mute); font-weight: 600; }
+  .rule { height: 1px; background: var(--line); margin: 14px 0 24px; }
+
+  /* Setup steps */
+  .steps { display: grid; gap: 12px; }
+  .step {
+    display: grid; grid-template-columns: 34px 1fr; gap: 16px;
+    align-items: start; background: var(--card); border: 1px solid var(--line);
+    border-radius: 14px; padding: 16px 18px; box-shadow: var(--shadow);
+  }
+  .step .num {
+    width: 34px; height: 34px; border-radius: 10px;
+    display: grid; place-items: center; font-weight: 900; font-size: 15px;
+    background: color-mix(in srgb, var(--indigo) 16%, transparent);
+    color: var(--indigo); border: 1px solid color-mix(in srgb, var(--indigo) 30%, transparent);
+    font-variant-numeric: tabular-nums;
+  }
+  .step h3 { margin: 3px 0 3px; font-size: 15.5px; font-weight: 800; }
+  .step p { margin: 0; color: var(--ink-soft); font-size: 14px; }
+  .cred {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 12.5px; background: var(--card-2); border: 1px solid var(--line-soft);
+    padding: 1px 7px; border-radius: 6px; color: var(--ink); white-space: nowrap;
+  }
+
+  /* Timeline */
+  .timeline { position: relative; margin-left: 6px; }
+  .timeline::before {
+    content: ""; position: absolute; left: 15px; top: 6px; bottom: 6px;
+    width: 2px; background: linear-gradient(var(--line), var(--line-soft));
+  }
+  .slot { position: relative; padding-left: 52px; margin-bottom: 26px; }
+  .slot:last-child { margin-bottom: 0; }
+  .slot .tick {
+    position: absolute; left: 8px; top: 4px; width: 16px; height: 16px;
+    border-radius: 50%; background: var(--bg); border: 2px solid var(--indigo);
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--indigo) 15%, transparent);
+  }
+  .when {
+    font-size: 12px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase;
+    color: var(--ink); margin-bottom: 2px;
+  }
+  .when .clock { color: var(--indigo); }
+  .phase { font-size: 12.5px; color: var(--ink-mute); margin-bottom: 12px; font-weight: 600; }
+
+  .cards { display: grid; gap: 12px; }
+  .card {
+    position: relative; background: var(--card); border: 1px solid var(--line);
+    border-radius: 14px; padding: 15px 17px 15px 19px; box-shadow: var(--shadow);
+    overflow: hidden;
+  }
+  .card::before {
+    content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 4px;
+  }
+  .card.athlete::before { background: var(--blue); }
+  .card.coach::before { background: var(--indigo); }
+  .card.parent::before { background: var(--teal); }
+
+  .card-top { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; flex-wrap: wrap; }
+  .who {
+    font-size: 11px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase;
+    padding: 3px 9px; border-radius: 6px;
+  }
+  .who.athlete { color: var(--blue); background: color-mix(in srgb, var(--blue) 14%, transparent); }
+  .who.coach { color: var(--indigo); background: color-mix(in srgb, var(--indigo) 14%, transparent); }
+  .who.parent { color: var(--teal); background: color-mix(in srgb, var(--teal) 14%, transparent); }
+  .card h3 { margin: 0; font-size: 15.5px; font-weight: 800; }
+  .card .screen {
+    font-size: 11.5px; color: var(--ink-mute); font-weight: 600;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  }
+  .card p { margin: 6px 0 0; color: var(--ink-soft); font-size: 14px; }
+  .card ul { margin: 9px 0 0; padding-left: 0; list-style: none; display: grid; gap: 6px; }
+  .card li { color: var(--ink-soft); font-size: 13.5px; padding-left: 18px; position: relative; }
+  .card li::before {
+    content: ""; position: absolute; left: 2px; top: 8px; width: 6px; height: 6px;
+    border-radius: 50%; background: var(--ink-mute);
+  }
+
+  /* readiness chips */
+  .chips { display: flex; gap: 7px; flex-wrap: wrap; margin-top: 10px; }
+  .chip {
+    font-size: 11.5px; font-weight: 700; padding: 3px 10px; border-radius: 999px;
+    border: 1px solid var(--line);
+  }
+  .chip.g { color: var(--green); border-color: color-mix(in srgb, var(--green) 40%, transparent); background: color-mix(in srgb, var(--green) 10%, transparent); }
+  .chip.a { color: var(--amber); border-color: color-mix(in srgb, var(--amber) 40%, transparent); background: color-mix(in srgb, var(--amber) 10%, transparent); }
+  .chip.r { color: var(--rose); border-color: color-mix(in srgb, var(--rose) 40%, transparent); background: color-mix(in srgb, var(--rose) 10%, transparent); }
+
+  .callout {
+    display: flex; gap: 12px; align-items: flex-start;
+    background: color-mix(in srgb, var(--indigo) 9%, var(--card));
+    border: 1px solid color-mix(in srgb, var(--indigo) 28%, transparent);
+    border-radius: 14px; padding: 15px 17px;
+  }
+  .callout .k {
+    font-size: 11px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase;
+    color: var(--indigo); white-space: nowrap; padding-top: 1px;
+  }
+  .callout p { margin: 0; font-size: 13.5px; color: var(--ink-soft); }
+
+  footer { margin-top: 56px; padding-top: 22px; border-top: 1px solid var(--line); color: var(--ink-mute); font-size: 13px; }
+  footer strong { color: var(--ink-soft); }
+  a { color: var(--indigo); }
+
+  @media (max-width: 560px) {
+    .wrap { padding: 40px 16px 64px; }
+    .slot { padding-left: 40px; }
+    .timeline::before { left: 11px; }
+    .slot .tick { left: 4px; }
+    .step { grid-template-columns: 30px 1fr; gap: 12px; }
+  }
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="eyebrow">Product Walkthrough · Daily Operating Rhythm</div>
+    <h1 class="display">How a day runs on <span class="hi">AthleteIQ</span></h1>
+    <p class="lede">Everything a coach, an athlete, and a parent actually do — mapped to the moments they do it in. One training day, front to back, plus the weekly rhythm around it.</p>
+
+    <div class="legend">
+      <span class="actor-tag"><span class="dot athlete"></span> Athlete</span>
+      <span class="actor-tag"><span class="dot coach"></span> Coach</span>
+      <span class="actor-tag"><span class="dot parent"></span> Parent</span>
+    </div>
+  </header>
+
+  <!-- SETUP -->
+  <section>
+    <div class="sec-head">
+      <h2>Before Day One</h2>
+      <span class="meta">One-time setup · ~10 minutes</span>
+    </div>
+    <div class="rule"></div>
+    <div class="steps">
+      <div class="step">
+        <div class="num">1</div>
+        <div>
+          <h3>Academy owner creates the account</h3>
+          <p>Sign up on the Academy Portal with an email and password. A <strong>14-day free trial</strong> starts automatically — full access, no card needed.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="num">2</div>
+        <div>
+          <h3>Coach signs in</h3>
+          <p>Pick <em>Coach</em> and enter the coach password. <span class="cred">admin123</span> sees every sport; a single-sport coach uses <span class="cred">skatingcoach123</span>, <span class="cred">cricketcoach123</span>, and so on.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="num">3</div>
+        <div>
+          <h3>Coach adds the squad</h3>
+          <p>From the dashboard, <strong>Add Athletes</strong> — name, sport, and optional age. Add the whole roster in one sitting.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="num">4</div>
+        <div>
+          <h3>Athletes get their logins</h3>
+          <p>Each athlete's password is generated from their name: first name + last initial + <span class="cred">123</span>. So Jinesh Nanal logs in as <span class="cred">jineshn123</span>. Share it once; they're set.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- THE DAY -->
+  <section>
+    <div class="sec-head">
+      <h2>A Training Day</h2>
+      <span class="meta">Morning check-in → session → evening review</span>
+    </div>
+    <div class="rule"></div>
+
+    <div class="timeline">
+
+      <!-- MORNING -->
+      <div class="slot">
+        <span class="tick"></span>
+        <div class="when"><span class="clock">7:30 AM</span> · Morning</div>
+        <div class="phase">Athlete wakes up, before anything else</div>
+        <div class="cards">
+          <div class="card athlete">
+            <div class="card-top">
+              <span class="who athlete">Athlete</span>
+              <h3>Daily Check-in</h3>
+              <span class="screen">/checkin</span>
+            </div>
+            <p>Four quick sliders — <strong>Energy, Sleep, Soreness, Mood</strong> (1–10) — plus an optional note for anything niggling. Takes under 30 seconds.</p>
+            <ul>
+              <li>The four scores combine into a <strong>Readiness score out of 100</strong>.</li>
+              <li>On submit, an AI coach message replies with a one-line nudge for the day.</li>
+              <li>Today-vs-yesterday comparison shows if they're trending up or down.</li>
+            </ul>
+          </div>
+          <div class="card athlete">
+            <div class="card-top">
+              <span class="who athlete">Athlete</span>
+              <h3>Vitals Scan <span style="font-weight:600;color:var(--ink-mute);font-size:12px">— optional</span></h3>
+              <span class="screen">/vitals</span>
+            </div>
+            <p>Hold a fingertip to the phone camera for a 20-second <strong>heart-rate reading</strong> (camera-based rPPG). A resting-HR trend that adds an objective signal on top of the self-reported sliders.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- PRE-SESSION -->
+      <div class="slot">
+        <span class="tick"></span>
+        <div class="when"><span class="clock">Any time before</span> · Pre-session</div>
+        <div class="phase">Coach checks the squad from their phone — no need to be at the ground</div>
+        <div class="cards">
+          <div class="card coach">
+            <div class="card-top">
+              <span class="who coach">Coach</span>
+              <h3>Read the squad board</h3>
+              <span class="screen">/dashboard</span>
+            </div>
+            <p>The whole squad, grouped by sport. Each athlete card surfaces the signals that decide who trains hard today and who's managed:</p>
+            <ul>
+              <li><strong>Readiness</strong> from this morning's check-in.</li>
+              <li><strong>AI Injury Risk score</strong> (the XGBoost model) with a red / yellow / green level.</li>
+              <li><strong>ACWR</strong> (acute:chronic workload ratio) and sessions logged in the last 28 days.</li>
+              <li>A <strong>deception flag</strong> if a check-in looks inconsistent with the athlete's own pattern.</li>
+            </ul>
+            <div class="chips">
+              <span class="chip g">Green · train as planned</span>
+              <span class="chip a">Yellow · monitor / modify</span>
+              <span class="chip r">Red · pull back load</span>
+            </div>
+          </div>
+          <div class="card coach">
+            <div class="card-top">
+              <span class="who coach">Coach</span>
+              <h3>Generate today's session plan</h3>
+              <span class="screen">/session-planner</span>
+            </div>
+            <p>Tell it the match context — <strong>no match, match in 3+ days, tomorrow, or today</strong> — and the AI builds a drill plan that respects the squad's current readiness and workload, so you're not overloading tired legs before a game.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- DURING/AFTER SESSION -->
+      <div class="slot">
+        <span class="tick"></span>
+        <div class="when"><span class="clock">5:00 – 7:00 PM</span> · Session</div>
+        <div class="phase">Training happens — coach logs as it runs or right after</div>
+        <div class="cards">
+          <div class="card coach">
+            <div class="card-top">
+              <span class="who coach">Coach</span>
+              <h3>Mark attendance</h3>
+              <span class="screen">/dashboard</span>
+            </div>
+            <p>One tap per athlete — <strong>present or absent</strong> — straight from the squad board.</p>
+          </div>
+          <div class="card coach">
+            <div class="card-top">
+              <span class="who coach">Coach</span>
+              <h3>Log the session load</h3>
+              <span class="screen">Log Session</span>
+            </div>
+            <p>For each athlete, pick how hard they went: <strong>Light, Medium, or Heavy</strong> (auto-mapped to RPE 4 / 6 / 8), or mark <em>sat out</em>. The whole squad in a minute.</p>
+            <ul>
+              <li>This feeds ACWR and recomputes each athlete's injury risk for tomorrow's board.</li>
+              <li>If a session goes unlogged, the dashboard shows an <strong>amber → urgent reminder</strong> so the data doesn't drift.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <!-- EVENING -->
+      <div class="slot">
+        <span class="tick"></span>
+        <div class="when"><span class="clock">Evening</span> · Optional</div>
+        <div class="phase">Wind-down from home — done when useful, not required every day</div>
+        <div class="cards">
+          <div class="card athlete">
+            <div class="card-top">
+              <span class="who athlete">Athlete</span>
+              <h3>Review the personal dashboard</h3>
+              <span class="screen">/athlete-dashboard</span>
+            </div>
+            <p>Readiness and wellness <strong>trend charts</strong>, personal AI insights, and their own injury-risk read — so the athlete owns their recovery, not just the coach.</p>
+          </div>
+          <div class="card athlete">
+            <div class="card-top">
+              <span class="who athlete">Athlete</span>
+              <h3>Wind down with Meditation</h3>
+              <span class="screen">/meditation</span>
+            </div>
+            <p>Short guided mental-performance sessions for recovery and focus before sleep.</p>
+          </div>
+          <div class="card parent">
+            <div class="card-top">
+              <span class="who parent">Parent</span>
+              <h3>Check the recovery portal</h3>
+              <span class="screen">/parent</span>
+            </div>
+            <p>Parent signs in with the child's name and sees a plain-language <strong>recovery summary</strong>: how the week is trending, any active injuries, and a message from the coach — no jargon, no data overload.</p>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- AS NEEDED -->
+  <section>
+    <div class="sec-head">
+      <h2>When Something Happens</h2>
+      <span class="meta">As-needed · an injury or a flag</span>
+    </div>
+    <div class="rule"></div>
+    <div class="cards">
+      <div class="card coach">
+        <div class="card-top">
+          <span class="who coach">Coach</span>
+          <h3>Log an injury</h3>
+          <span class="screen">/athlete/:name</span>
+        </div>
+        <p>Open the athlete's profile and record it — <strong>body part, type, severity, and notes</strong>. The injury model factors it into risk scoring, and the parent portal automatically reflects the recovery status.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- WEEKLY -->
+  <section>
+    <div class="sec-head">
+      <h2>The Weekly Rhythm</h2>
+      <span class="meta">End of week · coach → parent</span>
+    </div>
+    <div class="rule"></div>
+    <div class="cards">
+      <div class="card coach">
+        <div class="card-top">
+          <span class="who coach">Coach</span>
+          <h3>Send the weekly report</h3>
+          <span class="screen">/athlete/:name → Weekly Report</span>
+        </div>
+        <p>Generate a per-athlete <strong>PDF report</strong> — the week's readiness, workload, and flags — add a personal coach note, and send it to the parent over <strong>WhatsApp</strong> in one tap.</p>
+        <ul>
+          <li>Parents get a professional weekly touchpoint without you writing a message from scratch.</li>
+          <li>The same report lives in the athlete's history for the season record.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <div class="callout" style="margin-top:34px">
+    <span class="k">The loop</span>
+    <p>Morning check-ins and session logs feed the readiness and injury models → the models flag who to manage → the coach adjusts load and messages parents → healthier, better-informed athletes. Every day the data gets sharper, and the flags get more trustworthy.</p>
+  </div>
+
+  <footer>
+    <strong>AthleteIQ</strong> · daily operating rhythm for coaches, athletes, and parents. This walkthrough is a reference for onboarding — it is not part of the app.
+  </footer>
+</div>
+
+<script>
+  // Respect the viewer's theme toggle if the host stamps data-theme; nothing else needed.
+</script>
