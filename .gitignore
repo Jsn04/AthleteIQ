@@ -14,3 +14,7 @@ ml/data/raw/*.csv
 # Confidential — do not commit
 AthleteIQ_LaunchPlaybook.pdf
 AthleteIQ_Roadmap.pdf
+
+# Ad hoc debug scripts — not a real test suite
+backend/test_*.py
+backend/test_*.out
