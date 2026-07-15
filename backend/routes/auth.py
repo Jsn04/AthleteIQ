@@ -1,6 +1,7 @@
 import logging
 from datetime import datetime, timezone, timedelta
 
+import bcrypt
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
@@ -45,12 +46,14 @@ def register_academy(body: AcademyRegisterRequest):
         slug = body.name.lower().strip().replace(" ", "-")
         trial_ends_at = (datetime.now(timezone.utc) + timedelta(days=14)).isoformat()
 
+        pw_hash = bcrypt.hashpw(body.password.encode(), bcrypt.gensalt()).decode()
+
         result = safe_query(
             lambda sb: sb.table("academies").insert({
                 "name":          body.name.strip(),
                 "email":         body.email.strip().lower(),
                 "slug":          slug,
-                "password":      body.password,
+                "password":      pw_hash,
                 "plan":          "free",
                 "trial_ends_at": trial_ends_at,
             }).execute().data
@@ -94,7 +97,13 @@ def academy_login(body: AcademyLoginRequest):
 
         academy = result[0]
 
-        if academy["password"] != body.password:
+        stored = academy["password"]
+        # support both bcrypt hashes and legacy plaintext passwords
+        try:
+            valid = bcrypt.checkpw(body.password.encode(), stored.encode())
+        except Exception:
+            valid = (stored == body.password)
+        if not valid:
             raise HTTPException(status_code=401, detail="Incorrect password.")
 
         return {

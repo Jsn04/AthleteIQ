@@ -10,3 +10,4 @@ razorpay
 boto3
 xgboost
 numpy
+bcrypt
