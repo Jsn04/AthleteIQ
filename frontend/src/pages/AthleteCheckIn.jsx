@@ -7,21 +7,53 @@ import { isTrialActive } from '../utils/trialUtils';
 
 const getAcademyId = () => localStorage.getItem('academyId') || '';
 
-const SliderField = ({ label, name, value, onChange, color, trackColor }) => (
-  <div className="bg-gray-800 rounded-2xl p-4 sm:p-5 border border-gray-700 hover:border-gray-600 transition-all">
-    <div className="flex justify-between items-center mb-4">
-      <p className="text-gray-400 text-xs font-black uppercase tracking-widest">{label}</p>
-      <span className={`text-2xl sm:text-3xl font-black ${color}`}>{value}<span className="text-gray-600 text-sm font-bold">/10</span></span>
+// Injected once — styles the native range input (track fill + glowing thumb).
+const SLIDER_CSS = `
+  .aiq-slider {
+    -webkit-appearance: none; appearance: none;
+    width: 100%; height: 8px; border-radius: 9999px;
+    cursor: pointer; outline: none;
+  }
+  .aiq-slider::-webkit-slider-thumb {
+    -webkit-appearance: none; appearance: none;
+    width: 22px; height: 22px; border-radius: 50%;
+    background: var(--c); border: 3px solid #111827;
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--c) 25%, transparent), 0 2px 8px rgba(0,0,0,.5);
+    transition: transform .15s ease;
+  }
+  .aiq-slider::-webkit-slider-thumb:active { transform: scale(1.18); }
+  .aiq-slider::-moz-range-thumb {
+    width: 22px; height: 22px; border-radius: 50%;
+    background: var(--c); border: 3px solid #111827;
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--c) 25%, transparent), 0 2px 8px rgba(0,0,0,.5);
+  }
+`;
+
+const SliderField = ({ label, emoji, name, value, onChange, color, trackColor }) => {
+  const pct = ((value - 1) / 9) * 100;
+  return (
+    <div className="group relative bg-gray-800/60 rounded-2xl p-4 sm:p-5 border border-gray-700/70 hover:border-gray-600 transition-all overflow-hidden">
+      {/* soft colored glow */}
+      <div className="absolute -top-10 -right-10 w-28 h-28 rounded-full blur-2xl opacity-[0.18] pointer-events-none transition-opacity group-hover:opacity-30"
+        style={{ background: trackColor }} />
+      <div className="relative flex justify-between items-center mb-4">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <span className="w-8 h-8 rounded-lg flex items-center justify-center text-base shrink-0"
+            style={{ background: `${trackColor}1a`, border: `1px solid ${trackColor}33` }}>{emoji}</span>
+          <p className="text-gray-300 text-xs font-black uppercase tracking-widest truncate">{label}</p>
+        </div>
+        <span className={`text-3xl font-black leading-none ${color}`}>{value}<span className="text-gray-600 text-sm font-bold">/10</span></span>
+      </div>
+      <input type="range" name={name} min="1" max="10" value={value} onChange={onChange}
+        className="aiq-slider"
+        style={{ '--c': trackColor, background: `linear-gradient(to right, ${trackColor} ${pct}%, #111827 ${pct}%)` }}
+      />
+      <div className="flex justify-between text-[10px] font-bold text-gray-600 mt-2.5 uppercase tracking-widest">
+        <span>Low</span><span>High</span>
+      </div>
     </div>
-    <input type="range" name={name} min="1" max="10" value={value} onChange={onChange}
-      className="w-full h-2 bg-gray-900 rounded-lg appearance-none cursor-pointer"
-      style={{ accentColor: trackColor }}
-    />
-    <div className="flex justify-between text-[10px] font-bold text-gray-600 mt-2 uppercase tracking-widest">
-      <span>Low</span><span>High</span>
-    </div>
-  </div>
-);
+  );
+};
 
 const metrics = [
   { label: 'Energy', key: 'energy', color: 'text-blue-400', emoji: '⚡', track: '#3b82f6' },
@@ -173,55 +205,67 @@ function AthleteCheckIn() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white p-4 sm:p-6 md:p-12">
-      <div className="max-w-xl mx-auto">
+    <div className="min-h-screen bg-gray-900 text-white p-4 sm:p-6 md:p-10">
+      <style>{SLIDER_CSS}</style>
+      {/* ambient background glow */}
+      <div className="fixed inset-0 pointer-events-none overflow-hidden">
+        <div className="absolute inset-0" style={{ background: 'radial-gradient(ellipse 70% 50% at 50% -10%, rgba(59,130,246,0.07) 0%, transparent 60%)' }} />
+      </div>
+
+      <div className="relative max-w-3xl mx-auto">
 
         {/* Header */}
-        <div className="mb-8">
+        <div className="mb-6 sm:mb-8">
           <div className="flex items-start justify-between gap-3 mb-1">
             <div className="min-w-0">
-              <h1 className="text-2xl sm:text-3xl font-black tracking-tight">Daily Check-in</h1>
-              <p className="text-gray-500 text-sm mt-1">Hey {athleteName.split(' ')[0]} 👋 How are you feeling?</p>
-              {athleteSport && (
-                <p className="text-gray-600 text-[10px] uppercase font-bold tracking-widest mt-1 opacity-70 italic">{athleteSport}</p>
-              )}
+              <div className="inline-flex items-center gap-2 bg-blue-500/10 border border-blue-500/20 text-blue-400 text-[10px] uppercase tracking-widest font-black px-2.5 py-1 rounded-full mb-2.5">
+                <span className="w-1.5 h-1.5 bg-blue-400 rounded-full animate-pulse" />
+                Daily Check-in
+              </div>
+              <h1 className="text-3xl sm:text-4xl font-black tracking-tight leading-none">
+                How are you <span className="text-blue-400">feeling</span>?
+              </h1>
+              <p className="text-gray-500 text-sm mt-2">
+                Hey {athleteName.split(' ')[0]} 👋
+                {athleteSport && <span className="text-gray-600 font-bold uppercase tracking-widest text-[10px] ml-2 align-middle">· {athleteSport}</span>}
+              </p>
             </div>
             {/* Logout always visible */}
             <button onClick={handleLogout}
-              className="border border-gray-600 text-gray-500 px-3 py-2 rounded-xl text-xs hover:border-red-500 hover:text-red-400 font-bold transition shrink-0">
+              className="border border-gray-700 text-gray-500 px-3 py-2 rounded-xl text-xs hover:border-red-500 hover:text-red-400 font-bold transition shrink-0">
               Logout
             </button>
           </div>
 
           {/* Nav buttons — full width row on mobile */}
-          <div className="flex gap-2 mt-4">
+          <div className="grid grid-cols-3 gap-2 mt-5">
             <button onClick={() => navigate('/vitals')}
-              className="flex-1 border border-rose-500/30 text-rose-400 py-2.5 rounded-xl text-xs hover:bg-rose-500/10 font-bold transition text-center">
+              className="border border-rose-500/30 text-rose-400 py-2.5 rounded-xl text-xs hover:bg-rose-500/10 font-bold transition text-center">
               ❤️ Vitals Scan
             </button>
             <button onClick={() => navigate('/athlete-dashboard')}
-              className="flex-1 border border-gray-600 text-gray-500 py-2.5 rounded-xl text-xs hover:border-blue-500 hover:text-blue-400 font-bold transition text-center">
-              Dashboard
+              className="border border-gray-700 text-gray-500 py-2.5 rounded-xl text-xs hover:border-blue-500 hover:text-blue-400 font-bold transition text-center">
+              📊 Dashboard
             </button>
             <button onClick={() => navigate('/meditation')}
-              className="flex-1 border border-gray-600 text-gray-500 py-2.5 rounded-xl text-xs hover:border-indigo-500 hover:text-indigo-400 font-bold transition text-center">
+              className="border border-gray-700 text-gray-500 py-2.5 rounded-xl text-xs hover:border-indigo-500 hover:text-indigo-400 font-bold transition text-center">
               🧘 Meditate
             </button>
           </div>
         </div>
 
-        {/* Sliders */}
-        <div className="space-y-3 mb-6">
+        {/* Sliders — 2-col on desktop */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
           {metrics.map(m => (
-            <SliderField key={m.key} label={`${m.emoji} ${m.label} Level`} name={m.key}
+            <SliderField key={m.key} label={`${m.label} Level`} emoji={m.emoji} name={m.key}
               value={form[m.key]} onChange={handleChange} color={m.color} trackColor={m.track} />
           ))}
         </div>
 
         {/* Notes */}
-        <div className="bg-gray-800 rounded-2xl p-4 sm:p-5 border border-gray-700 mb-6">
-          <label className="block text-gray-400 text-xs font-black uppercase tracking-widest mb-3">
-            Anything else? (Optional)
+        <div className="bg-gray-800/60 rounded-2xl p-4 sm:p-5 border border-gray-700/70 mb-6">
+          <label className="block text-gray-300 text-xs font-black uppercase tracking-widest mb-3">
+            📝 Anything else? <span className="text-gray-600">(Optional)</span>
           </label>
           <textarea name="notes" value={form.notes} onChange={handleChange} rows="3"
             placeholder="Injuries, concerns, or comments..."
@@ -237,8 +281,10 @@ function AthleteCheckIn() {
         )}
 
         <button onClick={handleSubmit} disabled={loading}
-          className="w-full bg-blue-600 hover:bg-blue-500 disabled:bg-gray-700 disabled:text-gray-500 text-white py-4 rounded-xl font-black text-lg transition shadow-lg active:scale-95">
-          {loading ? 'Submitting...' : 'Confirm Check-in ✓'}
+          className="w-full bg-blue-600 hover:bg-blue-500 disabled:bg-gray-700 disabled:text-gray-500 text-white py-4 rounded-xl font-black text-lg transition shadow-lg shadow-blue-600/20 active:scale-[0.98] flex items-center justify-center gap-2">
+          {loading
+            ? <><span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />Submitting...</>
+            : 'Confirm Check-in ✓'}
         </button>
       </div>
     </div>
