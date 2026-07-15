@@ -7,46 +7,40 @@ import { isTrialActive } from '../utils/trialUtils';
 
 const getAcademyId = () => localStorage.getItem('academyId') || '';
 
-// Injected once — styles the native range input (track fill + glowing thumb).
+// Injected once — styles the native range input (flat filled track, clean thumb).
 const SLIDER_CSS = `
   .aiq-slider {
     -webkit-appearance: none; appearance: none;
-    width: 100%; height: 8px; border-radius: 9999px;
+    width: 100%; height: 6px; border-radius: 9999px;
     cursor: pointer; outline: none;
   }
   .aiq-slider::-webkit-slider-thumb {
     -webkit-appearance: none; appearance: none;
-    width: 22px; height: 22px; border-radius: 50%;
-    background: var(--c); border: 3px solid #111827;
-    box-shadow: 0 0 0 4px color-mix(in srgb, var(--c) 25%, transparent), 0 2px 8px rgba(0,0,0,.5);
-    transition: transform .15s ease;
+    width: 16px; height: 16px; border-radius: 50%;
+    background: var(--c); border: 2px solid #0f1523;
+    transition: transform .12s ease;
   }
-  .aiq-slider::-webkit-slider-thumb:active { transform: scale(1.18); }
+  .aiq-slider::-webkit-slider-thumb:active { transform: scale(1.12); }
   .aiq-slider::-moz-range-thumb {
-    width: 22px; height: 22px; border-radius: 50%;
-    background: var(--c); border: 3px solid #111827;
-    box-shadow: 0 0 0 4px color-mix(in srgb, var(--c) 25%, transparent), 0 2px 8px rgba(0,0,0,.5);
+    width: 16px; height: 16px; border-radius: 50%;
+    background: var(--c); border: 2px solid #0f1523;
   }
 `;
 
 const SliderField = ({ label, emoji, name, value, onChange, color, trackColor }) => {
   const pct = ((value - 1) / 9) * 100;
   return (
-    <div className="group relative bg-gray-800/60 rounded-2xl p-4 sm:p-5 border border-gray-700/70 hover:border-gray-600 transition-all overflow-hidden">
-      {/* soft colored glow */}
-      <div className="absolute -top-10 -right-10 w-28 h-28 rounded-full blur-2xl opacity-[0.18] pointer-events-none transition-opacity group-hover:opacity-30"
-        style={{ background: trackColor }} />
-      <div className="relative flex justify-between items-center mb-4">
+    <div className="bg-gray-800/50 rounded-2xl p-4 sm:p-5 border border-gray-700/60 hover:border-gray-600/80 transition-colors">
+      <div className="flex justify-between items-center mb-4">
         <div className="flex items-center gap-2.5 min-w-0">
-          <span className="w-8 h-8 rounded-lg flex items-center justify-center text-base shrink-0"
-            style={{ background: `${trackColor}1a`, border: `1px solid ${trackColor}33` }}>{emoji}</span>
-          <p className="text-gray-300 text-xs font-black uppercase tracking-widest truncate">{label}</p>
+          <span className="text-base shrink-0">{emoji}</span>
+          <p className="text-gray-400 text-xs font-black uppercase tracking-widest truncate">{label}</p>
         </div>
-        <span className={`text-3xl font-black leading-none ${color}`}>{value}<span className="text-gray-600 text-sm font-bold">/10</span></span>
+        <span className={`text-2xl font-black leading-none ${color}`}>{value}<span className="text-gray-600 text-sm font-bold">/10</span></span>
       </div>
       <input type="range" name={name} min="1" max="10" value={value} onChange={onChange}
         className="aiq-slider"
-        style={{ '--c': trackColor, background: `linear-gradient(to right, ${trackColor} ${pct}%, #111827 ${pct}%)` }}
+        style={{ '--c': trackColor, background: `linear-gradient(to right, ${trackColor} ${pct}%, #1f2937 ${pct}%)` }}
       />
       <div className="flex justify-between text-[10px] font-bold text-gray-600 mt-2.5 uppercase tracking-widest">
         <span>Low</span><span>High</span>
@@ -207,12 +201,8 @@ function AthleteCheckIn() {
   return (
     <div className="min-h-screen bg-gray-900 text-white p-4 sm:p-6 md:p-10">
       <style>{SLIDER_CSS}</style>
-      {/* ambient background glow */}
-      <div className="fixed inset-0 pointer-events-none overflow-hidden">
-        <div className="absolute inset-0" style={{ background: 'radial-gradient(ellipse 70% 50% at 50% -10%, rgba(59,130,246,0.07) 0%, transparent 60%)' }} />
-      </div>
 
-      <div className="relative max-w-3xl mx-auto">
+      <div className="max-w-3xl mx-auto">
 
         {/* Header */}
         <div className="mb-6 sm:mb-8">
@@ -281,7 +271,7 @@ function AthleteCheckIn() {
         )}
 
         <button onClick={handleSubmit} disabled={loading}
-          className="w-full bg-blue-600 hover:bg-blue-500 disabled:bg-gray-700 disabled:text-gray-500 text-white py-4 rounded-xl font-black text-lg transition shadow-lg shadow-blue-600/20 active:scale-[0.98] flex items-center justify-center gap-2">
+          className="w-full bg-blue-600 hover:bg-blue-500 disabled:bg-gray-700 disabled:text-gray-500 text-white py-4 rounded-xl font-black text-lg transition active:scale-[0.98] flex items-center justify-center gap-2">
           {loading
             ? <><span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />Submitting...</>
             : 'Confirm Check-in ✓'}
