@@ -27,15 +27,12 @@ const SLIDER_CSS = `
   }
 `;
 
-const SliderField = ({ label, emoji, name, value, onChange, color, trackColor }) => {
+const SliderField = ({ label, name, value, onChange, color, trackColor }) => {
   const pct = ((value - 1) / 9) * 100;
   return (
     <div className="bg-gray-800/50 rounded-2xl p-4 sm:p-5 border border-gray-700/60 hover:border-gray-600/80 transition-colors">
       <div className="flex justify-between items-center mb-4">
-        <div className="flex items-center gap-2.5 min-w-0">
-          <span className="text-base shrink-0">{emoji}</span>
-          <p className="text-gray-400 text-xs font-black uppercase tracking-widest truncate">{label}</p>
-        </div>
+        <p className="text-gray-400 text-xs font-black uppercase tracking-widest truncate">{label}</p>
         <span className={`text-2xl font-black leading-none ${color}`}>{value}<span className="text-gray-600 text-sm font-bold">/10</span></span>
       </div>
       <input type="range" name={name} min="1" max="10" value={value} onChange={onChange}
@@ -50,10 +47,10 @@ const SliderField = ({ label, emoji, name, value, onChange, color, trackColor })
 };
 
 const metrics = [
-  { label: 'Energy', key: 'energy', color: 'text-blue-400', emoji: '⚡', track: '#3b82f6' },
-  { label: 'Sleep', key: 'sleep', color: 'text-purple-400', emoji: '😴', track: '#a855f7' },
-  { label: 'Soreness', key: 'soreness', color: 'text-red-400', emoji: '💢', track: '#ef4444' },
-  { label: 'Mood', key: 'mood', color: 'text-yellow-400', emoji: '😊', track: '#eab308' },
+  { label: 'Energy', key: 'energy', color: 'text-blue-400', track: '#3b82f6' },
+  { label: 'Sleep', key: 'sleep', color: 'text-purple-400', track: '#a855f7' },
+  { label: 'Soreness', key: 'soreness', color: 'text-red-400', track: '#ef4444' },
+  { label: 'Mood', key: 'mood', color: 'text-yellow-400', track: '#eab308' },
 ];
 
 function AthleteCheckIn() {
@@ -174,7 +171,7 @@ function AthleteCheckIn() {
                 const diff = getDiff(todayData[m.key], yesterdayData?.[m.key]);
                 return (
                   <div key={m.key} className="grid grid-cols-3 items-center">
-                    <span className="text-gray-400 text-xs font-bold text-left">{m.emoji} {m.label}</span>
+                    <span className="text-gray-400 text-xs font-bold text-left">{m.label}</span>
                     <span className={`text-2xl font-black text-center ${m.color}`}>{todayData[m.key]}</span>
                     <span className={`text-xs font-bold text-right ${diff?.color || 'text-gray-600'}`}>
                       {yesterdayData ? (diff?.label || '—') : 'First Sync'}
@@ -216,7 +213,7 @@ function AthleteCheckIn() {
                 How are you <span className="text-blue-400">feeling</span>?
               </h1>
               <p className="text-gray-500 text-sm mt-2">
-                Hey {athleteName.split(' ')[0]} 👋
+                Hey {athleteName.split(' ')[0]}
                 {athleteSport && <span className="text-gray-600 font-bold uppercase tracking-widest text-[10px] ml-2 align-middle">· {athleteSport}</span>}
               </p>
             </div>
@@ -231,15 +228,15 @@ function AthleteCheckIn() {
           <div className="grid grid-cols-3 gap-2 mt-5">
             <button onClick={() => navigate('/vitals')}
               className="border border-rose-500/30 text-rose-400 py-2.5 rounded-xl text-xs hover:bg-rose-500/10 font-bold transition text-center">
-              ❤️ Vitals Scan
+              Vitals Scan
             </button>
             <button onClick={() => navigate('/athlete-dashboard')}
               className="border border-gray-700 text-gray-500 py-2.5 rounded-xl text-xs hover:border-blue-500 hover:text-blue-400 font-bold transition text-center">
-              📊 Dashboard
+              Dashboard
             </button>
             <button onClick={() => navigate('/meditation')}
               className="border border-gray-700 text-gray-500 py-2.5 rounded-xl text-xs hover:border-indigo-500 hover:text-indigo-400 font-bold transition text-center">
-              🧘 Meditate
+              Meditate
             </button>
           </div>
         </div>
@@ -247,7 +244,7 @@ function AthleteCheckIn() {
         {/* Sliders — 2-col on desktop */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
           {metrics.map(m => (
-            <SliderField key={m.key} label={`${m.label} Level`} emoji={m.emoji} name={m.key}
+            <SliderField key={m.key} label={`${m.label} Level`} name={m.key}
               value={form[m.key]} onChange={handleChange} color={m.color} trackColor={m.track} />
           ))}
         </div>
@@ -255,7 +252,7 @@ function AthleteCheckIn() {
         {/* Notes */}
         <div className="bg-gray-800/60 rounded-2xl p-4 sm:p-5 border border-gray-700/70 mb-6">
           <label className="block text-gray-300 text-xs font-black uppercase tracking-widest mb-3">
-            📝 Anything else? <span className="text-gray-600">(Optional)</span>
+            Anything else? <span className="text-gray-600">(Optional)</span>
           </label>
           <textarea name="notes" value={form.notes} onChange={handleChange} rows="3"
             placeholder="Injuries, concerns, or comments..."
