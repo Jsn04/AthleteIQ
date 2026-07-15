@@ -5,13 +5,6 @@ import API_BASE_URL from '../config';
 
 const API = API_BASE_URL;
 
-const ACADEMIES = [
-    { name: 'Delhi Skating Academy', sport: '⛸️', athletes: 24, status: 'Active' },
-    { name: 'Mumbai Cricket Club', sport: '🏏', athletes: 31, status: 'Active' },
-    { name: 'Pune Athletics Hub', sport: '🏃', athletes: 18, status: 'Active' },
-    { name: 'Chennai Badminton Pro', sport: '🏸', athletes: 12, status: 'Active' },
-];
-
 export default function AcademyLogin() {
     const [tab, setTab] = useState('signin');
     const [name, setName] = useState('');
@@ -22,9 +15,15 @@ export default function AcademyLogin() {
     const [success, setSuccess] = useState('');
     const [loading, setLoading] = useState(false);
     const [mounted, setMounted] = useState(false);
+    const [stats, setStats] = useState(null);
     const navigate = useNavigate();
 
     useEffect(() => { setTimeout(() => setMounted(true), 50); }, []);
+    useEffect(() => {
+        axios.get(`${API}/auth/founding-status`)
+            .then(res => setStats(res.data))
+            .catch(() => setStats(null));
+    }, []);
 
     const switchTab = (t) => {
         setTab(t); setError(''); setSuccess('');
@@ -182,29 +181,30 @@ export default function AcademyLogin() {
                                 </div>
                             ))}
                         </div>
-                        <div className="anim-5">
-                            <p className="text-gray-600 text-[11px] uppercase tracking-widest font-bold mb-3 flex items-center gap-2">
-                                <span className="w-1 h-1 bg-indigo-500/60 rounded-full" />
-                                Active academies
-                            </p>
-                            <div className="space-y-2">
-                                {ACADEMIES.map((a, i) => (
-                                    <div key={i} className="flex items-center justify-between bg-white/[0.02] border border-white/5 hover:border-indigo-500/20 hover:bg-indigo-500/[0.02] rounded-xl px-4 py-3 transition-all group">
-                                        <div className="flex items-center gap-3">
-                                            <span className="text-xl">{a.sport}</span>
-                                            <div>
-                                                <p className="text-white text-sm font-semibold group-hover:text-indigo-300 transition-colors">{a.name}</p>
-                                                <p className="text-gray-600 text-[11px]">{a.athletes} athletes tracked</p>
-                                            </div>
+                        {stats && stats.total_academies > 0 && (
+                            <div className="anim-5">
+                                <p className="text-gray-600 text-[11px] uppercase tracking-widest font-bold mb-3 flex items-center gap-2">
+                                    <span className="w-1 h-1 bg-indigo-500/60 rounded-full" />
+                                    On the platform
+                                </p>
+                                <div className="grid grid-cols-2 gap-2">
+                                    <div className="flex items-center gap-3 bg-white/[0.02] border border-white/5 rounded-xl px-4 py-3">
+                                        <span className="w-2 h-2 bg-green-400 rounded-full shrink-0" />
+                                        <div>
+                                            <p className="display text-2xl text-white tracking-wider leading-none">{stats.total_academies}</p>
+                                            <p className="text-gray-600 text-[11px] mt-0.5">{stats.total_academies === 1 ? 'academy live' : 'academies live'}</p>
                                         </div>
-                                        <span className="flex items-center gap-1.5 text-green-400 text-[11px] font-semibold">
-                                            <span className="w-1.5 h-1.5 bg-green-400 rounded-full" />
-                                            {a.status}
-                                        </span>
                                     </div>
-                                ))}
+                                    <div className="flex items-center gap-3 bg-white/[0.02] border border-white/5 rounded-xl px-4 py-3">
+                                        <span className="w-2 h-2 bg-indigo-400 rounded-full shrink-0" />
+                                        <div>
+                                            <p className="display text-2xl text-white tracking-wider leading-none">{stats.total_athletes}</p>
+                                            <p className="text-gray-600 text-[11px] mt-0.5">athletes tracked</p>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
-                        </div>
+                        )}
                     </div>
 
                     {/* Mobile hero */}
@@ -240,11 +240,11 @@ export default function AcademyLogin() {
                                     <span className="text-xl shrink-0" style={{ animation: 'flicker 2s ease-in-out infinite' }}>🔥</span>
                                     <div>
                                         <p className="text-amber-400 text-xs font-black uppercase tracking-widest leading-tight">Founding 15 — Spots Filling Fast</p>
-                                        <p className="text-amber-300/60 text-[11px] font-medium mt-0.5">₹999/mo locked for life · rises to ₹2,499 after first 15</p>
+                                        <p className="text-amber-300/60 text-[11px] font-medium mt-0.5">₹999/mo locked for life · rises to ₹2,499 after the first 15</p>
                                     </div>
                                 </div>
                                 <div className="shrink-0 text-right bg-amber-500/15 border border-amber-500/30 rounded-xl px-3 py-1.5">
-                                    <p className="text-amber-400 text-lg font-black leading-none">15</p>
+                                    <p className="text-amber-400 text-lg font-black leading-none">{stats ? stats.spots_left : 15}</p>
                                     <p className="text-amber-300/60 text-[9px] uppercase tracking-wider font-bold">spots left</p>
                                 </div>
                             </div>
