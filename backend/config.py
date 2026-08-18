@@ -5,7 +5,7 @@ load_dotenv()
 
 # ── Swap model here in one line ───────────────────────────────────────────────
 AI_PROVIDER = "groq"
-AI_MODEL    = "llama-3.3-70b-versatile"
+AI_MODEL    = "groq/compound-mini"
 # ─────────────────────────────────────────────────────────────────────────────
 
 GROQ_API_KEY      = os.getenv("GROQ_API_KEY", "")

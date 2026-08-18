@@ -8,6 +8,7 @@ from fastapi import APIRouter
 from db import safe_query, get_client
 from llm import call_llm
 import ml_model
+import ses_utils
 
 router = APIRouter()
 log = logging.getLogger(__name__)
@@ -690,7 +691,8 @@ async def get_athlete_insight(athlete_name: str, academy_id: str = ""):
                     "confidence": {"score": 100, "flags": [], "label": "New", "enough_data": False},
                     "weight_split": "60/40", "deviations": {}}
 
-        metrics        = calculate_readiness(training, checkins, vitals)
+        # Computed deterministically — always available even if LLM call fails below
+        metrics = calculate_readiness(training, checkins, vitals)
         latest_checkin = checkins[0] if checkins else {}
 
         checkin_summary = (
@@ -743,8 +745,24 @@ ATHLETE_MESSAGE: [one motivating sentence for the athlete]"""
         return result
     except Exception as e:
         log.error("insights/%s crashed: %s", athlete_name, e)
-        return {"insight": "Insight temporarily unavailable", "risk": "unknown",
-                "score": None, "cached": False, "error": True}
+        # Return deterministic metrics even when LLM fails so the UI shows
+        # a real readiness number instead of —
+        try:
+            fallback_metrics = calculate_readiness(
+                training_result.data or [] if 'training_result' in dir() else [],
+                checkins_result.data or [] if 'checkins_result' in dir() else [],
+            )
+            return {
+                "insight": "Insight temporarily unavailable",
+                "risk": "unknown",
+                "score": fallback_metrics["readiness"],
+                "metrics": fallback_metrics,
+                "cached": False,
+                "error": True,
+            }
+        except Exception:
+            return {"insight": "Insight temporarily unavailable", "risk": "unknown",
+                    "score": None, "cached": False, "error": True}
 
 
 @router.get("/squad-insights")
@@ -1152,6 +1170,43 @@ Write a 2-sentence verdict: sentence 1 is the main risk and why, sentence 2 is o
             "ml_features":       ml_features,
         }
         _ai_cache_set("injury-risk", athlete_name, academy_id, result)
+
+        # Fire red-zone email alert (non-blocking — never delays the API response)
+        if risk_level == "red" and ses_utils.ses_enabled():
+            try:
+                academy_row = safe_query(
+                    lambda sb: sb.table("academies")
+                    .select("email")
+                    .eq("id", academy_id)
+                    .limit(1)
+                    .execute()
+                )
+                coach_email = (academy_row.data or [{}])[0].get("email")
+                if coach_email:
+                    athlete_row = safe_query(
+                        lambda sb: sb.table("athletes")
+                        .select("parent_email")
+                        .eq("academy_id", academy_id)
+                        .ilike("name", athlete_name)
+                        .limit(1)
+                        .execute()
+                    )
+                    parent_email = (athlete_row.data or [{}])[0].get("parent_email")
+                    asyncio.get_event_loop().run_in_executor(
+                        None,
+                        lambda: ses_utils.send_red_zone_alert(
+                            athlete_name=athlete_name,
+                            risk_score=total_score,
+                            acwr=acwr,
+                            signals=all_signals,
+                            verdict=verdict,
+                            coach_email=coach_email,
+                            parent_email=parent_email or None,
+                        ),
+                    )
+            except Exception as ses_err:
+                log.warning("Red-zone SES alert skipped: %s", ses_err)
+
         return {**result, "cached": False}
     except Exception as e:
         log.error("injury-risk/%s crashed: %s", athlete_name, e)
