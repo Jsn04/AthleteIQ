@@ -198,7 +198,7 @@ export default function AthleteDashboard() {
               : 'text-emerald-400'
             }
             subtitle={
-              !acwrVal || acwrVal === 0 ? 'Need 5+ sessions in last 28 days'
+              !acwrVal || acwrVal === 0 ? 'Building baseline — need sessions from earlier weeks'
               : acwrVal > 1.5 ? 'High risk'
               : acwrVal > 1.3 ? 'Caution'
               : acwrVal < 0.8 ? 'Undertraining'

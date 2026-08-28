@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import re
 import time
 from datetime import datetime, timezone
 
@@ -97,16 +98,38 @@ def _session_load(log: dict) -> float:
     return duration * rpe * multiplier
 
 
+_FRACTIONAL_SECONDS_RE = re.compile(r"\.(\d+)")
+
+
+def _parse_timestamp(raw: str) -> datetime:
+    """
+    Parse a Supabase timestamp into an aware UTC datetime.
+
+    Postgres trims trailing zeros off fractional seconds, so it can return any
+    number of digits (e.g. '...53.80425'). Python's fromisoformat accepts only
+    3 or 6 before 3.11, so pad/truncate to exactly 6 first — otherwise a session
+    logged today raises and silently drops out of every window.
+    """
+    ts = raw.replace("Z", "+00:00")
+    ts = _FRACTIONAL_SECONDS_RE.sub(lambda m: "." + m.group(1)[:6].ljust(6, "0"), ts, count=1)
+    created = datetime.fromisoformat(ts)
+    # If the DB returned a naive timestamp, assume UTC so we can subtract from
+    # an aware `now`. Otherwise (aware - naive) raises TypeError.
+    if created.tzinfo is None:
+        created = created.replace(tzinfo=timezone.utc)
+    return created
+
+
 def _days_ago(log: dict, now: datetime) -> float:
     try:
-        created = datetime.fromisoformat(log["created_at"].replace("Z", "+00:00"))
-        # If DB returned a naive timestamp, assume UTC so we can subtract from
-        # an aware `now`. Otherwise (aware - naive) raises TypeError and the
-        # session falls out of every ACWR window.
-        if created.tzinfo is None:
-            created = created.replace(tzinfo=timezone.utc)
-        return (now - created).total_seconds() / 86400
-    except Exception:
+        return (now - _parse_timestamp(log["created_at"])).total_seconds() / 86400
+    except Exception as e:
+        # 999 pushes the session out of every window, so a parse failure must be
+        # loud — it silently corrupts ACWR and session counts otherwise.
+        log_id = log.get("id", "unknown")
+        logging.getLogger(__name__).warning(
+            "unparseable created_at %r on row %s: %s", log.get("created_at"), log_id, e
+        )
         return 999.0
 
 
@@ -337,13 +360,19 @@ def calculate_readiness(training_logs: list, checkins=None, vitals=None) -> dict
     weight_split = f"{int(coach_weight * 100)}/{int(athlete_weight * 100)}"
 
     # ── ACWR: proper 7-day / 28-day windows ──────────────────────────────────
-    loads_7d  = [_session_load(l) for l in training_logs if _days_ago(l, now) <=  7]
-    loads_28d = [_session_load(l) for l in training_logs if _days_ago(l, now) <= 28]
-    loads_7d  = [l for l in loads_7d  if l > 0]
-    loads_28d = [l for l in loads_28d if l > 0]
+    loads_7d    = [_session_load(l) for l in training_logs if _days_ago(l, now) <=  7]
+    loads_28d   = [_session_load(l) for l in training_logs if _days_ago(l, now) <= 28]
+    loads_prior = [_session_load(l) for l in training_logs
+                   if 7 < _days_ago(l, now) <= 28]
+    loads_7d    = [l for l in loads_7d    if l > 0]
+    loads_28d   = [l for l in loads_28d   if l > 0]
+    loads_prior = [l for l in loads_prior if l > 0]
 
-    # ACWR needs at least 1 session this week and 5 across the month
-    has_acwr = len(loads_7d) >= 1 and len(loads_28d) >= 5
+    # ACWR needs this week's load AND a chronic baseline to compare it against.
+    # Without the prior-weeks check, an athlete whose only sessions are all in
+    # the last 7 days divides their load by a quarter of itself and scores
+    # exactly 4.0 every time — a maths artifact that reads as "High Risk".
+    has_acwr = len(loads_7d) >= 1 and len(loads_28d) >= 5 and len(loads_prior) >= 1
 
     acute_load_total   = sum(loads_7d)
     chronic_load_total = sum(loads_28d)

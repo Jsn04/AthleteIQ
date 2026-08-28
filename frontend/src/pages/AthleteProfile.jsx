@@ -278,7 +278,7 @@ function AthleteProfile() {
               : 'text-emerald-400'
             }
             subtitle={
-              !injuryRisk?.acwr || injuryRisk.acwr === 0 ? 'Need 5+ sessions in last 28 days'
+              !injuryRisk?.acwr || injuryRisk.acwr === 0 ? 'Building baseline — need sessions from earlier weeks'
               : injuryRisk.acwr > 1.5 ? 'High risk'
               : injuryRisk.acwr > 1.3 ? 'Caution'
               : injuryRisk.acwr < 0.8 ? 'Undertraining'
