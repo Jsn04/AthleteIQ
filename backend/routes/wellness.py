@@ -1,10 +1,10 @@
 import logging
 from datetime import datetime, timezone, timedelta
 
-from fastapi import APIRouter, Query, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Query, HTTPException
 
 from db import safe_query
-from routes.ai import invalidate_ai_cache
+from routes.ai import invalidate_ai_cache, analyze_checkin_text
 
 router = APIRouter()
 log = logging.getLogger(__name__)
@@ -39,7 +39,7 @@ def get_checkins(academy_id: str = Query(...)):
 
 
 @router.post("")
-def submit_checkin(checkin: dict, academy_id: str = Query(...)):
+def submit_checkin(checkin: dict, background_tasks: BackgroundTasks, academy_id: str = Query(...)):
     require_academy(academy_id)
     try:
         if "athlete_name" in checkin:
@@ -47,6 +47,15 @@ def submit_checkin(checkin: dict, academy_id: str = Query(...)):
         checkin["academy_id"] = academy_id
         response = safe_query(lambda sb: sb.table("checkins").insert(checkin).execute())
         invalidate_ai_cache(checkin.get("athlete_name", ""), academy_id)
+
+        # Extract signals from the athlete's free-text note after responding —
+        # the check-in must never wait on an LLM call.
+        saved = (response.data or [{}])[0]
+        if (checkin.get("notes") or "").strip() and saved.get("id"):
+            background_tasks.add_task(
+                analyze_checkin_text, saved["id"], saved, academy_id
+            )
+
         return response.data
     except Exception as e:
         log.error("POST /wellness failed: %s", e)

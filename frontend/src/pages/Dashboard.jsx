@@ -4,6 +4,7 @@ import api, { warmup } from '../api';
 import StatCard from '../components/common/StatCard';
 import RiskBadge from '../components/common/RiskBadge';
 import LoadingSkeleton from '../components/common/LoadingSkeleton';
+import CheckinSignals from '../components/common/CheckinSignals';
 import BulkLogModal from './BulkLogModal';
 import TopLoader from '../components/common/TopLoader';
 
@@ -219,6 +220,8 @@ function SportSection({ sport, athletes, insights, injuryRisks, checkins, onNavi
                     <p className="text-gray-500 text-xs">No check-in today — remind {athlete.name.split(' ')[0]}.</p>
                   </div>
                 )}
+
+                <CheckinSignals analysis={checkin?.text_analysis} />
 
                 {/* Attendance */}
                 <div className="flex items-center gap-2 mb-2 flex-wrap" onClick={e => e.stopPropagation()}>
