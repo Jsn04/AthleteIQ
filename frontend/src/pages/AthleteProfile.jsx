@@ -31,6 +31,7 @@ function AthleteProfile() {
   const [injuries, setInjuries] = useState([]);
   const [attendanceLog, setAttendanceLog] = useState([]);
   const [showInjuryModal, setShowInjuryModal] = useState(false);
+  const [showMlRisk, setShowMlRisk] = useState(false);
   const [injuryForm, setInjuryForm] = useState({
     body_part: 'Knee',
     injury_type: 'Sprain',
@@ -239,7 +240,7 @@ function AthleteProfile() {
         </div>
 
         {/* Stat Cards — Readiness and Injury Risk show /100 */}
-        <div className={`grid grid-cols-2 ${injuryRisk?.ml_risk_score != null ? 'lg:grid-cols-5' : 'lg:grid-cols-4'} gap-4 mb-4`}>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
           <StatCard
             label="Avg Readiness"
             value={
@@ -254,19 +255,6 @@ function AthleteProfile() {
             value={injuryRisk?.injury_risk_score != null ? `${injuryRisk.injury_risk_score}/100` : '—'}
             color={injuryRisk?.risk_level === 'red' ? 'text-rose-400' : 'text-amber-400'}
           />
-          {injuryRisk?.ml_risk_score != null && (
-            <StatCard
-              label="AI Model Risk"
-              value={`${injuryRisk.ml_risk_score}/100`}
-              color={
-                injuryRisk.ml_risk_score >= 35 ? 'text-rose-400'
-                : injuryRisk.ml_risk_score >= 25 ? 'text-amber-400'
-                : 'text-emerald-400'
-              }
-              subtitle="Experimental"
-              info="Probability of injury within 7 days, predicted by a machine-learning model trained on workload patterns (ACWR, monotony, load spikes, wellness). Runs alongside the rule-based score — experimental until validated on real outcomes."
-            />
-          )}
           <StatCard
             label="ACWR"
             value={injuryRisk?.acwr && injuryRisk.acwr > 0 ? injuryRisk.acwr : '—'}
@@ -288,6 +276,35 @@ function AthleteProfile() {
           />
           <StatCard label="Active Days" value={history.length} color="text-white" />
         </div>
+
+        {/* Experimental ML model — off by default, grey/monochrome so it can't
+            be mistaken for a validated risk signal like the cards above. */}
+        {injuryRisk?.ml_risk_score != null && (
+          <div className="mb-8">
+            <button
+              onClick={() => setShowMlRisk(v => !v)}
+              className="text-gray-500 hover:text-gray-300 text-xs font-bold flex items-center gap-1.5 transition"
+            >
+              <span className={`transition-transform ${showMlRisk ? 'rotate-90' : ''}`}>›</span>
+              {showMlRisk ? 'Hide' : 'Show'} experimental ML model
+            </button>
+            {showMlRisk && (
+              <div className="mt-3 bg-gray-800/50 rounded-2xl p-5 border border-dashed border-gray-700 max-w-sm">
+                <div className="flex items-center justify-between mb-1">
+                  <p className="text-gray-500 text-[10px] uppercase tracking-widest font-black">AI Model Risk</p>
+                  <span className="text-gray-500 text-[9px] font-bold uppercase border border-gray-600 rounded px-1.5 py-0.5">Experimental</span>
+                </div>
+                <p className="text-3xl font-black text-gray-300">{injuryRisk.ml_risk_score}/100</p>
+                <p className="text-gray-500 text-xs leading-relaxed mt-2">
+                  Probability of injury within 7 days, from a machine-learning model trained on
+                  workload patterns (ACWR, monotony, load spikes, wellness). Trained on
+                  simulated data only, not yet validated on real outcomes. Not a substitute
+                  for the Injury Risk score above.
+                </p>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Vitals Cards — only show when vitals data exists */}
         {insight?.deviations?.hrv && (
