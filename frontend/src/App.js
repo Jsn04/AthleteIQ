@@ -13,6 +13,7 @@ import SessionPlannerPage from './pages/SessionPlannerPage';
 import MeditationPage from './pages/MeditationPage';
 import AcademyProfile from './pages/AcademyProfile';
 import VitalsScan from './pages/VitalsScan';
+import MessagesInbox from './pages/MessagesInbox';
 import Terms from './pages/legal/Terms';
 import Privacy from './pages/legal/Privacy';
 import Refund from './pages/legal/Refund';
@@ -64,6 +65,9 @@ function App() {
         } />
         <Route path="/session-planner" element={
           <ProtectedRoute allowedRole="coach"><SessionPlannerPage /></ProtectedRoute>
+        } />
+        <Route path="/messages" element={
+          <ProtectedRoute allowedRole="coach"><MessagesInbox /></ProtectedRoute>
         } />
 
         <Route path="/vitals" element={

@@ -4,6 +4,7 @@ import api, { warmup } from '../api';
 import StatCard from '../components/common/StatCard';
 import RiskBadge from '../components/common/RiskBadge';
 import LoadingSkeleton from '../components/common/LoadingSkeleton';
+import ChatPanel from '../components/common/ChatPanel';
 import logo from '../assets/athleteiq_logo.svg';
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid,
@@ -22,6 +23,7 @@ export default function AthleteDashboard() {
   const [athleteProfile, setAthleteProfile] = useState(null);
   const [showProfile, setShowProfile] = useState(false);
   const [showProfileForm, setShowProfileForm] = useState(false);
+  const [showChat, setShowChat] = useState(false);
   const [profileForm, setProfileForm] = useState({ age: '', parent_name: '', parent_phone: '' });
   const [savingProfile, setSavingProfile] = useState(false);
   const [injuries, setInjuries] = useState([]);
@@ -159,6 +161,12 @@ export default function AthleteDashboard() {
               className="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-xl text-xs font-bold transition"
             >
               🧘 Meditate
+            </button>
+            <button
+              onClick={() => setShowChat(true)}
+              className="bg-purple-600 hover:bg-purple-500 text-white px-4 py-2 rounded-xl text-xs font-bold transition"
+            >
+              💬 Messages
             </button>
             <button
               onClick={() => setShowProfile(true)}
@@ -484,6 +492,15 @@ export default function AthleteDashboard() {
             </button>
           </div>
         </div>
+      )}
+
+      {showChat && (
+        <ChatPanel
+          academyId={localStorage.getItem('academyId') || ''}
+          athleteName={athleteName}
+          sender="athlete"
+          onClose={() => setShowChat(false)}
+        />
       )}
     </div>
   );

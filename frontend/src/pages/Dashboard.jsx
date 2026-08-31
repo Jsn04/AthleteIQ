@@ -662,6 +662,9 @@ function Dashboard() {
             <Link to="/meditation" className="bg-gray-800 text-white px-5 py-2.5 rounded-xl text-xs font-bold hover:bg-gray-700 transition-all">
               🧘 Meditate
             </Link>
+            <Link to="/messages" className="bg-gray-800 text-white px-5 py-2.5 rounded-xl text-xs font-bold hover:bg-gray-700 transition-all">
+              💬 Messages
+            </Link>
             <button onClick={() => setShowBroadcast(true)}
               className="bg-green-700 hover:bg-green-600 text-white px-5 py-2.5 rounded-xl text-xs font-bold transition-all">
               📲 Broadcast
@@ -695,6 +698,9 @@ function Dashboard() {
               </Link>
               <Link to="/meditation" className="bg-gray-800 text-white px-5 py-3 rounded-xl text-sm font-bold text-center" onClick={() => setMenuOpen(false)}>
                 🧘 Meditate
+              </Link>
+              <Link to="/messages" className="bg-gray-800 text-white px-5 py-3 rounded-xl text-sm font-bold text-center" onClick={() => setMenuOpen(false)}>
+                💬 Messages
               </Link>
               <button onClick={() => { setShowBroadcast(true); setMenuOpen(false); }}
                 className="bg-green-700 text-white px-5 py-3 rounded-xl text-sm font-bold text-center">

@@ -12,7 +12,7 @@ from slowapi.middleware import SlowAPIMiddleware
 load_dotenv()
 
 from limiter import limiter
-from routes import athletes, wellness, ai, auth, session_planner, injuries, attendance, reports, payments, vitals
+from routes import athletes, wellness, ai, auth, session_planner, injuries, attendance, reports, payments, vitals, messages
 
 app = FastAPI()
 
@@ -56,6 +56,7 @@ app.include_router(attendance.router, prefix="/attendance")
 app.include_router(reports.router, prefix="/reports")
 app.include_router(payments.router, prefix="/payments")
 app.include_router(vitals.router, prefix="/vitals")
+app.include_router(messages.router, prefix="/messages")
 
 @app.api_route("/health", methods=["GET", "HEAD"])
 async def health():
