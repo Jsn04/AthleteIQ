@@ -6,7 +6,7 @@
 
 ### AI Sports Performance Platform for Indian Academies
 
-[![Live Demo](https://img.shields.io/badge/Live%20Demo-athlete--iq--dun.vercel.app-6366f1?style=for-the-badge&logo=vercel)](https://athlete-iq-dun.vercel.app)
+[![Live Demo](https://img.shields.io/badge/Live%20Demo-athleteiqhq.com-6366f1?style=for-the-badge&logo=vercel)](https://athleteiqhq.com)
 [![Backend](https://img.shields.io/badge/API-Render-46E3B7?style=for-the-badge&logo=render)](https://athleteiq-9r76.onrender.com)
 [![React](https://img.shields.io/badge/React-18-61DAFB?style=for-the-badge&logo=react)](https://react.dev)
 [![FastAPI](https://img.shields.io/badge/FastAPI-Python-009688?style=for-the-badge&logo=fastapi)](https://fastapi.tiangolo.com)
@@ -230,7 +230,7 @@ Built AthleteIQ after experiencing firsthand how coaching data gaps at the elite
 |---|---|
 | Product / Tech | jineshnanal04@gmail.com |
 | Partnerships / Sales | siddhantgoyal@gmail.com |
-| Live App | [athlete-iq-dun.vercel.app](https://athlete-iq-dun.vercel.app) |
+| Live App | [athleteiqhq.com](https://athleteiqhq.com) |
 
 ---
 
@@ -238,6 +238,6 @@ Built AthleteIQ after experiencing firsthand how coaching data gaps at the elite
 
 **Built in Pune, India · 2026**
 
-*If you're a coach reading this — [try it free for 14 days](https://athlete-iq-dun.vercel.app). No credit card.*
+*If you're a coach reading this — [try it free for 14 days](https://athleteiqhq.com). No credit card.*
 
 </div>

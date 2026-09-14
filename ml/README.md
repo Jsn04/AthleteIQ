@@ -2,7 +2,7 @@
 
 An XGBoost model that predicts **injury within the next 7 days** from athlete
 training-load and wellness patterns. Deployed in shadow mode inside
-[AthleteIQ](https://athlete-iq-dun.vercel.app), a production sports SaaS for
+[AthleteIQ](https://athleteiqhq.com), a production sports SaaS for
 Indian grassroots academies — the model's score is served live by the
 `/ai/injury-risk` endpoint alongside the platform's rule-based composite score.
 
