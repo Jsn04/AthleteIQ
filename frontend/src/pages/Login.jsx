@@ -326,16 +326,18 @@ function Login() {
               <span className="block hero-title">WIN MORE.</span>
             </h1>
             <p className="hero-sub body-font text-gray-400 text-lg leading-relaxed mb-10 max-w-md font-light">
-              The AI-powered wellness platform built for serious coaches. Track your squad's readiness in real-time and get actionable insights before every session.
+              {isGym
+                ? "The AI-powered wellness platform built for serious trainers. Track your members' readiness in real-time and get actionable insights before every session."
+                : "The AI-powered wellness platform built for serious coaches. Track your squad's readiness in real-time and get actionable insights before every session."}
             </p>
             <div className="hero-cta flex gap-4 flex-wrap">
               <button onClick={() => openRole('coach')}
                 className="btn-primary bg-blue-600 text-white px-8 py-4 rounded-2xl font-semibold body-font text-sm">
-                Start as Coach →
+                {isGym ? 'Start as Trainer →' : 'Start as Coach →'}
               </button>
               <button onClick={() => openRole('athlete')}
                 className="border border-white/10 text-gray-300 px-8 py-4 rounded-2xl text-sm body-font hover:border-green-500/50 hover:text-green-400 transition-all duration-300">
-                Athlete Check-in ↗
+                {isGym ? 'Member Check-in ↗' : 'Athlete Check-in ↗'}
               </button>
             </div>
           </div>
@@ -500,7 +502,7 @@ function Login() {
       {/* Footer */}
       <div className="relative z-10 border-t border-white/5 py-8 text-center flex flex-col items-center">
         <img src={logo} alt="AthleteIQ" className="h-8 w-auto mb-2 opacity-50 grayscale hover:opacity-100 hover:grayscale-0 transition-all cursor-pointer" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} />
-        <p className="text-gray-600 text-xs body-font">Built for serious coaches and athletes · © 2026</p>
+        <p className="text-gray-600 text-xs body-font">Built for serious {isGym ? 'trainers and members' : 'coaches and athletes'} · © 2026</p>
       </div>
 
       {/* ── LOGIN MODAL ── */}
