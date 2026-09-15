@@ -784,6 +784,7 @@ async def backfill_checkin_analysis(academy_id: str = "", limit: int = 20):
                 lambda sb: sb.table("checkins")
                 .select("*")
                 .eq("academy_id", academy_id)
+                .is_("logged_by", "null")
                 .is_("text_analysis", "null")
                 .order("created_at", desc=True)
                 .limit(min(limit, 50))
@@ -933,6 +934,7 @@ async def get_athlete_insight(athlete_name: str, academy_id: str = ""):
                 lambda: safe_query(
                     lambda sb: sb.table("checkins").select("*")
                     .eq("athlete_name", athlete_name).eq("academy_id", academy_id)
+                    .is_("logged_by", "null")
                     .order("created_at", desc=True).limit(28).execute()
                 )
             ),
@@ -1048,6 +1050,7 @@ async def get_squad_insights(academy_id: str = ""):
         )
         checkins_result = await asyncio.to_thread(
             lambda: safe_query(lambda sb: sb.table("checkins").select("*").eq("academy_id", academy_id)
+            .is_("logged_by", "null")
             .order("created_at", desc=True).execute())
         )
         training_result = await asyncio.to_thread(
@@ -1111,6 +1114,7 @@ async def get_weekly_summary(athlete_name: str, academy_id: str = ""):
         checkins_result = await asyncio.to_thread(
             lambda: safe_query(lambda sb: sb.table("checkins").select("*")
             .eq("athlete_name", athlete_name).eq("academy_id", academy_id)
+            .is_("logged_by", "null")
             .order("created_at", desc=True).limit(7).execute())
         )
         training_result = await asyncio.to_thread(
@@ -1190,6 +1194,7 @@ async def get_injury_risk(athlete_name: str, academy_id: str = ""):
                 lambda: safe_query(
                     lambda sb: sb.table("checkins").select("*")
                     .eq("athlete_name", athlete_name).eq("academy_id", academy_id)
+                    .is_("logged_by", "null")
                     .order("created_at", desc=True).limit(28).execute()
                 )
             ),
@@ -1505,6 +1510,7 @@ async def get_drill_suggestions(athlete_name: str, academy_id: str = ""):
         checkins_result = await asyncio.to_thread(
             lambda: safe_query(lambda sb: sb.table("checkins").select("*")
             .eq("athlete_name", athlete_name).eq("academy_id", academy_id)
+            .is_("logged_by", "null")
             .order("created_at", desc=True).limit(3).execute())
         )
         training_result = await asyncio.to_thread(
@@ -1611,6 +1617,7 @@ async def get_parent_recovery(athlete_name: str, academy_id: str = ""):
         checkins_result = await asyncio.to_thread(
             lambda: safe_query(lambda sb: sb.table("checkins").select("*")
             .eq("athlete_name", athlete_name).eq("academy_id", academy_id)
+            .is_("logged_by", "null")
             .order("created_at", desc=True).limit(7).execute())
         )
 

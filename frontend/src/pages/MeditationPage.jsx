@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { homeForRole } from '../homeRoutes';
 import { isTrialActive } from '../utils/trialUtils';
 
 
@@ -595,7 +596,7 @@ export default function MeditationPage() {
 
     const currentPhase = selected?.phases[phaseIndex];
     const totalPhaseDuration = currentPhase?.duration || 1;
-    const backPath = role === 'coach' ? '/dashboard' : '/athlete-dashboard';
+    const backPath = homeForRole(role);
     const isVoiceExercise = selected?.id === 'bodyscan' || selected?.id === 'visualise';
 
     const renderVisual = () => {

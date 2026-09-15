@@ -13,6 +13,9 @@ import SessionPlannerPage from './pages/SessionPlannerPage';
 import MeditationPage from './pages/MeditationPage';
 import AcademyProfile from './pages/AcademyProfile';
 import VitalsScan from './pages/VitalsScan';
+import GymTrainerDashboard from './pages/GymTrainerDashboard';
+import GymMemberDashboard from './pages/GymMemberDashboard';
+import GymTrainingLog from './pages/GymTrainingLog';
 import MessagesInbox from './pages/MessagesInbox';
 import Terms from './pages/legal/Terms';
 import Privacy from './pages/legal/Privacy';
@@ -53,6 +56,15 @@ function App() {
 
         <Route path="/dashboard" element={
           <ProtectedRoute allowedRole="coach"><Dashboard /></ProtectedRoute>
+        } />
+        <Route path="/gym-dashboard" element={
+          <ProtectedRoute allowedRole="coach"><GymTrainerDashboard /></ProtectedRoute>
+        } />
+        <Route path="/gym-member-dashboard" element={
+          <ProtectedRoute allowedRole="athlete"><GymMemberDashboard /></ProtectedRoute>
+        } />
+        <Route path="/gym-training-log" element={
+          <ProtectedRoute allowedRole="coach"><GymTrainingLog /></ProtectedRoute>
         } />
         <Route path="/athletes" element={
           <ProtectedRoute allowedRole="coach"><AthleteList /></ProtectedRoute>

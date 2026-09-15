@@ -13,8 +13,10 @@ const getCoachId = () =>
   localStorage.getItem('coachId') ||
   'coach_' + (localStorage.getItem('academyId') || 'default');
 const getCoachSport = () => localStorage.getItem('coachSport') || null;
+const getAcademyType = () => localStorage.getItem('academyType') || 'sport';
 
 const FOCUS_OPTIONS = ['Fitness', 'Skill', 'Tactical', 'Match Prep', 'Recovery'];
+const GYM_FOCUS_OPTIONS = ['Strength', 'Hypertrophy', 'Cardio', 'HIIT', 'Flexibility', 'Recovery'];
 const DURATION_OPTIONS = [45, 60, 75, 90];
 const MATCH_OPTIONS = [
   { label: 'No match', value: 'no_match' },
@@ -22,6 +24,7 @@ const MATCH_OPTIONS = [
   { label: 'Match tomorrow', value: 'match_tomorrow' },
   { label: 'Match today', value: 'match_today' },
 ];
+const MUSCLE_OPTIONS = ['Chest', 'Back', 'Legs', 'Shoulders', 'Arms', 'Core', 'Full Body'];
 
 // ── Squad Banner ──────────────────────────────────────────────────────────────
 function SquadBanner({ summary }) {
@@ -81,12 +84,20 @@ export default function SessionPlannerPage() {
   const academyId = getAcademyId();
   const coachId = getCoachId();
   const coachSport = getCoachSport();
+  const isGym = getAcademyType() === 'gym';
 
   // Form state
   const [focus, setFocus] = useState('');
   const [duration, setDuration] = useState(60);
   const [specificArea, setSpecificArea] = useState('');
   const [matchProximity, setMatchProximity] = useState('no_match');
+  const [targetMuscles, setTargetMuscles] = useState([]);
+
+  // Gym member picker state
+  const [allMembers, setAllMembers] = useState([]);
+  const [primaryMember, setPrimaryMember] = useState('');
+  const [extraMembers, setExtraMembers] = useState([]);
+  const [showExtraPicker, setShowExtraPicker] = useState(false);
 
   // Data state
   const [squadSummary, setSquadSummary] = useState(null);
@@ -97,7 +108,7 @@ export default function SessionPlannerPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  // ── Load squad summary on mount ──────────────────────────────────────────
+  // ── Load members / squad summary on mount ─────────────────────────────────
   useEffect(() => {
     const loadSquad = async () => {
       try {
@@ -111,7 +122,13 @@ export default function SessionPlannerPage() {
           )
           : res.data;
 
-        // Load insights to compute readiness flags
+        if (isGym) {
+          setAllMembers(athletes);
+          setLoadingSquad(false);
+          return;
+        }
+
+        // Sport: load insights to compute readiness flags
         const insightResults = await Promise.allSettled(
           athletes.map(a =>
             axios.get(`${API}/ai/insights/${encodeURIComponent(a.name)}`, {
@@ -151,13 +168,18 @@ export default function SessionPlannerPage() {
     };
 
     loadSquad();
-  }, [academyId, coachSport]);
+  }, [academyId, coachSport, isGym]);
 
   // ── Generate plan ─────────────────────────────────────────────────────────
   const handleGenerate = async () => {
     if (!focus) return;
+    if (isGym && !primaryMember) { setError('Select a member to plan for.'); return; }
     setLoading(true);
     setError('');
+
+    const selectedMembers = isGym
+      ? [primaryMember, ...extraMembers].filter(Boolean)
+      : null;
 
     try {
       const res = await axios.post(`${API}/session-planner/generate`, {
@@ -166,8 +188,9 @@ export default function SessionPlannerPage() {
         coach_input: {
           focus,
           duration,
-          specific_area: specificArea || null,
-          match_proximity: matchProximity,
+          specific_area: isGym ? (targetMuscles.length > 0 ? targetMuscles.join(', ') : null) : (specificArea || null),
+          match_proximity: isGym ? 'no_match' : matchProximity,
+          ...(isGym && { academy_type: 'gym', member_names: selectedMembers }),
         }
       });
 
@@ -193,8 +216,8 @@ export default function SessionPlannerPage() {
     }
   };
 
-  // ── Loading state ─────────────────────────────────────────────────────────
-  if (loadingSquad) return (
+  // ── Loading state (only show skeleton for sport — gym is instant) ─────────
+  if (loadingSquad && !isGym) return (
     <div className="min-h-screen bg-gray-900 text-white p-6 md:p-8">
       <TopLoader loading={loadingSquad} />
       <div className="max-w-4xl mx-auto">
@@ -220,19 +243,79 @@ export default function SessionPlannerPage() {
               )}
             </div>
             <p className="text-gray-400 text-sm mt-1">
-              AI-generated session plans · {squadSummary?.total ?? 0} athletes
+              {isGym
+                ? `AI-generated 1-to-1 workout plans · ${allMembers.length} members`
+                : `AI-generated session plans · ${squadSummary?.total ?? 0} athletes`}
             </p>
           </div>
-          <button
-            onClick={() => navigate('/dashboard')}
-            className="border border-gray-600 text-gray-400 px-4 py-2 rounded-xl text-sm hover:border-blue-500 hover:text-blue-400 transition"
-          >
-            ← Dashboard
-          </button>
+          <div className="flex gap-2">
+            {isGym && (
+              <button onClick={() => navigate('/gym-training-log')}
+                className="border border-gray-600 text-gray-400 px-4 py-2 rounded-xl text-sm hover:border-purple-500 hover:text-purple-400 transition">
+                📒 Training Log
+              </button>
+            )}
+            <button
+              onClick={() => navigate(isGym ? '/gym-dashboard' : '/dashboard')}
+              className="border border-gray-600 text-gray-400 px-4 py-2 rounded-xl text-sm hover:border-blue-500 hover:text-blue-400 transition"
+            >
+              ← Dashboard
+            </button>
+          </div>
         </div>
 
-        {/* Squad Banner */}
-        <SquadBanner summary={squadSummary} />
+        {/* Gym: member picker | Sport: squad banner */}
+        {isGym ? (
+          <div className="bg-gray-800 border border-gray-700 rounded-2xl p-5 mb-6">
+            <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-3">
+              Who are you training? <span className="text-red-400">*</span>
+            </label>
+            <select
+              value={primaryMember}
+              onChange={e => setPrimaryMember(e.target.value)}
+              className="w-full bg-gray-900 border border-gray-600 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-purple-500 transition text-sm"
+            >
+              <option value="">— Select a member —</option>
+              {allMembers.map(m => (
+                <option key={m.id} value={m.name}>{m.name}</option>
+              ))}
+            </select>
+
+            {/* Optional extra members */}
+            {primaryMember && (
+              <div className="mt-3">
+                {extraMembers.map((em, i) => (
+                  <div key={i} className="flex items-center gap-2 mb-2">
+                    <select
+                      value={em}
+                      onChange={e => {
+                        const updated = [...extraMembers];
+                        updated[i] = e.target.value;
+                        setExtraMembers(updated);
+                      }}
+                      className="flex-1 bg-gray-900 border border-gray-700 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:border-purple-500 transition text-sm"
+                    >
+                      <option value="">— Select member —</option>
+                      {allMembers.filter(m => m.name !== primaryMember && !extraMembers.includes(m.name)).map(m => (
+                        <option key={m.id} value={m.name}>{m.name}</option>
+                      ))}
+                    </select>
+                    <button onClick={() => setExtraMembers(prev => prev.filter((_, j) => j !== i))}
+                      className="text-gray-500 hover:text-red-400 text-sm px-2">✕</button>
+                  </div>
+                ))}
+                {extraMembers.length < 3 && (
+                  <button onClick={() => setExtraMembers(prev => [...prev, ''])}
+                    className="text-xs font-bold text-purple-400 hover:text-purple-300 border border-purple-500/30 px-3 py-1.5 rounded-lg transition mt-1">
+                    + Add another member
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+        ) : (
+          <SquadBanner summary={squadSummary} />
+        )}
 
         {/* Plan Output — shown after generation */}
         {plan ? (
@@ -252,7 +335,7 @@ export default function SessionPlannerPage() {
                 Session Focus <span className="text-red-400">*</span>
               </label>
               <div className="flex gap-2 flex-wrap">
-                {FOCUS_OPTIONS.map(f => (
+                {(isGym ? GYM_FOCUS_OPTIONS : FOCUS_OPTIONS).map(f => (
                   <Chip key={f} label={f} active={focus === f} onClick={() => setFocus(f)} />
                 ))}
               </div>
@@ -265,49 +348,58 @@ export default function SessionPlannerPage() {
               </label>
               <div className="flex gap-2 flex-wrap">
                 {DURATION_OPTIONS.map(d => (
-                  <Chip
-                    key={d}
-                    label={`${d} min`}
-                    active={duration === d}
-                    onClick={() => setDuration(d)}
-                  />
+                  <Chip key={d} label={`${d} min`} active={duration === d} onClick={() => setDuration(d)} />
                 ))}
               </div>
             </div>
 
-            {/* Specific Area */}
-            <div>
-              <label className="block text-sm font-black text-gray-300 uppercase tracking-widest mb-3">
-                Anything specific to work on?{' '}
-                <span className="text-gray-500 font-normal normal-case tracking-normal">
-                  (optional)
-                </span>
-              </label>
-              <input
-                type="text"
-                value={specificArea}
-                onChange={e => setSpecificArea(e.target.value)}
-                placeholder="e.g. backhand clears, set pieces, net play, finishing..."
-                className="w-full bg-gray-900 border border-gray-600 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 transition text-sm"
-              />
-            </div>
-
-            {/* Match Proximity */}
-            <div>
-              <label className="block text-sm font-black text-gray-300 uppercase tracking-widest mb-3">
-                Match coming up?
-              </label>
-              <div className="flex gap-2 flex-wrap">
-                {MATCH_OPTIONS.map(m => (
-                  <Chip
-                    key={m.value}
-                    label={m.label}
-                    active={matchProximity === m.value}
-                    onClick={() => setMatchProximity(m.value)}
-                  />
-                ))}
+            {/* Gym: target muscles | Sport: specific area */}
+            {isGym ? (
+              <div>
+                <label className="block text-sm font-black text-gray-300 uppercase tracking-widest mb-3">
+                  Target Muscle Groups{' '}
+                  <span className="text-gray-500 font-normal normal-case tracking-normal">(optional)</span>
+                </label>
+                <div className="flex gap-2 flex-wrap">
+                  {MUSCLE_OPTIONS.map(mg => (
+                    <button key={mg} type="button"
+                      onClick={() => setTargetMuscles(prev =>
+                        prev.includes(mg) ? prev.filter(x => x !== mg) : [...prev, mg]
+                      )}
+                      className={`px-4 py-2 rounded-xl text-sm font-bold border transition ${targetMuscles.includes(mg)
+                        ? 'bg-purple-600 border-purple-500 text-white'
+                        : 'bg-gray-800 border-gray-700 text-gray-400 hover:border-purple-500/50 hover:text-purple-400'}`}>
+                      {mg}
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
+            ) : (
+              <div>
+                <label className="block text-sm font-black text-gray-300 uppercase tracking-widest mb-3">
+                  Anything specific to work on?{' '}
+                  <span className="text-gray-500 font-normal normal-case tracking-normal">(optional)</span>
+                </label>
+                <input type="text" value={specificArea} onChange={e => setSpecificArea(e.target.value)}
+                  placeholder="e.g. backhand clears, set pieces, net play, finishing..."
+                  className="w-full bg-gray-900 border border-gray-600 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 transition text-sm"
+                />
+              </div>
+            )}
+
+            {/* Match Proximity — sport only */}
+            {!isGym && (
+              <div>
+                <label className="block text-sm font-black text-gray-300 uppercase tracking-widest mb-3">
+                  Match coming up?
+                </label>
+                <div className="flex gap-2 flex-wrap">
+                  {MATCH_OPTIONS.map(m => (
+                    <Chip key={m.value} label={m.label} active={matchProximity === m.value} onClick={() => setMatchProximity(m.value)} />
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Error */}
             {error && (

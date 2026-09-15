@@ -42,6 +42,7 @@ function Login() {
   const [error, setError] = useState('');
   const [menuOpen, setMenuOpen] = useState(false);
   const navigate = useNavigate();
+  const isGym = (localStorage.getItem('academyType') || 'sport') === 'gym';
 
   useEffect(() => { }, []);
 
@@ -54,18 +55,19 @@ function Login() {
 
   const handleLogin = async () => {
     setError('');
+    const gymMode = (localStorage.getItem('academyType') || 'sport') === 'gym';
     if (role === 'coach') {
       const sportCoach = detectSportCoach(password);
       if (sportCoach === null) {
         localStorage.setItem('role', 'coach');
         localStorage.setItem('coachId', 'coach_' + (localStorage.getItem('academyId') || 'default'));
         localStorage.removeItem('coachSport');
-        navigate('/dashboard');
+        navigate(gymMode ? '/gym-dashboard' : '/dashboard');
       } else if (sportCoach) {
         localStorage.setItem('role', 'coach');
         localStorage.setItem('coachId', 'coach_' + (localStorage.getItem('academyId') || 'default'));
         localStorage.setItem('coachSport', sportCoach);
-        navigate('/dashboard');
+        navigate(gymMode ? '/gym-dashboard' : '/dashboard');
       } else {
         setError('Wrong password. Use admin123 for admin, or sportcoach123 (e.g. skatingcoach123).');
       }
@@ -82,7 +84,7 @@ function Login() {
           localStorage.setItem('athleteName', matched.name);
           localStorage.setItem('athleteSport', matched.sport || '');
           localStorage.setItem('academyId', academyId);
-          navigate('/checkin');
+          navigate(gymMode ? '/gym-member-dashboard' : '/checkin');
         } else {
           setError('Invalid password. Use firstname + last initial + 123 (e.g. jineshn123)');
         }
@@ -244,17 +246,19 @@ function Login() {
 
           {/* Desktop nav links */}
           <div className="desktop-nav-links flex items-center gap-4 body-font">
-            <button onClick={() => openRole('parent')}
-              className="text-gray-400 text-sm hover:text-purple-400 transition-colors duration-200">
-              Parent View
-            </button>
+            {!isGym && (
+              <button onClick={() => openRole('parent')}
+                className="text-gray-400 text-sm hover:text-purple-400 transition-colors duration-200">
+                Parent View
+              </button>
+            )}
             <button onClick={() => openRole('athlete')}
               className="text-gray-400 text-sm hover:text-white transition-colors duration-200">
-              Athlete Portal
+              {isGym ? 'Member Portal' : 'Athlete Portal'}
             </button>
             <button onClick={() => openRole('coach')}
               className="btn-primary bg-blue-600 text-white px-5 py-2 rounded-xl text-sm font-semibold">
-              Coach Login
+              {isGym ? 'Trainer Login' : 'Coach Login'}
             </button>
           </div>
 
@@ -274,19 +278,21 @@ function Login() {
         <div className={`mobile-menu body-font${menuOpen ? ' open' : ''}`}>
           <button onClick={() => openRole('coach')}
             className="btn-primary bg-blue-600 text-white px-5 py-3 rounded-xl text-sm font-semibold w-full text-center">
-            🧑‍💼 Coach Login
+            {isGym ? '🏋️‍♂️ Trainer Login' : '🧑‍💼 Coach Login'}
           </button>
           <button onClick={() => openRole('athlete')}
             className="border border-white/10 text-gray-300 px-5 py-3 rounded-xl text-sm w-full text-center hover:border-green-500/40 hover:text-green-400 transition">
-            🏃 Athlete Portal
+            {isGym ? '🏋️ Member Portal' : '🏃 Athlete Portal'}
           </button>
-          <button
-            type="button"
-            onClick={(e) => { e.stopPropagation(); openRole('parent'); }}
-            style={{ pointerEvents: 'auto', zIndex: 100, position: 'relative' }}
-            className="border border-white/10 text-gray-300 px-5 py-3 rounded-xl text-sm w-full text-center hover:border-purple-500/40 hover:text-purple-400 transition">
-            👨‍👩‍👧 Parent View
-          </button>
+          {!isGym && (
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); openRole('parent'); }}
+              style={{ pointerEvents: 'auto', zIndex: 100, position: 'relative' }}
+              className="border border-white/10 text-gray-300 px-5 py-3 rounded-xl text-sm w-full text-center hover:border-purple-500/40 hover:text-purple-400 transition">
+              👨‍👩‍👧 Parent View
+            </button>
+          )}
         </div>
       </nav>
 
@@ -428,54 +434,66 @@ function Login() {
         <div className="roles-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1.5rem' }}>
           <div className="card-hover bg-gradient-to-br from-blue-950/50 to-gray-900 border border-blue-500/20 rounded-3xl p-8 cursor-pointer"
             onClick={() => openRole('coach')}>
-            <div className="text-4xl mb-5">🧑‍💼</div>
-            <h3 className="text-2xl tracking-wider mb-3">FOR COACHES</h3>
+            <div className="text-4xl mb-5">{isGym ? '🏋️‍♂️' : '🧑‍💼'}</div>
+            <h3 className="text-2xl tracking-wider mb-3">{isGym ? 'FOR TRAINERS' : 'FOR COACHES'}</h3>
             <p className="text-gray-400 body-font text-sm leading-relaxed mb-5 font-light">
-              Track your entire squad. Get AI-powered recommendations before every session and match day.
+              {isGym
+                ? 'Track all your gym members. Log their sessions, view recovery, and get AI workout recommendations.'
+                : 'Track your entire squad. Get AI-powered recommendations before every session and match day.'}
             </p>
             <ul className="space-y-2 mb-6 body-font text-sm text-gray-300">
-              {['Real-time athlete dashboard', 'AI insights and injury alerts', 'Match readiness overview'].map(item => (
+              {(isGym
+                ? ['Real-time member dashboard', 'Log sessions per member', 'AI workout planning']
+                : ['Real-time athlete dashboard', 'AI insights and injury alerts', 'Match readiness overview']
+              ).map(item => (
                 <li key={item} className="flex items-center gap-2"><span className="text-blue-400">→</span> {item}</li>
               ))}
             </ul>
             <button className="btn-primary bg-blue-600 text-white px-6 py-3 rounded-xl text-sm body-font font-semibold w-full">
-              Login as Coach →
+              {isGym ? 'Trainer Login →' : 'Login as Coach →'}
             </button>
           </div>
 
           <div className="card-hover bg-gradient-to-br from-green-950/50 to-gray-900 border border-green-500/20 rounded-3xl p-8 cursor-pointer"
             onClick={() => openRole('athlete')}>
-            <div className="text-4xl mb-5">🏃</div>
-            <h3 className="text-2xl tracking-wider mb-3">FOR ATHLETES</h3>
+            <div className="text-4xl mb-5">{isGym ? '🏋️' : '🏃'}</div>
+            <h3 className="text-2xl tracking-wider mb-3">{isGym ? 'FOR MEMBERS' : 'FOR ATHLETES'}</h3>
             <p className="text-gray-400 body-font text-sm leading-relaxed mb-5 font-light">
-              Check in daily in 30 seconds. Let your coach know how your body feels every day.
+              {isGym
+                ? 'Log your daily recovery, muscle groups trained, and workout type in under a minute.'
+                : 'Check in daily in 30 seconds. Let your coach know how your body feels every day.'}
             </p>
             <ul className="space-y-2 mb-6 body-font text-sm text-gray-300">
-              {['30 second daily check-in', 'Track your own wellness trends', 'Personal readiness score'].map(item => (
+              {(isGym
+                ? ['Daily recovery check-in', 'Log muscle groups & workout type', 'Personal readiness score']
+                : ['30 second daily check-in', 'Track your own wellness trends', 'Personal readiness score']
+              ).map(item => (
                 <li key={item} className="flex items-center gap-2"><span className="text-green-400">→</span> {item}</li>
               ))}
             </ul>
             <button className="btn-primary bg-green-600 text-white px-6 py-3 rounded-xl text-sm body-font font-semibold w-full">
-              Athlete Check-in →
+              {isGym ? 'Member Check-in →' : 'Athlete Check-in →'}
             </button>
           </div>
 
-          <div className="card-hover bg-gradient-to-br from-purple-950/50 to-gray-900 border border-purple-500/20 rounded-3xl p-8 cursor-pointer"
-            onClick={() => openRole('parent')}>
-            <div className="text-4xl mb-5">👨‍👩‍👧</div>
-            <h3 className="text-2xl tracking-wider mb-3">FOR PARENTS</h3>
-            <p className="text-gray-400 body-font text-sm leading-relaxed mb-5 font-light">
-              Stay informed about your child's training wellness and get the AI coach's message for them.
-            </p>
-            <ul className="space-y-2 mb-6 body-font text-sm text-gray-300">
-              {["7-day wellness trend chart", 'AI readiness score', "Coach AI message for your child"].map(item => (
-                <li key={item} className="flex items-center gap-2"><span className="text-purple-400">→</span> {item}</li>
-              ))}
-            </ul>
-            <button className="btn-primary bg-purple-600 text-white px-6 py-3 rounded-xl text-sm body-font font-semibold w-full">
-              Parent View →
-            </button>
-          </div>
+          {!isGym && (
+            <div className="card-hover bg-gradient-to-br from-purple-950/50 to-gray-900 border border-purple-500/20 rounded-3xl p-8 cursor-pointer"
+              onClick={() => openRole('parent')}>
+              <div className="text-4xl mb-5">👨‍👩‍👧</div>
+              <h3 className="text-2xl tracking-wider mb-3">FOR PARENTS</h3>
+              <p className="text-gray-400 body-font text-sm leading-relaxed mb-5 font-light">
+                Stay informed about your child's training wellness and get the AI coach's message for them.
+              </p>
+              <ul className="space-y-2 mb-6 body-font text-sm text-gray-300">
+                {["7-day wellness trend chart", 'AI readiness score', "Coach AI message for your child"].map(item => (
+                  <li key={item} className="flex items-center gap-2"><span className="text-purple-400">→</span> {item}</li>
+                ))}
+              </ul>
+              <button className="btn-primary bg-purple-600 text-white px-6 py-3 rounded-xl text-sm body-font font-semibold w-full">
+                Parent View →
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
@@ -494,10 +512,10 @@ function Login() {
             <div className="flex justify-between items-center mb-8">
               <div>
                 <p className="text-xs text-gray-500 uppercase tracking-widest body-font mb-1">
-                  {role === 'coach' ? 'Coach Portal' : role === 'athlete' ? 'Athlete Portal' : 'Parent View'}
+                  {role === 'coach' ? (isGym ? 'Trainer Portal' : 'Coach Portal') : role === 'athlete' ? (isGym ? 'Member Portal' : 'Athlete Portal') : 'Parent View'}
                 </p>
                 <h2 className="modal-title tracking-wider" style={{ fontSize: '2rem' }}>
-                  {role === 'coach' ? 'WELCOME BACK' : role === 'athlete' ? 'CHECK IN' : 'VIEW PROGRESS'}
+                  {role === 'coach' ? 'WELCOME BACK' : role === 'athlete' ? (isGym ? 'LOG IN' : 'CHECK IN') : 'VIEW PROGRESS'}
                 </h2>
               </div>
               <button onClick={() => { setRole(null); setError(''); setPassword(''); setAthleteName(''); }}
@@ -540,7 +558,7 @@ function Login() {
 
             <button onClick={handleLogin}
               className={`btn-primary w-full py-4 rounded-2xl font-semibold body-font text-sm text-white ${role === 'coach' ? 'bg-blue-600' : role === 'athlete' ? 'bg-green-600' : 'bg-purple-600'}`}>
-              {role === 'coach' ? 'Access Dashboard →' : role === 'athlete' ? 'Submit Check-in →' : 'View My Child →'}
+              {role === 'coach' ? 'Access Dashboard →' : role === 'athlete' ? (isGym ? 'Enter as Member →' : 'Submit Check-in →') : 'View My Child →'}
             </button>
 
           </div>

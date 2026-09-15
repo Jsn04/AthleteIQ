@@ -11,6 +11,7 @@ export default function AcademyLogin() {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [confirmPw, setConfirmPw] = useState('');
+    const [academyType, setAcademyType] = useState('sport');
     const [error, setError] = useState('');
     const [success, setSuccess] = useState('');
     const [loading, setLoading] = useState(false);
@@ -27,7 +28,7 @@ export default function AcademyLogin() {
 
     const switchTab = (t) => {
         setTab(t); setError(''); setSuccess('');
-        setName(''); setEmail(''); setPassword(''); setConfirmPw('');
+        setName(''); setEmail(''); setPassword(''); setConfirmPw(''); setAcademyType('sport');
     };
 
     const handleSignIn = async () => {
@@ -52,7 +53,7 @@ export default function AcademyLogin() {
         setLoading(true); setError('');
         try {
             const res = await axios.post(`${API}/auth/register-academy`, {
-                name: name.trim(), email: email.trim().toLowerCase(), password,
+                name: name.trim(), email: email.trim().toLowerCase(), password, academy_type: academyType,
             });
             setSuccess(`Academy "${name.trim()}" created! Signing you in...`);
             setTimeout(() => storeAndGo(res.data), 1200);
@@ -67,6 +68,7 @@ export default function AcademyLogin() {
         localStorage.setItem('academyName', data.academy_name);
         localStorage.setItem('plan', data.plan);
         localStorage.setItem('trialEndsAt', data.trial_ends_at || '');
+        localStorage.setItem('academyType', data.academy_type || 'sport');
         if (data.session_time) localStorage.setItem('sessionTime', JSON.stringify(data.session_time));
         navigate('/login');
     };
@@ -277,12 +279,33 @@ export default function AcademyLogin() {
 
                             <div className="px-5 sm:px-8 py-6 sm:py-7 space-y-4">
                                 {tab === 'signup' && (
-                                    <div>
-                                        <label className="text-gray-500 text-[11px] uppercase tracking-widest font-bold block mb-2">Academy Name</label>
-                                        <input type="text" value={name} onChange={e => setName(e.target.value)} onKeyDown={handleKey}
-                                            placeholder="e.g. Mumbai Athletic Club"
-                                            className="input-field w-full rounded-xl px-4 py-3 sm:py-3.5 text-white placeholder-gray-700 text-sm" />
-                                    </div>
+                                    <>
+                                        <div>
+                                            <label className="text-gray-500 text-[11px] uppercase tracking-widest font-bold block mb-2">Academy Name</label>
+                                            <input type="text" value={name} onChange={e => setName(e.target.value)} onKeyDown={handleKey}
+                                                placeholder="e.g. Mumbai Athletic Club"
+                                                className="input-field w-full rounded-xl px-4 py-3 sm:py-3.5 text-white placeholder-gray-700 text-sm" />
+                                        </div>
+                                        <div>
+                                            <label className="text-gray-500 text-[11px] uppercase tracking-widest font-bold block mb-2">Academy Type</label>
+                                            <div className="grid grid-cols-2 gap-2">
+                                                {[
+                                                    { value: 'sport', label: 'Sport Academy', icon: '⚡', desc: 'Team sports, ACWR, injury risk' },
+                                                    { value: 'gym',   label: 'Gym / Fitness',  icon: '🏋️', desc: 'Muscle tracking, workout logging' },
+                                                ].map(opt => (
+                                                    <button key={opt.value} type="button"
+                                                        onClick={() => setAcademyType(opt.value)}
+                                                        className={`rounded-xl p-3 text-left border transition-all ${academyType === opt.value
+                                                            ? 'border-indigo-500/60 bg-indigo-500/10'
+                                                            : 'border-white/8 bg-white/[0.02] hover:border-white/15'}`}>
+                                                        <p className="text-base mb-1">{opt.icon}</p>
+                                                        <p className={`text-xs font-black uppercase tracking-wider ${academyType === opt.value ? 'text-indigo-300' : 'text-gray-400'}`}>{opt.label}</p>
+                                                        <p className="text-gray-600 text-[10px] mt-0.5 leading-tight">{opt.desc}</p>
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    </>
                                 )}
 
                                 <div>

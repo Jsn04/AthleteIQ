@@ -16,6 +16,7 @@ class AcademyRegisterRequest(BaseModel):
     name: str
     email: str
     password: str
+    academy_type: str = 'sport'
 
 
 class AcademyLoginRequest(BaseModel):
@@ -77,6 +78,8 @@ def register_academy(request: Request, body: AcademyRegisterRequest):
 
         pw_hash = bcrypt.hashpw(body.password.encode(), bcrypt.gensalt()).decode()
 
+        academy_type = body.academy_type if body.academy_type in ('sport', 'gym') else 'sport'
+
         result = safe_query(
             lambda sb: sb.table("academies").insert({
                 "name":          body.name.strip(),
@@ -85,6 +88,7 @@ def register_academy(request: Request, body: AcademyRegisterRequest):
                 "password":      pw_hash,
                 "plan":          "free",
                 "trial_ends_at": trial_ends_at,
+                "academy_type":  academy_type,
             }).execute().data
         )
 
@@ -94,6 +98,7 @@ def register_academy(request: Request, body: AcademyRegisterRequest):
             "academy_name":  result[0]["name"],
             "plan":          "free",
             "trial_ends_at": trial_ends_at,
+            "academy_type":  result[0].get("academy_type", "sport"),
             "session_time":  None,
         }
     except HTTPException:
@@ -141,6 +146,7 @@ def academy_login(request: Request, body: AcademyLoginRequest):
             "academy_name":  academy["name"],
             "plan":          academy["plan"],
             "trial_ends_at": academy.get("trial_ends_at"),
+            "academy_type":  academy.get("academy_type", "sport"),
             "session_time":  academy.get("session_time"),
         }
     except HTTPException:

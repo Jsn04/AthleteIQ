@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { isGymAcademy } from '../homeRoutes';
 import api from '../api';
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid,
@@ -571,13 +572,13 @@ function WeeklyReport({ athleteName, academyId, onClose, isParentView = false })
         {isParentView ? (
           coachNote && (
             <div className="bg-gray-800 rounded-2xl p-5 border border-gray-700">
-              <p className="text-gray-500 text-[10px] uppercase font-bold mb-3">Coach's Note</p>
+              <p className="text-gray-500 text-[10px] uppercase font-bold mb-3">{isGymAcademy() ? "Trainer's" : "Coach's"} Note</p>
               <p className="text-gray-200 text-sm leading-relaxed">{coachNote}</p>
             </div>
           )
         ) : (
           <div className="bg-gray-800 rounded-2xl p-5 border border-gray-700">
-            <p className="text-gray-500 text-[10px] uppercase font-bold mb-3">Coach's personal note (optional)</p>
+            <p className="text-gray-500 text-[10px] uppercase font-bold mb-3">{isGymAcademy() ? "Trainer's" : "Coach's"} personal note (optional)</p>
             <textarea
               rows={3}
               value={coachNote}

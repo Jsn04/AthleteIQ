@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { coachHome } from '../homeRoutes';
 import axios from 'axios';
 import API_BASE_URL from '../config';
 import { isTrialActive } from '../utils/trialUtils';
@@ -8,11 +9,16 @@ import LoadingSkeleton from '../components/common/LoadingSkeleton';
 
 const API = API_BASE_URL;
 const getAcademyId = () => localStorage.getItem('academyId') || '';
+const getAcademyType = () => localStorage.getItem('academyType') || 'sport';
 
 const SPORTS = [
   'Skating', 'Athletics', 'Swimming', 'Badminton', 'Cricket',
   'Football', 'Basketball', 'Wrestling', 'Kabaddi', 'Tennis',
   'Volleyball', 'Boxing', 'Cycling', 'Gymnastics', 'Other'
+];
+
+const GYM_GOALS = [
+  'Weight Loss', 'Muscle Gain', 'Endurance', 'General Fitness', 'Athletic Performance', 'Rehab'
 ];
 
 const getCoachSport = () => localStorage.getItem('coachSport') || null;
@@ -44,15 +50,17 @@ const SportIcon = ({ sport }) => {
     Cricket: '🏏', Football: '⚽', Basketball: '🏀', Wrestling: '🤼',
     Kabaddi: '🤸', Tennis: '🎾', Volleyball: '🏐', Boxing: '🥊',
     Cycling: '🚴', Gymnastics: '🤸', Other: '🏅',
+    'Weight Loss': '🔥', 'Muscle Gain': '💪', 'Endurance': '🏃',
+    'General Fitness': '⚡', 'Athletic Performance': '🏋️', 'Rehab': '🩹',
   };
-  return <span>{icons[sport] || '🏅'}</span>;
+  return <span>{icons[sport] || '🏋️'}</span>;
 };
 
-function ConfirmModal({ name, onConfirm, onCancel }) {
+function ConfirmModal({ name, onConfirm, onCancel, isGym }) {
   return (
     <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
       <div className="bg-gray-900 border border-gray-700 rounded-2xl p-6 w-full max-w-sm">
-        <h3 className="text-lg font-black text-white mb-2">Remove athlete?</h3>
+        <h3 className="text-lg font-black text-white mb-2">Remove {isGym ? 'member' : 'athlete'}?</h3>
         <p className="text-gray-400 text-sm mb-6">
           This will permanently remove <span className="text-white font-bold">{name}</span> and all their wellness data.
         </p>
@@ -72,9 +80,16 @@ function ConfirmModal({ name, onConfirm, onCancel }) {
 }
 
 function AthleteList() {
+  const isGym = getAcademyType() === 'gym';
+  const OPTIONS = isGym ? GYM_GOALS : SPORTS;
+  const label = isGym ? 'member' : 'athlete';
+  const Label = isGym ? 'Member' : 'Athlete';
+
   const [athletes, setAthletes] = useState([]);
   const [riskMap, setRiskMap] = useState({});
-  const [form, setForm] = useState({ name: '', sport: SPORTS[0], age: '' });
+  // Gyms let a member carry more than one goal, so they are held as a list and
+  // stored comma-joined in the same `sport` column a sport academy uses.
+  const [form, setForm] = useState({ name: '', sport: OPTIONS[0], age: '', goals: [] });
   const [loading, setLoading] = useState(true);
   const [adding, setAdding] = useState(false);
   const [addError, setAddError] = useState('');
@@ -125,15 +140,16 @@ function AthleteList() {
       setAddError('Your 14-day free trial has expired. Contact us to upgrade.');
       return;
     }
-    if (!form.name.trim() || !form.sport.trim()) return;
+    const sportValue = isGym ? form.goals.join(', ') : form.sport.trim();
+    if (!form.name.trim() || !sportValue) return;
     setAdding(true);
     try {
       await axios.post(`${API}/athletes?academy_id=${academyId}`, {
         name: form.name.trim(),
-        sport: form.sport.trim(),
+        sport: sportValue,
         age: form.age ? parseInt(form.age) : null,
       });
-      setForm({ name: '', sport: coachSport || SPORTS[0], age: '' });
+      setForm({ name: '', sport: coachSport || OPTIONS[0], age: '', goals: [] });
       await fetchAthletes();
     } catch (err) {
       console.error('Error adding athlete:', err);
@@ -181,7 +197,7 @@ function AthleteList() {
         <div className="flex justify-between items-center mb-8">
           <div>
             <div className="flex items-center gap-3 flex-wrap">
-              <h1 className="text-3xl font-black tracking-tight">Manage Athletes</h1>
+              <h1 className="text-3xl font-black tracking-tight">Manage {isGym ? 'Members' : 'Athletes'}</h1>
               {coachSport && (
                 <span className="bg-blue-500/10 border border-blue-500/20 text-blue-400 text-xs font-black uppercase tracking-wider px-3 py-1 rounded-full">
                   {coachSport} only
@@ -192,7 +208,7 @@ function AthleteList() {
               {visibleAthletes.length} total · {checkedInCount} checked in today
             </p>
           </div>
-          <button onClick={() => navigate('/dashboard')}
+          <button onClick={() => navigate(coachHome())}
             className="border border-gray-600 text-gray-400 px-4 py-2 rounded-xl text-sm hover:border-blue-500 hover:text-blue-400 transition">
             ← Dashboard
           </button>
@@ -216,29 +232,61 @@ function AthleteList() {
         )}
 
         <div className="bg-gray-800 rounded-2xl p-6 border border-gray-700 mb-6">
-          <h2 className="text-sm font-bold text-gray-400 uppercase tracking-widest mb-4">Add New Athlete</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3">
+          <h2 className="text-sm font-bold text-gray-400 uppercase tracking-widest mb-4">Add New {Label}</h2>
+          <div className={`grid grid-cols-1 gap-3 mb-3 ${isGym ? 'sm:grid-cols-2' : 'sm:grid-cols-3'}`}>
             <input type="text" name="name" value={form.name} onChange={handleChange}
               onKeyDown={e => e.key === 'Enter' && handleAdd()} placeholder="Full name"
               className="bg-gray-900 border border-gray-600 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-green-500 transition text-sm"
             />
-            <select name="sport" value={form.sport} onChange={handleChange} disabled={!!coachSport}
-              className="bg-gray-900 border border-gray-600 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-green-500 transition text-sm appearance-none cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed">
-              {(coachSport ? [coachSport] : SPORTS).map(s => <option key={s} value={s}>{s}</option>)}
-            </select>
+            {!isGym && (
+              <select name="sport" value={form.sport} onChange={handleChange} disabled={!!coachSport}
+                className="bg-gray-900 border border-gray-600 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-green-500 transition text-sm appearance-none cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed">
+                {(coachSport ? [coachSport] : OPTIONS).map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
+            )}
             <input type="number" name="age" value={form.age} onChange={handleChange}
               onKeyDown={e => e.key === 'Enter' && handleAdd()} placeholder="Age (optional)"
               className="bg-gray-900 border border-gray-600 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-green-500 transition text-sm"
             />
           </div>
+
+          {isGym && (
+            <div className="mb-3">
+              <p className="text-gray-500 text-[10px] font-black uppercase tracking-widest mb-2">
+                Goals <span className="text-gray-600 normal-case font-bold tracking-normal">· pick one or more</span>
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {OPTIONS.map(g => {
+                  const picked = form.goals.includes(g);
+                  return (
+                    <button
+                      key={g}
+                      type="button"
+                      onClick={() => setForm(f => ({
+                        ...f,
+                        goals: picked ? f.goals.filter(x => x !== g) : [...f.goals, g],
+                      }))}
+                      className={`text-xs font-bold px-3 py-2 rounded-xl border transition ${
+                        picked
+                          ? 'bg-green-500/15 border-green-500/40 text-green-400'
+                          : 'bg-gray-900 border-gray-600 text-gray-400 hover:border-gray-500 hover:text-white'
+                      }`}
+                    >
+                      {picked ? '✓ ' : ''}{g}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
           {addError && (
             <div className="bg-red-500/10 border border-red-500/20 rounded-xl px-4 py-3 mb-2">
               <p className="text-red-400 text-sm font-bold">⚠️ {addError}</p>
             </div>
           )}
-          <button onClick={handleAdd} disabled={adding || !form.name.trim()}
+          <button onClick={handleAdd} disabled={adding || !form.name.trim() || (isGym && form.goals.length === 0)}
             className="w-full bg-green-600 hover:bg-green-500 disabled:bg-gray-700 disabled:text-gray-500 text-white py-3 rounded-xl font-black transition text-sm">
-            {adding ? 'Adding...' : '+ Add Athlete'}
+            {adding ? 'Adding...' : `+ Add ${Label}`}
           </button>
         </div>
 
@@ -260,7 +308,7 @@ function AthleteList() {
         <div className="bg-gray-800 rounded-2xl border border-gray-700 overflow-hidden">
           <div className="px-6 py-4 border-b border-gray-700 flex justify-between items-center">
             <h2 className="text-sm font-bold text-gray-400 uppercase tracking-widest">
-              Athletes
+              {isGym ? 'Members' : 'Athletes'}
               <span className="ml-2 bg-gray-700 text-gray-400 text-xs px-2 py-0.5 rounded-full font-normal">
                 {filtered.length}
               </span>
@@ -279,8 +327,8 @@ function AthleteList() {
             <div className="p-10 text-center">
               <p className="text-gray-500 text-sm">
                 {visibleAthletes.length === 0
-                  ? coachSport ? `No ${coachSport} athletes added yet.` : 'No athletes added yet.'
-                  : 'No athletes match your search.'}
+                  ? isGym ? 'No members added yet.' : coachSport ? `No ${coachSport} athletes added yet.` : 'No athletes added yet.'
+                  : `No ${label}s match your search.`}
               </p>
             </div>
           ) : (
@@ -300,8 +348,8 @@ function AthleteList() {
                         <p className="font-bold text-white group-hover:text-blue-400 transition text-sm">{athlete.name}</p>
                         <p className="text-gray-500 text-xs flex items-center gap-1.5 mt-0.5">
                           <SportIcon sport={athlete.sport} />
-                          {athlete.sport}{athlete.age ? ` · Age ${athlete.age}` : ''}
-                          {risk?.injury_risk_score != null && (
+                          {isGym ? `Goal: ${athlete.sport}` : athlete.sport}{athlete.age ? ` · Age ${athlete.age}` : ''}
+                          {!isGym && risk?.injury_risk_score != null && (
                             <span className="text-gray-600">· Risk {risk.injury_risk_score}/100</span>
                           )}
                         </p>
@@ -324,7 +372,7 @@ function AthleteList() {
         </div>
 
         {confirmDelete && (
-          <ConfirmModal name={confirmDelete.name} onConfirm={handleDeleteConfirmed} onCancel={() => setConfirmDelete(null)} />
+          <ConfirmModal name={confirmDelete.name} isGym={isGym} onConfirm={handleDeleteConfirmed} onCancel={() => setConfirmDelete(null)} />
         )}
       </div>
     </div>

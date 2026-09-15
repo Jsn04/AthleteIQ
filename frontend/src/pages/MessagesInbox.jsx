@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { coachHome, isGymAcademy } from '../homeRoutes';
 import api from '../api';
 import ChatPanel from '../components/common/ChatPanel';
 
@@ -72,9 +73,9 @@ export default function MessagesInbox() {
         <div className="flex justify-between items-start mb-8 flex-wrap gap-4">
           <div>
             <h1 className="text-2xl sm:text-3xl font-black tracking-tight">Messages</h1>
-            <p className="text-gray-500 text-sm mt-1">Direct messages with your athletes</p>
+            <p className="text-gray-500 text-sm mt-1">Direct messages with your {isGymAcademy() ? 'members' : 'athletes'}</p>
           </div>
-          <Link to="/dashboard"
+          <Link to={coachHome()}
             className="border border-gray-600 text-gray-400 px-4 py-2 rounded-xl text-sm hover:border-purple-500 hover:text-purple-400 transition">
             ← Dashboard
           </Link>
@@ -87,7 +88,7 @@ export default function MessagesInbox() {
         ) : threads.length === 0 ? (
           <div className="bg-gray-800 border border-gray-700 rounded-2xl p-12 text-center">
             <p className="text-gray-400 font-bold mb-1">No conversations yet</p>
-            <p className="text-gray-600 text-sm">Messages from athletes will show up here.</p>
+            <p className="text-gray-600 text-sm">Messages from {isGymAcademy() ? 'members' : 'athletes'} will show up here.</p>
           </div>
         ) : (
           <div className="space-y-2">

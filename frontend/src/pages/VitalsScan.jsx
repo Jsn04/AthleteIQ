@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { athleteHome } from '../homeRoutes';
 import axios from 'axios';
 import API_BASE_URL from '../config';
 
@@ -742,7 +743,7 @@ export default function VitalsScan() {
                 className="flex-1 border border-gray-700 text-gray-500 py-2.5 rounded-xl text-xs font-bold hover:border-gray-600 transition">
                 ← Check-in
               </button>
-              <button onClick={() => navigate('/athlete-dashboard')}
+              <button onClick={() => navigate(athleteHome())}
                 className="flex-1 border border-gray-700 text-gray-500 py-2.5 rounded-xl text-xs font-bold hover:border-gray-600 transition">
                 Dashboard
               </button>
@@ -927,7 +928,7 @@ export default function VitalsScan() {
                 className="flex-1 bg-blue-600 hover:bg-blue-500 text-white py-3 rounded-xl font-black text-sm transition-all">
                 Continue to Check-in →
               </button>
-              <button onClick={() => navigate('/athlete-dashboard')}
+              <button onClick={() => navigate(athleteHome())}
                 className="flex-1 border border-gray-700 text-gray-400 py-3 rounded-xl font-bold text-sm hover:border-gray-600 transition">
                 Dashboard
               </button>

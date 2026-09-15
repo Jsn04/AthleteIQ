@@ -136,6 +136,75 @@ def process_squad_data(athletes: list, recent_sessions: list, sport: str, age_gr
     }
 
 
+# ─── Build Groq prompt (gym) ──────────────────────────────────────────────────
+
+def build_gym_session_prompt(coach_input: dict, squad: dict) -> str:
+    members = squad.get("squad_size", 0)
+    avg_readiness = squad.get("avg_readiness", 50)
+    muscle_targets = coach_input.get("specific_area") or "Not specified"
+    focus = coach_input.get("focus", "Strength")
+    duration = coach_input.get("duration", 60)
+    session_type = "1-to-1 personal training session" if members <= 1 else f"small group session ({members} members)"
+
+    flagged_lines = []
+    for f in squad.get("flagged_athletes", []):
+        flagged_lines.append(
+            f"- {f['athlete_name']}: readiness {f['readiness']}, flag {f['flag']}"
+        )
+    flagged_text = "\n".join(flagged_lines) if flagged_lines else "None — all members cleared"
+
+    return f"""You are an expert gym coach and personal trainer.
+Generate a complete structured gym workout plan for a {session_type}.
+
+SESSION CONTEXT:
+- Session Type: {session_type}
+- Average Recovery Readiness Today: {avg_readiness}/100
+- Session Focus: {focus}
+- Duration: {duration} minutes
+- Target Muscle Groups: {muscle_targets}
+
+MEMBER STATUS:
+{flagged_text}
+
+RULES:
+- REST members: light mobility or active recovery only, no loading
+- MODIFIED members: reduce weight/intensity by 30-40%, skip high-impact exercises
+- PUSH members: can handle extra sets or progressive overload
+- Structure the plan into warm-up, main blocks, and cooldown
+- Keep total block durations equal to session duration exactly
+- All exercises should be doable in a standard gym (barbells, dumbbells, cables, bodyweight)
+
+Return ONLY raw JSON. No markdown. No explanation. This exact structure:
+{{
+  "session_title": "",
+  "coach_note": "",
+  "intensity_level": "",
+  "warning": "",
+  "blocks": [
+    {{
+      "name": "",
+      "duration_min": 0,
+      "objective": "",
+      "drills": [
+        {{
+          "name": "",
+          "duration_min": 0,
+          "setup": "",
+          "coaching_cue": ""
+        }}
+      ]
+    }}
+  ],
+  "modifications": [
+    {{
+      "athlete_name": "",
+      "flag": "",
+      "modification": ""
+    }}
+  ]
+}}"""
+
+
 # ─── Build Groq prompt ────────────────────────────────────────────────────────
 
 def build_session_prompt(coach_input: dict, squad: dict) -> str:
@@ -321,7 +390,8 @@ async def generate_session_plan(payload: dict):
     if not all([academy_id, coach_input]):
         return {"status": "error", "message": "Missing required fields"}
 
-    for f in ["focus", "duration", "match_proximity"]:
+    required = ["focus", "duration"] if coach_input.get("academy_type") == "gym" else ["focus", "duration", "match_proximity"]
+    for f in required:
         if f not in coach_input:
             return {"status": "error", "message": f"Missing coach_input field: {f}"}
 
@@ -336,6 +406,13 @@ async def generate_session_plan(payload: dict):
         return {"status": "rate_limited", "message": f"Please wait {wait_seconds} seconds before generating again"}
 
     raw = await asyncio.to_thread(fetch_squad_data, academy_id)
+
+    # Gym 1-to-1: filter squad to only selected members when trainer specifies them
+    member_names = coach_input.get("member_names")
+    if member_names and isinstance(member_names, list):
+        normalised = {n.lower().strip() for n in member_names}
+        raw["athletes"] = [a for a in raw["athletes"] if (a.get("name") or "").lower().strip() in normalised]
+
     squad = process_squad_data(raw["athletes"], raw["recent_sessions"], raw["sport"], raw["age_group"])
 
     if not squad:
@@ -346,7 +423,10 @@ async def generate_session_plan(payload: dict):
         await asyncio.to_thread(save_plan, coach_id, academy_id, coach_input, plan)
         return {"status": "success", "plan": plan, "source": "hardcoded"}
 
-    prompt = build_session_prompt(coach_input, squad)
+    if coach_input.get("academy_type") == "gym":
+        prompt = build_gym_session_prompt(coach_input, squad)
+    else:
+        prompt = build_session_prompt(coach_input, squad)
     client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
     response = await asyncio.to_thread(
         lambda: client.chat.completions.create(

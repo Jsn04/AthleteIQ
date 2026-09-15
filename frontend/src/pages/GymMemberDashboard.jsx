@@ -8,62 +8,82 @@ import ChatPanel from '../components/common/ChatPanel';
 import logo from '../assets/athleteiq_logo.svg';
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid,
-  Tooltip, Legend, ResponsiveContainer
+  Tooltip, Legend, ResponsiveContainer,
 } from 'recharts';
 
-export default function AthleteDashboard() {
-  const navigate = useNavigate();
-  const athleteName = localStorage.getItem('athleteName') || '';
-  const athleteSport = localStorage.getItem('athleteSport') || '';
+const GOAL_COLORS = {
+  'On Track':        { bg: 'bg-emerald-500/10', border: 'border-emerald-500/30', text: 'text-emerald-400' },
+  'Progressing':     { bg: 'bg-blue-500/10',    border: 'border-blue-500/30',    text: 'text-blue-400'    },
+  'Needs Attention': { bg: 'bg-amber-500/10',   border: 'border-amber-500/30',   text: 'text-amber-400'   },
+};
 
-  const [history, setHistory] = useState([]);
-  const [insight, setInsight] = useState(null);
-  const [injuryRisk, setInjuryRisk] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [athleteProfile, setAthleteProfile] = useState(null);
+const INTENSITY_COLORS = {
+  Light:    'text-emerald-400',
+  Moderate: 'text-amber-400',
+  Intense:  'text-rose-400',
+};
+
+export default function GymMemberDashboard() {
+  const navigate    = useNavigate();
+  const memberName  = localStorage.getItem('athleteName') || '';
+  const memberGoal  = localStorage.getItem('athleteSport') || '';
+
+  const [history, setHistory]         = useState([]);
+  const [trainerLogs, setTrainerLogs] = useState([]);
+  const [insight, setInsight]         = useState(null);
+  const [injuryRisk, setInjuryRisk]   = useState(null);
+  const [loading, setLoading]         = useState(true);
+  const [showChat, setShowChat]       = useState(false);
+  const [injuries, setInjuries]       = useState([]);
+  const [profile, setProfile]         = useState(null);
   const [showProfile, setShowProfile] = useState(false);
   const [showProfileForm, setShowProfileForm] = useState(false);
-  const [showChat, setShowChat] = useState(false);
-  const [profileForm, setProfileForm] = useState({ age: '', parent_name: '', parent_phone: '' });
+  const [profileForm, setProfileForm] = useState({ age: '', parent_phone: '', parent_name: '' });
   const [savingProfile, setSavingProfile] = useState(false);
-  const [injuries, setInjuries] = useState([]);
 
   const fetchData = useCallback(async (isSilent = false) => {
     if (!isSilent) setLoading(true);
     try {
       const academyId = localStorage.getItem('academyId') || '';
       const [histRes, insRes, injRes] = await Promise.allSettled([
-        api.get(`/wellness/history/${encodeURIComponent(athleteName)}`, { params: { academy_id: academyId } }),
-        api.get(`/ai/insights/${encodeURIComponent(athleteName)}`, { params: { academy_id: academyId } }),
-        api.get(`/ai/injury-risk/${encodeURIComponent(athleteName)}`, { params: { academy_id: academyId } }),
+        api.get(`/wellness/history/${encodeURIComponent(memberName)}`, { params: { academy_id: academyId, days: 30 } }),
+        api.get(`/ai/insights/${encodeURIComponent(memberName)}`, { params: { academy_id: academyId } }),
+        api.get(`/ai/injury-risk/${encodeURIComponent(memberName)}`, { params: { academy_id: academyId } }),
       ]);
 
       if (histRes.status === 'fulfilled' && histRes.value.data.history) {
-        const formatted = histRes.value.data.history.slice().reverse().map((c, i) => ({
+        const all = histRes.value.data.history || [];
+        // Trainer-logged rows are sessions, everything else is a member self check-in.
+        const selfCheckins = all.filter(c => !c.logged_by);
+        const formatted = selfCheckins.slice().reverse().map((c, i) => ({
           day: `Day ${i + 1}`,
           date: new Date(c.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }),
+          created_at: c.created_at,
           energy: c.energy,
           sleep: c.sleep,
           soreness: c.soreness,
           mood: c.mood,
         }));
         setHistory(formatted);
+        setTrainerLogs(all.filter(c => c.logged_by === 'trainer'));
       }
       if (insRes.status === 'fulfilled') setInsight(insRes.value.data);
       if (injRes.status === 'fulfilled') setInjuryRisk(injRes.value.data);
 
       try {
-        const profileRes = await api.get(`/athletes`, { params: { academy_id: academyId } });
-        const found = profileRes.data.find(a => a.name.toLowerCase() === athleteName.toLowerCase());
+        const profileRes = await api.get('/athletes', { params: { academy_id: academyId } });
+        const found = (profileRes.data || []).find(
+          a => a.name.toLowerCase() === memberName.toLowerCase()
+        );
         if (found) {
-          setAthleteProfile(found);
+          setProfile(found);
           if (!found.parent_phone) setShowProfileForm(true);
         }
-      } catch { }
+      } catch { /* profile is optional */ }
 
       try {
         const injuriesRes = await api.get(
-          `/injuries/${encodeURIComponent(athleteName)}`,
+          `/injuries/${encodeURIComponent(memberName)}`,
           { params: { academy_id: academyId } }
         );
         setInjuries(injuriesRes.data || []);
@@ -71,18 +91,14 @@ export default function AthleteDashboard() {
     } catch (err) {
       console.error('Dashboard fetch error:', err);
     } finally { setLoading(false); }
-  }, [athleteName]);
+  }, [memberName]);
 
   useEffect(() => {
-    if (!athleteName) { navigate('/login'); return; }
-    if ((localStorage.getItem('academyType') || 'sport') === 'gym') {
-      navigate('/gym-member-dashboard', { replace: true });
-      return;
-    }
-    fetchData();
+    if (!memberName) { navigate('/login'); return; }
+    warmup().then(() => fetchData());
     const iv = setInterval(() => fetchData(true), 30000);
     return () => clearInterval(iv);
-  }, [athleteName, navigate, fetchData]);
+  }, [memberName, navigate, fetchData]);
 
   const handleLogout = () => {
     ['role', 'athleteName', 'athleteSport'].forEach(k => localStorage.removeItem(k));
@@ -90,18 +106,15 @@ export default function AthleteDashboard() {
   };
 
   const handleSaveProfile = async () => {
-    if (!profileForm.parent_phone.trim()) return;
+    if (!profileForm.parent_phone.trim() || !profile) return;
     setSavingProfile(true);
     try {
       const academyId = localStorage.getItem('academyId') || '';
-      await api.patch(
-        `/athletes/${athleteProfile.id}?academy_id=${academyId}`,
-        {
-          age: profileForm.age ? parseInt(profileForm.age) : athleteProfile.age,
-          parent_name: profileForm.parent_name.trim(),
-          parent_phone: profileForm.parent_phone.trim()
-        }
-      );
+      await api.patch(`/athletes/${profile.id}?academy_id=${academyId}`, {
+        age: profileForm.age ? parseInt(profileForm.age) : profile.age,
+        parent_name: profileForm.parent_name.trim(),
+        parent_phone: profileForm.parent_phone.trim(),
+      });
       setShowProfileForm(false);
       fetchData(true);
     } catch (err) { console.error(err); }
@@ -110,14 +123,20 @@ export default function AthleteDashboard() {
 
   const avgOf = (key) => {
     if (!history.length) return '—';
-    const vals = history.map(h => h[key]).filter(v => v != null);
+    const vals = history.slice(-7).map(h => h[key]).filter(v => v != null);
     return vals.length ? (vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(1) : '—';
   };
 
-  const avgReadiness = insight?.score ?? null;
-  const acwrVal = injuryRisk?.acwr ?? null;
-  const injuryRiskScore = injuryRisk?.injury_risk_score ?? null;
-  const injuryRiskLevel = injuryRisk?.risk_level ?? null;
+  const avgReadiness     = insight?.score ?? null;
+  const injuryRiskScore  = injuryRisk?.injury_risk_score ?? null;
+  const injuryRiskLevel  = injuryRisk?.risk_level ?? null;
+  const lastLog          = trainerLogs[0];
+
+  // Total minutes trained in the last 7 days, from the trainer's session logs.
+  const weeklyMinutes = trainerLogs.reduce((sum, l) => {
+    const days = (Date.now() - new Date(l.created_at).getTime()) / 86400000;
+    return days <= 7 ? sum + (Number(l.session_duration) || 0) : sum;
+  }, 0);
 
   const chartData = history.map(h => ({
     ...h,
@@ -141,14 +160,14 @@ export default function AthleteDashboard() {
               src={logo}
               alt="AthleteIQ"
               className="h-8 w-auto opacity-80 cursor-pointer"
-              onClick={() => navigate('/athlete-dashboard')}
+              onClick={() => navigate('/gym-member-dashboard')}
             />
             <div>
               <h1 className="text-3xl md:text-5xl font-black tracking-tight">
-                Hey {athleteName.split(' ')[0]}
+                Hey {memberName.split(' ')[0]}
               </h1>
               <p className="text-gray-500 font-bold uppercase text-[10px] md:text-xs mt-1 tracking-widest">
-                {athleteSport || 'Elite Squad'} · My Wellness Portal
+                {memberGoal || 'General Fitness'} · My Training Portal
               </p>
             </div>
           </div>
@@ -195,28 +214,16 @@ export default function AthleteDashboard() {
             color="text-emerald-400"
           />
           <StatCard
-            label="Injury Risk"
+            label="Recovery Risk"
             value={injuryRiskScore != null ? `${injuryRiskScore}/100` : '—'}
             color={injuryRiskLevel === 'red' ? 'text-rose-400' : injuryRiskLevel === 'yellow' ? 'text-amber-400' : 'text-emerald-400'}
           />
           <StatCard
-            label="ACWR"
-            value={acwrVal && acwrVal > 0 ? Number(acwrVal).toFixed(2) : '—'}
-            color={
-              !acwrVal || acwrVal === 0 ? 'text-blue-400'
-              : acwrVal > 1.5 ? 'text-rose-400'
-              : acwrVal > 1.3 ? 'text-amber-400'
-              : acwrVal < 0.8 ? 'text-amber-400'
-              : 'text-emerald-400'
-            }
-            subtitle={
-              !acwrVal || acwrVal === 0 ? 'Building baseline — need sessions from earlier weeks'
-              : acwrVal > 1.5 ? 'High risk'
-              : acwrVal > 1.3 ? 'Caution'
-              : acwrVal < 0.8 ? 'Undertraining'
-              : 'Optimal'
-            }
-            info="Acute:Chronic Workload Ratio — compares your last 7 days of training load to your 28-day average to flag injury risk from sudden spikes."
+            label="This Week"
+            value={weeklyMinutes ? `${weeklyMinutes} min` : '—'}
+            color="text-blue-400"
+            sub={`${trainerLogs.length} session${trainerLogs.length === 1 ? '' : 's'} logged`}
+            info="Total minutes your trainer has logged for you in the last 7 days."
           />
           <StatCard
             label="Active Days"
@@ -229,12 +236,12 @@ export default function AthleteDashboard() {
         {showProfileForm && (
           <div className="bg-gray-800 rounded-2xl p-6 border border-indigo-500/30 mb-8">
             <p className="text-indigo-400 text-[10px] font-black uppercase tracking-widest mb-1">Complete Your Profile</p>
-            <p className="text-gray-400 text-sm mb-4">Add parent details so your coach can reach them.</p>
+            <p className="text-gray-400 text-sm mb-4">Add a contact number so your trainer can reach you.</p>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3">
               {[
                 { key: 'age', type: 'number', placeholder: 'Your age' },
-                { key: 'parent_name', type: 'text', placeholder: "Parent's name" },
-                { key: 'parent_phone', type: 'tel', placeholder: 'Parent phone (10 digits)' },
+                { key: 'parent_phone', type: 'tel', placeholder: 'Your phone (10 digits)' },
+                { key: 'parent_name', type: 'text', placeholder: 'Emergency contact name' },
               ].map(f => (
                 <input
                   key={f.key}
@@ -257,10 +264,10 @@ export default function AthleteDashboard() {
         )}
 
         {/* Empty state */}
-        {history.length === 0 ? (
+        {history.length === 0 && trainerLogs.length === 0 ? (
           <div className="bg-gray-800 rounded-2xl p-12 text-center border border-gray-700">
             <h2 className="text-3xl font-black tracking-tight text-white mb-2">Ready to start?</h2>
-            <p className="text-gray-400 mb-8 text-sm">Submit your first daily check-in to see your performance metrics.</p>
+            <p className="text-gray-400 mb-8 text-sm">Submit your first daily check-in so your trainer can plan your session.</p>
             <button
               onClick={() => navigate('/checkin')}
               className="bg-indigo-600 hover:bg-indigo-500 text-white px-8 py-3 rounded-xl font-bold text-sm transition"
@@ -298,16 +305,16 @@ export default function AthleteDashboard() {
                       <div>
                         <p className="text-gray-500 text-[10px] font-black uppercase tracking-widest mb-2">Today's Status</p>
                         <RiskBadge risk={insight.risk} />
-                        {injuryRisk?.metrics?.risk_tier && (
+                        {lastLog && (
                           <p className="text-gray-500 text-xs mt-2">
-                            Workload: {injuryRisk.metrics.risk_tier} · ACWR {injuryRisk.acwr}
+                            Last session: {lastLog.workout_type || '—'} · {lastLog.intensity || '—'}
                           </p>
                         )}
                       </div>
                     </div>
                     {insight?.athlete_message && insight.athlete_message !== 'No data yet' && (
                       <div className="w-full md:flex-1 md:min-w-0 md:max-w-md bg-gray-900/50 rounded-xl px-4 py-3 border border-gray-700">
-                        <p className="text-indigo-400 text-[10px] font-black uppercase tracking-widest mb-1">🤖 Coach Says</p>
+                        <p className="text-indigo-400 text-[10px] font-black uppercase tracking-widest mb-1">🤖 Trainer Says</p>
                         <p className="text-gray-300 text-sm leading-relaxed italic">"{insight.athlete_message}"</p>
                       </div>
                     )}
@@ -315,7 +322,7 @@ export default function AthleteDashboard() {
                 </div>
               )}
 
-              {/* Recovery Insight + Injury Prediction */}
+              {/* Recovery Insight + Recovery Risk */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="bg-gray-800 rounded-2xl p-6 border border-gray-700">
                   <p className="text-blue-400 text-[10px] font-black uppercase mb-3 tracking-widest">🤖 Recovery Insight</p>
@@ -326,7 +333,7 @@ export default function AthleteDashboard() {
                   )}
                 </div>
                 <div className={`bg-gray-800 rounded-2xl p-6 border ${injuryRiskLevel === 'red' ? 'border-rose-500/30' : 'border-gray-700'}`}>
-                  <p className="text-gray-500 text-[10px] font-black uppercase mb-3 tracking-widest">🛡️ Injury Prediction</p>
+                  <p className="text-gray-500 text-[10px] font-black uppercase mb-3 tracking-widest">🛡️ Recovery Risk</p>
                   {injuryRisk ? (
                     <div>
                       <div className="flex justify-between items-end mb-2">
@@ -360,23 +367,80 @@ export default function AthleteDashboard() {
                 </div>
               </div>
 
+              {/* Last session logged by the trainer */}
+              {lastLog && (
+                <div className="bg-gray-800 rounded-2xl p-6 border border-gray-700">
+                  <h2 className="text-xs font-black uppercase tracking-widest text-gray-500 mb-6">
+                    Last Session · {new Date(lastLog.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
+                  </h2>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+                    {[
+                      { label: 'Workout', value: lastLog.workout_type || '—' },
+                      { label: 'Duration', value: lastLog.session_duration ? `${lastLog.session_duration} min` : '—' },
+                      { label: 'Intensity', value: lastLog.intensity || '—', valueClass: INTENSITY_COLORS[lastLog.intensity] || 'text-white' },
+                      { label: 'Weight', value: lastLog.progression || '—' },
+                    ].map(item => (
+                      <div key={item.label} className="bg-gray-900/50 rounded-xl p-3 border border-gray-700/50">
+                        <p className="text-gray-500 text-[10px] font-black uppercase tracking-widest mb-1">{item.label}</p>
+                        <p className={`text-sm font-black ${item.valueClass || 'text-white'}`}>{item.value}</p>
+                      </div>
+                    ))}
+                  </div>
+
+                  {lastLog.goal_progress && (() => {
+                    const gc = GOAL_COLORS[lastLog.goal_progress] || {};
+                    return (
+                      <div className={`${gc.bg} border ${gc.border} rounded-xl px-4 py-3 mb-4`}>
+                        <p className="text-gray-500 text-[10px] font-black uppercase tracking-widest mb-1">Goal Progress</p>
+                        <p className={`text-sm font-black ${gc.text}`}>{lastLog.goal_progress}</p>
+                      </div>
+                    );
+                  })()}
+
+                  {lastLog.muscle_groups?.length > 0 && (
+                    <div className="mb-4">
+                      <p className="text-gray-500 text-[10px] font-black uppercase tracking-widest mb-2">Body Parts Trained</p>
+                      <div className="flex flex-wrap gap-2">
+                        {lastLog.muscle_groups.map(mg => (
+                          <span
+                            key={mg}
+                            className="text-[10px] font-bold bg-blue-500/10 text-blue-400 border border-blue-500/20 px-2.5 py-1 rounded-lg"
+                          >
+                            {mg}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {lastLog.notes && (
+                    <div className="bg-gray-900/50 rounded-xl px-4 py-3 border border-gray-700/50">
+                      <p className="text-gray-500 text-[10px] font-black uppercase tracking-widest mb-1">Trainer Notes</p>
+                      <p className="text-gray-300 text-sm leading-relaxed italic">"{lastLog.notes}"</p>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* Weekly Trend chart */}
-              <div className="bg-gray-800 rounded-2xl p-6 border border-gray-700">
-                <h2 className="text-xs font-black uppercase tracking-widest text-gray-500 mb-6">Weekly Trend</h2>
-                <ResponsiveContainer width="100%" height={260}>
-                  <LineChart data={chartData.slice(-7)}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#374151" vertical={false} />
-                    <XAxis dataKey="date" tick={{ fill: '#6b7280', fontSize: 10 }} axisLine={false} tickLine={false} />
-                    <YAxis domain={[0, 10]} tick={{ fill: '#6b7280', fontSize: 10 }} axisLine={false} tickLine={false} />
-                    <Tooltip contentStyle={{ backgroundColor: '#1f2937', border: '1px solid #374151', borderRadius: '12px' }} />
-                    <Legend wrapperStyle={{ fontSize: '10px', textTransform: 'uppercase', fontWeight: 900, paddingTop: '10px' }} />
-                    <Line type="monotone" dataKey="energy" stroke="#3b82f6" strokeWidth={2} dot={{ r: 2 }} name="Energy" />
-                    <Line type="monotone" dataKey="sleep" stroke="#6366f1" strokeWidth={2} dot={{ r: 2 }} name="Sleep" />
-                    <Line type="monotone" dataKey="soreness" stroke="#f43f5e" strokeWidth={2} dot={{ r: 2 }} name="Soreness" />
-                    <Line type="monotone" dataKey="mood" stroke="#f59e0b" strokeWidth={2} dot={{ r: 2 }} name="Mood" />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
+              {chartData.length > 0 && (
+                <div className="bg-gray-800 rounded-2xl p-6 border border-gray-700">
+                  <h2 className="text-xs font-black uppercase tracking-widest text-gray-500 mb-6">Weekly Trend</h2>
+                  <ResponsiveContainer width="100%" height={260}>
+                    <LineChart data={chartData.slice(-7)}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#374151" vertical={false} />
+                      <XAxis dataKey="date" tick={{ fill: '#6b7280', fontSize: 10 }} axisLine={false} tickLine={false} />
+                      <YAxis domain={[0, 10]} tick={{ fill: '#6b7280', fontSize: 10 }} axisLine={false} tickLine={false} />
+                      <Tooltip contentStyle={{ backgroundColor: '#1f2937', border: '1px solid #374151', borderRadius: '12px' }} />
+                      <Legend wrapperStyle={{ fontSize: '10px', textTransform: 'uppercase', fontWeight: 900, paddingTop: '10px' }} />
+                      <Line type="monotone" dataKey="energy" stroke="#3b82f6" strokeWidth={2} dot={{ r: 2 }} name="Energy" />
+                      <Line type="monotone" dataKey="sleep" stroke="#6366f1" strokeWidth={2} dot={{ r: 2 }} name="Sleep" />
+                      <Line type="monotone" dataKey="soreness" stroke="#f43f5e" strokeWidth={2} dot={{ r: 2 }} name="Soreness" />
+                      <Line type="monotone" dataKey="mood" stroke="#f59e0b" strokeWidth={2} dot={{ r: 2 }} name="Mood" />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
             </div>
 
             {/* Sidebar */}
@@ -401,29 +465,64 @@ export default function AthleteDashboard() {
               </div>
 
               {/* Recent check-ins */}
-              <div className="bg-gray-800 rounded-2xl p-6 border border-gray-700">
-                <h2 className="text-xs font-black uppercase tracking-widest text-gray-500 mb-4">Recent Check-ins</h2>
-                <div className="space-y-3">
-                  {[...history].reverse().slice(0, 5).map((entry, i) => (
-                    <div key={i} className="bg-gray-900/50 rounded-xl p-3 border border-gray-700/50">
-                      <p className="text-gray-500 text-[10px] font-black uppercase tracking-widest mb-2">{entry.date}</p>
-                      <div className="grid grid-cols-4 gap-2 text-center">
-                        {[
-                          { v: entry.energy, c: 'text-blue-400', l: 'EN' },
-                          { v: entry.sleep, c: 'text-indigo-400', l: 'SL' },
-                          { v: entry.soreness, c: 'text-rose-400', l: 'SO' },
-                          { v: entry.mood, c: 'text-amber-400', l: 'MO' },
-                        ].map(x => (
-                          <div key={x.l}>
-                            <p className={`font-black text-base ${x.c}`}>{x.v}</p>
-                            <p className="text-[9px] text-gray-600 font-bold">{x.l}</p>
-                          </div>
-                        ))}
+              {history.length > 0 && (
+                <div className="bg-gray-800 rounded-2xl p-6 border border-gray-700">
+                  <h2 className="text-xs font-black uppercase tracking-widest text-gray-500 mb-4">Recent Check-ins</h2>
+                  <div className="space-y-3">
+                    {[...history].reverse().slice(0, 5).map((entry, i) => (
+                      <div key={i} className="bg-gray-900/50 rounded-xl p-3 border border-gray-700/50">
+                        <p className="text-gray-500 text-[10px] font-black uppercase tracking-widest mb-2">{entry.date}</p>
+                        <div className="grid grid-cols-4 gap-2 text-center">
+                          {[
+                            { v: entry.energy, c: 'text-blue-400', l: 'EN' },
+                            { v: entry.sleep, c: 'text-indigo-400', l: 'SL' },
+                            { v: entry.soreness, c: 'text-rose-400', l: 'SO' },
+                            { v: entry.mood, c: 'text-amber-400', l: 'MO' },
+                          ].map(x => (
+                            <div key={x.l}>
+                              <p className={`font-black text-base ${x.c}`}>{x.v}</p>
+                              <p className="text-[9px] text-gray-600 font-bold">{x.l}</p>
+                            </div>
+                          ))}
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
                 </div>
-              </div>
+              )}
+
+              {/* Session history */}
+              {trainerLogs.length > 0 && (
+                <div className="bg-gray-800 rounded-2xl p-6 border border-gray-700">
+                  <h2 className="text-xs font-black uppercase tracking-widest text-gray-500 mb-4">🏋️ Session History</h2>
+                  <div className="space-y-3">
+                    {trainerLogs.slice(0, 6).map((log, i) => (
+                      <div key={i} className="bg-gray-900/50 border border-gray-700/50 rounded-xl p-3">
+                        <div className="flex items-start justify-between gap-2 mb-2">
+                          <div>
+                            <p className="text-white font-black text-sm">{log.workout_type || 'Session'}</p>
+                            <p className="text-gray-500 text-[10px] font-bold uppercase tracking-wider">
+                              {new Date(log.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
+                              {log.session_duration ? ` · ${log.session_duration} min` : ''}
+                            </p>
+                          </div>
+                          {log.intensity && (
+                            <span className={`text-[10px] font-black px-2 py-0.5 rounded-full border ${
+                              log.intensity === 'Intense' ? 'bg-rose-500/10 border-rose-500/30 text-rose-400'
+                              : log.intensity === 'Moderate' ? 'bg-amber-500/10 border-amber-500/30 text-amber-400'
+                              : 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
+                            }`}>{log.intensity.toUpperCase()}</span>
+                          )}
+                        </div>
+                        {log.muscle_groups?.length > 0 && (
+                          <p className="text-gray-500 text-[10px] font-bold">{log.muscle_groups.join(' · ')}</p>
+                        )}
+                        {log.notes && <p className="text-gray-400 text-xs mt-1 italic">"{log.notes}"</p>}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* Injuries */}
               {injuries.length > 0 && (
@@ -437,18 +536,20 @@ export default function AthleteDashboard() {
                             <p className="text-white font-black text-sm">{inj.body_part}</p>
                             <p className="text-gray-500 text-[10px] font-bold uppercase tracking-wider">{inj.injury_type}</p>
                           </div>
-                          <span className={`text-[10px] font-black px-2 py-0.5 rounded-full border ${inj.severity === 'severe' ? 'bg-rose-500/10 border-rose-500/30 text-rose-400' :
-                            inj.severity === 'moderate' ? 'bg-amber-500/10 border-amber-500/30 text-amber-400' :
-                              'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
-                            }`}>{inj.severity.toUpperCase()}</span>
+                          <span className={`text-[10px] font-black px-2 py-0.5 rounded-full border ${
+                            inj.severity === 'severe' ? 'bg-rose-500/10 border-rose-500/30 text-rose-400'
+                            : inj.severity === 'moderate' ? 'bg-amber-500/10 border-amber-500/30 text-amber-400'
+                            : 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
+                          }`}>{inj.severity.toUpperCase()}</span>
                         </div>
                         <p className="text-gray-600 text-[10px] font-bold">{inj.date_occurred}</p>
                         {inj.notes && <p className="text-gray-400 text-xs mt-1 italic">"{inj.notes}"</p>}
                         <div className="mt-2">
-                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-lg ${inj.status === 'active' ? 'text-rose-400 bg-rose-500/10' :
-                            inj.status === 'recovering' ? 'text-amber-400 bg-amber-500/10' :
-                              'text-emerald-400 bg-emerald-500/10'
-                            }`}>{inj.status.charAt(0).toUpperCase() + inj.status.slice(1)}</span>
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-lg ${
+                            inj.status === 'active' ? 'text-rose-400 bg-rose-500/10'
+                            : inj.status === 'recovering' ? 'text-amber-400 bg-amber-500/10'
+                            : 'text-emerald-400 bg-emerald-500/10'
+                          }`}>{inj.status.charAt(0).toUpperCase() + inj.status.slice(1)}</span>
                         </div>
                       </div>
                     ))}
@@ -461,7 +562,7 @@ export default function AthleteDashboard() {
       </div>
 
       {/* Profile modal */}
-      {showProfile && athleteProfile && (
+      {showProfile && profile && (
         <div
           className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4"
           onClick={() => setShowProfile(false)}
@@ -476,15 +577,15 @@ export default function AthleteDashboard() {
             </div>
             <div className="space-y-2">
               {[
-                { label: 'Name', value: athleteProfile.name },
-                { label: 'Sport', value: athleteProfile.sport || '—' },
-                { label: 'Age', value: athleteProfile.age || '—' },
-                { label: "Parent's Name", value: athleteProfile.parent_name || '—' },
-                { label: "Parent's Phone", value: athleteProfile.parent_phone || '—' },
+                { label: 'Name', value: profile.name },
+                { label: 'Goals', value: profile.sport || '—' },
+                { label: 'Age', value: profile.age || '—' },
+                { label: 'Phone', value: profile.parent_phone || '—' },
+                { label: 'Emergency Contact', value: profile.parent_name || '—' },
               ].map(item => (
-                <div key={item.label} className="flex justify-between items-center bg-gray-900/50 rounded-xl px-4 py-3 border border-gray-700/50">
-                  <p className="text-gray-500 text-[10px] font-black uppercase tracking-widest">{item.label}</p>
-                  <p className="text-white text-sm font-bold">{item.value}</p>
+                <div key={item.label} className="flex justify-between items-center gap-3 bg-gray-900/50 rounded-xl px-4 py-3 border border-gray-700/50">
+                  <p className="text-gray-500 text-[10px] font-black uppercase tracking-widest shrink-0">{item.label}</p>
+                  <p className="text-white text-sm font-bold text-right">{item.value}</p>
                 </div>
               ))}
             </div>
@@ -501,7 +602,7 @@ export default function AthleteDashboard() {
       {showChat && (
         <ChatPanel
           academyId={localStorage.getItem('academyId') || ''}
-          athleteName={athleteName}
+          athleteName={memberName}
           sender="athlete"
           onClose={() => setShowChat(false)}
         />

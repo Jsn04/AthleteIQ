@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { coachHome, isGymAcademy } from '../homeRoutes';
+import { GymLogModal } from './GymTrainerDashboard';
 import axios from 'axios';
 import API_BASE_URL from '../config';
 import StatCard from '../components/common/StatCard';
@@ -19,6 +21,7 @@ function AthleteProfile() {
   const { name } = useParams();
   const navigate = useNavigate();
   const academyId = getAcademyId();
+  const isGym = isGymAcademy();
 
   const [history, setHistory] = useState([]);
   const [trainingLogs, setTrainingLogs] = useState([]);
@@ -70,7 +73,11 @@ function AthleteProfile() {
       ]);
 
       if (historyRes.status === 'fulfilled') {
-        const rawHistory = historyRes.value.data.history || [];
+        const allRows = historyRes.value.data.history || [];
+        // Gym sessions share the checkins table with member self check-ins.
+        // `logged_by` separates them: trainer rows carry no wellness scores.
+        const rawHistory = allRows.filter(c => !c.logged_by);
+        if (isGym) setTrainingLogs(allRows.filter(c => c.logged_by === 'trainer'));
         const chronological = [...rawHistory].reverse();
         const formatted = chronological.map((c) => ({
           date: new Date(c.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }),
@@ -85,7 +92,7 @@ function AthleteProfile() {
         setHistory(formatted);
         prevCheckinsRef.current = JSON.stringify(rawHistory);
       }
-      if (logsRes.status === 'fulfilled') setTrainingLogs([...logsRes.value.data.logs || []].reverse());
+      if (!isGym && logsRes.status === 'fulfilled') setTrainingLogs([...logsRes.value.data.logs || []].reverse());
       if (insightRes.status === 'fulfilled') setInsight(insightRes.value.data);
       if (injuryRes.status === 'fulfilled') setInjuryRisk(injuryRes.value.data);
 
@@ -120,7 +127,7 @@ function AthleteProfile() {
     } finally {
       setLoading(false);
     }
-  }, [name, academyId]);
+  }, [name, academyId, isGym]);
 
   const handleLogInjury = async () => {
     setSavingInjury(true);
@@ -178,6 +185,14 @@ function AthleteProfile() {
 
   const singleAthleteList = [{ id: name, name }];
 
+  // Minutes the trainer has logged for this member over the last 7 days.
+  const weeklyGymMinutes = isGym
+    ? trainingLogs.reduce((sum, l) => {
+        const days = (Date.now() - new Date(l.created_at).getTime()) / 86400000;
+        return days <= 7 ? sum + (Number(l.session_duration) || 0) : sum;
+      }, 0)
+    : 0;
+
   if (loading && history.length === 0) return (
     <div className="min-h-screen bg-gray-950 p-6 flex items-center justify-center">
       <LoadingSkeleton type="profile" />
@@ -201,7 +216,7 @@ function AthleteProfile() {
         {/* Header */}
         <div className="flex justify-between items-center mb-8 flex-wrap gap-4">
           <div className="flex items-center gap-6">
-            <button onClick={() => navigate('/dashboard')}
+            <button onClick={() => navigate(coachHome())}
               className="text-gray-500 hover:text-white transition group flex items-center gap-2">
               <span className="text-xl group-hover:-translate-x-1 transition-transform">←</span>
               <span className="font-bold text-sm uppercase">Back</span>
@@ -209,7 +224,7 @@ function AthleteProfile() {
             <div>
               <h1 className="text-3xl md:text-5xl font-black tracking-tight">{name}</h1>
               <p className="text-gray-500 font-bold uppercase text-[10px] md:text-xs mt-1">
-                Athlete Performance Profile · {history.length} Entries
+                {isGym ? 'Member Training Profile' : 'Athlete Performance Profile'} · {history.length} Entries
               </p>
             </div>
           </div>
@@ -230,7 +245,7 @@ function AthleteProfile() {
             </button>
             <button onClick={() => setShowBulkModal(true)}
               className="bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded-xl text-xs font-bold transition">
-              + Log Session
+              {isGym ? '+ Log Gym Session' : '+ Log Session'}
             </button>
             <button onClick={() => fetchData(false, true)}
               className="bg-gray-800 hover:bg-gray-700 text-white px-4 py-2 rounded-xl text-xs font-bold transition">
@@ -255,6 +270,17 @@ function AthleteProfile() {
             value={injuryRisk?.injury_risk_score != null ? `${injuryRisk.injury_risk_score}/100` : '—'}
             color={injuryRisk?.risk_level === 'red' ? 'text-rose-400' : 'text-amber-400'}
           />
+          {isGym ? (
+            // ACWR needs dated training loads, which the gym pipeline doesn't
+            // produce — show logged volume instead.
+            <StatCard
+              label="This Week"
+              value={weeklyGymMinutes ? `${weeklyGymMinutes} min` : '—'}
+              color="text-blue-400"
+              sub={`${trainingLogs.length} session${trainingLogs.length === 1 ? '' : 's'} logged`}
+              info="Total minutes logged for this member in the last 7 days."
+            />
+          ) : (
           <StatCard
             label="ACWR"
             value={injuryRisk?.acwr && injuryRisk.acwr > 0 ? injuryRisk.acwr : '—'}
@@ -274,6 +300,7 @@ function AthleteProfile() {
             }
             info="Acute:Chronic Workload Ratio — compares your last 7 days of training load to your 28-day average to flag injury risk from sudden spikes."
           />
+          )}
           <StatCard label="Active Days" value={history.length} color="text-white" />
         </div>
 
@@ -589,7 +616,9 @@ function AthleteProfile() {
           {/* Sidebar */}
           <div className="space-y-6">
             <div className="bg-gray-800 rounded-2xl p-6 border border-gray-700">
-              <h2 className="text-sm font-black uppercase tracking-tight mb-6">Recent Training Sessions</h2>
+              <h2 className="text-sm font-black uppercase tracking-tight mb-6">
+                {isGym ? 'Recent Gym Sessions' : 'Recent Training Sessions'}
+              </h2>
               {trainingLogs.length === 0 ? (
                 <p className="text-gray-600 text-xs text-center py-10 italic">No logs on record.</p>
               ) : (
@@ -600,15 +629,42 @@ function AthleteProfile() {
                         <span className="text-[10px] font-black text-blue-400 uppercase">{log.intensity} Intensity</span>
                         <span className="text-[10px] font-bold text-gray-600 uppercase">{new Date(log.created_at).toLocaleDateString()}</span>
                       </div>
-                      <div className="flex items-center justify-between gap-4">
+                      {isGym ? (
                         <div>
-                          <p className="text-xs font-bold text-gray-400 mb-1">RPE: {log.rpe}/10</p>
-                          <p className="text-white font-black text-sm">{log.duration} mins</p>
+                          <p className="text-white font-black text-sm">{log.workout_type || 'Session'}</p>
+                          <p className="text-xs font-bold text-gray-400 mt-1">
+                            {log.session_duration ? `${log.session_duration} mins` : '—'}
+                            {log.progression ? ` · ${log.progression} weight` : ''}
+                          </p>
+                          {log.muscle_groups?.length > 0 && (
+                            <div className="flex flex-wrap gap-1.5 mt-2">
+                              {log.muscle_groups.map(mg => (
+                                <span key={mg}
+                                  className="text-[10px] font-bold bg-blue-500/10 text-blue-400 border border-blue-500/20 px-2 py-0.5 rounded-lg">
+                                  {mg}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                          {log.goal_progress && (
+                            <p className={`text-[10px] font-black uppercase tracking-widest mt-2 ${
+                              log.goal_progress === 'On Track' ? 'text-emerald-400'
+                              : log.goal_progress === 'Progressing' ? 'text-blue-400'
+                              : 'text-amber-400'
+                            }`}>{log.goal_progress}</p>
+                          )}
                         </div>
-                      </div>
-                      {log.coach_notes && (
+                      ) : (
+                        <div className="flex items-center justify-between gap-4">
+                          <div>
+                            <p className="text-xs font-bold text-gray-400 mb-1">RPE: {log.rpe}/10</p>
+                            <p className="text-white font-black text-sm">{log.duration} mins</p>
+                          </div>
+                        </div>
+                      )}
+                      {(isGym ? log.notes : log.coach_notes) && (
                         <p className="text-[11px] text-gray-500 mt-2 italic leading-relaxed pt-2 border-t border-gray-700">
-                          "{log.coach_notes}"
+                          "{isGym ? log.notes : log.coach_notes}"
                         </p>
                       )}
                     </div>
@@ -791,9 +847,16 @@ function AthleteProfile() {
         </div>
       )}
 
-      {showBulkModal && (
+      {showBulkModal && (isGym ? (
+        <GymLogModal
+          member={{ name }}
+          academyId={academyId}
+          onClose={() => setShowBulkModal(false)}
+          onSaved={() => fetchData(true, true)}
+        />
+      ) : (
         <BulkLogModal athletes={singleAthleteList} onClose={() => setShowBulkModal(false)} onSuccess={() => fetchData(false, true)} />
-      )}
+      ))}
       {showWeeklyReport && (
         <WeeklyReport athleteName={name} academyId={academyId} onClose={() => setShowWeeklyReport(false)} />
       )}

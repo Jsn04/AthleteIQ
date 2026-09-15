@@ -10,6 +10,7 @@ import TopLoader from '../components/common/TopLoader';
 
 const getCoachSport = () => localStorage.getItem('coachSport') || null;
 const getAcademyId = () => localStorage.getItem('academyId') || '';
+const getAcademyType = () => localStorage.getItem('academyType') || 'sport';
 const norm = (str) => (str || '').trim().toLowerCase();
 
 const Bar = ({ value, color }) => (
@@ -44,6 +45,317 @@ const LiveIndicator = ({ lastUpdated }) => (
     </span>
   </div>
 );
+
+const MUSCLE_OPTIONS = ['Chest', 'Back', 'Legs', 'Shoulders', 'Arms', 'Core', 'Full Body'];
+const WORKOUT_TYPES = ['Strength', 'Cardio', 'HIIT', 'Flexibility', 'Mobility'];
+const DURATIONS = [30, 45, 60, 90];
+const INTENSITIES = ['Light', 'Moderate', 'Intense'];
+const PROGRESSIONS = ['Lighter', 'Same', 'Heavier'];
+const GOAL_PROGRESS = ['On Track', 'Progressing', 'Needs Attention'];
+
+function PillGroup({ options, value, onChange, colors }) {
+  const colorMap = colors || {};
+  return (
+    <div className="flex gap-2 flex-wrap">
+      {options.map(opt => {
+        const active = value === opt;
+        const c = colorMap[opt] || 'purple';
+        const activeClass = {
+          purple: 'border-purple-500/70 bg-purple-500/15 text-purple-300',
+          blue:   'border-blue-500/70 bg-blue-500/15 text-blue-300',
+          green:  'border-green-500/70 bg-green-500/15 text-green-300',
+          amber:  'border-amber-500/70 bg-amber-500/15 text-amber-300',
+          red:    'border-red-500/70 bg-red-500/15 text-red-300',
+        }[c];
+        return (
+          <button key={opt} type="button" onClick={() => onChange(opt)}
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition-colors ${active ? activeClass : 'border-gray-700 text-gray-500 hover:border-gray-600'}`}>
+            {opt}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function GymLogModal({ athlete, academyId, onClose, onSaved }) {
+  const [muscles, setMuscles] = React.useState([]);
+  const [workoutType, setWorkoutType] = React.useState('Strength');
+  const [duration, setDuration] = React.useState(60);
+  const [intensity, setIntensity] = React.useState('Moderate');
+  const [progression, setProgression] = React.useState('Same');
+  const [goalProgress, setGoalProgress] = React.useState('On Track');
+  const [notes, setNotes] = React.useState('');
+  const [saving, setSaving] = React.useState(false);
+
+  const toggleMuscle = (mg) =>
+    setMuscles(prev => prev.includes(mg) ? prev.filter(x => x !== mg) : [...prev, mg]);
+
+  const handleSave = async () => {
+    if (muscles.length === 0) return;
+    setSaving(true);
+    try {
+      await api.post(`/wellness?academy_id=${academyId}`, {
+        athlete_name: athlete.name,
+        muscle_groups: muscles,
+        workout_type: workoutType,
+        session_duration: duration,
+        intensity,
+        progression,
+        goal_progress: goalProgress,
+        notes: notes.trim() || null,
+        logged_by: 'trainer',
+      });
+      onSaved();
+      onClose();
+    } catch (err) {
+      console.error('Session log failed:', err);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto"
+      onClick={onClose}>
+      <div className="bg-gray-900 border border-gray-700 rounded-2xl w-full max-w-lg p-6 my-4"
+        onClick={e => e.stopPropagation()}>
+
+        {/* Header */}
+        <div className="flex justify-between items-center mb-6">
+          <div>
+            <h3 className="text-white font-black text-lg">Log Session</h3>
+            <p className="text-gray-500 text-xs mt-0.5">{athlete.name}</p>
+          </div>
+          <button onClick={onClose} className="text-gray-500 hover:text-white text-xl leading-none">✕</button>
+        </div>
+
+        <div className="space-y-5">
+
+          {/* Body Part / Muscle Groups */}
+          <div>
+            <p className="text-gray-400 text-[11px] font-black uppercase tracking-widest mb-2">
+              Body Part Trained <span className="text-red-400">*</span>
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {MUSCLE_OPTIONS.map(mg => (
+                <button key={mg} type="button" onClick={() => toggleMuscle(mg)}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition-colors ${muscles.includes(mg) ? 'border-blue-500/70 bg-blue-500/15 text-blue-300' : 'border-gray-700 text-gray-500 hover:border-gray-600'}`}>
+                  {mg}
+                </button>
+              ))}
+            </div>
+            {muscles.length === 0 && <p className="text-gray-600 text-[10px] mt-1.5">Select at least one</p>}
+          </div>
+
+          {/* Workout Type */}
+          <div>
+            <p className="text-gray-400 text-[11px] font-black uppercase tracking-widest mb-2">Workout Type</p>
+            <PillGroup options={WORKOUT_TYPES} value={workoutType} onChange={setWorkoutType} colors={{ Strength: 'purple', Cardio: 'blue', HIIT: 'red', Flexibility: 'green', Mobility: 'amber' }} />
+          </div>
+
+          {/* Duration + Intensity side by side */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <p className="text-gray-400 text-[11px] font-black uppercase tracking-widest mb-2">Duration</p>
+              <div className="flex flex-wrap gap-2">
+                {DURATIONS.map(d => (
+                  <button key={d} type="button" onClick={() => setDuration(d)}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition-colors ${duration === d ? 'border-green-500/70 bg-green-500/15 text-green-300' : 'border-gray-700 text-gray-500 hover:border-gray-600'}`}>
+                    {d}m
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <p className="text-gray-400 text-[11px] font-black uppercase tracking-widest mb-2">Intensity</p>
+              <PillGroup options={INTENSITIES} value={intensity} onChange={setIntensity}
+                colors={{ Light: 'green', Moderate: 'amber', Intense: 'red' }} />
+            </div>
+          </div>
+
+          {/* Weight Progression */}
+          <div>
+            <p className="text-gray-400 text-[11px] font-black uppercase tracking-widest mb-2">Weight vs Last Session</p>
+            <PillGroup options={PROGRESSIONS} value={progression} onChange={setProgression}
+              colors={{ Lighter: 'blue', Same: 'amber', Heavier: 'purple' }} />
+          </div>
+
+          {/* Goal Progress */}
+          <div>
+            <p className="text-gray-400 text-[11px] font-black uppercase tracking-widest mb-2">Goal Progress</p>
+            <PillGroup options={GOAL_PROGRESS} value={goalProgress} onChange={setGoalProgress}
+              colors={{ 'On Track': 'green', 'Progressing': 'blue', 'Needs Attention': 'red' }} />
+          </div>
+
+          {/* Trainer Notes */}
+          <div>
+            <p className="text-gray-400 text-[11px] font-black uppercase tracking-widest mb-2">
+              Trainer Notes <span className="text-gray-600 font-normal normal-case tracking-normal">(optional)</span>
+            </p>
+            <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={2}
+              placeholder="PB hit, form issue, injury flag, anything to remember..."
+              className="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-white placeholder-gray-600 focus:outline-none focus:border-purple-500/50 transition resize-none text-sm" />
+          </div>
+        </div>
+
+        <button onClick={handleSave} disabled={saving || muscles.length === 0}
+          className="w-full mt-6 bg-purple-600 hover:bg-purple-500 disabled:bg-gray-700 disabled:text-gray-500 text-white py-3 rounded-xl font-black text-sm transition">
+          {saving ? 'Saving...' : 'Save Session ✓'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function GymSection({ athletes, insights, checkins, onNavigate, attendance = {}, onMarkAttendance, markingAttendance = {} }) {
+  const [logModalAthlete, setLogModalAthlete] = React.useState(null);
+  const academyId = getAcademyId();
+  const getLatestCheckin = (name) => checkins.find(c => norm(c.athlete_name) === norm(name));
+
+  const checkedIn = athletes.filter(a => getLatestCheckin(a.name)).length;
+
+  return (
+    <div className="mb-10">
+      <div className="flex flex-col gap-3 mb-6 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center gap-3 flex-wrap">
+          <h2 className="text-xl font-black text-white tracking-tight uppercase">Members</h2>
+          <span className="text-gray-500 text-xs font-medium">{athletes.length} members · {checkedIn} checked in</span>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 gap-4">
+        {athletes.map(athlete => {
+          const checkin = getLatestCheckin(athlete.name);
+          const insight = insights[athlete.name];
+          const risk = insight?.risk || 'unknown';
+          const isCheckedIn = !!checkin;
+
+          return (
+            <div key={athlete.id}
+              className={`bg-gray-800 rounded-2xl p-4 sm:p-5 border transition-all hover:border-gray-600 cursor-pointer ${risk === 'red' ? 'border-rose-500/30' : risk === 'yellow' ? 'border-amber-500/20' : 'border-gray-700'}`}
+              onClick={() => onNavigate(`/athlete/${encodeURIComponent(athlete.name)}`)}>
+
+              <div className="flex items-start justify-between mb-4 gap-3">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-400 font-black text-lg shrink-0">
+                    {athlete.name[0]}
+                  </div>
+                  <div className="min-w-0">
+                    <h3 className="text-base sm:text-lg font-black text-white truncate">{athlete.name}</h3>
+                    <p className="text-gray-500 text-xs font-bold uppercase mt-0.5">
+                      Gym Member{athlete.age ? ` · Age ${athlete.age}` : ''}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  {insight?.score != null && isCheckedIn && (
+                    <div className="text-center bg-gray-900 rounded-xl px-3 py-1.5 border border-gray-700">
+                      <p className={`text-xl sm:text-2xl font-black ${risk === 'red' ? 'text-rose-400' : risk === 'yellow' ? 'text-amber-400' : 'text-emerald-400'}`}>{insight.score}</p>
+                      <p className="text-[10px] text-gray-500 font-bold uppercase">Ready</p>
+                    </div>
+                  )}
+                  <RiskBadge risk={risk} checkedIn={isCheckedIn} />
+                </div>
+              </div>
+
+              {/* Wellness sliders */}
+              {checkin ? (
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+                  {[
+                    { label: 'Energy', val: checkin.energy, color: 'bg-blue-500' },
+                    { label: 'Sleep', val: checkin.sleep, color: 'bg-indigo-500' },
+                    { label: 'Soreness', val: checkin.soreness, color: 'bg-rose-500' },
+                    { label: 'Mood', val: checkin.mood, color: 'bg-amber-500' },
+                  ].map(m => (
+                    <div key={m.label} className="bg-gray-900/50 rounded-xl p-3 border border-gray-700/50">
+                      <div className="flex justify-between text-[10px] font-bold uppercase text-gray-500 mb-1.5">
+                        <span>{m.label}</span><span className="text-gray-400">{m.val}/10</span>
+                      </div>
+                      <Bar value={m.val} color={m.color} />
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="bg-gray-900/50 rounded-xl px-4 py-3 mb-4 border border-dashed border-gray-700 flex items-center gap-3">
+                  <span className="text-gray-600">⏳</span>
+                  <p className="text-gray-500 text-xs">No check-in today — remind {athlete.name.split(' ')[0]}.</p>
+                </div>
+              )}
+
+              {/* Gym workout summary */}
+              {checkin && (checkin.workout_type || checkin.session_duration || checkin.muscle_groups?.length > 0) && (
+                <div className="bg-gray-900/60 rounded-xl px-4 py-3 mb-4 border border-purple-500/10 flex flex-wrap gap-3 items-center">
+                  {checkin.workout_type && (
+                    <span className="text-[10px] font-black uppercase tracking-wider text-purple-400 bg-purple-500/10 border border-purple-500/20 px-2 py-1 rounded-lg">
+                      {checkin.workout_type}
+                    </span>
+                  )}
+                  {checkin.session_duration && (
+                    <span className="text-[10px] font-bold text-gray-400">{checkin.session_duration} min</span>
+                  )}
+                  {checkin.muscle_groups?.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5">
+                      {checkin.muscle_groups.map(mg => (
+                        <span key={mg} className="text-[10px] font-bold text-gray-400 bg-gray-800 border border-gray-700 px-2 py-0.5 rounded-lg">{mg}</span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Attendance */}
+              <div className="flex items-center gap-2 mb-2 flex-wrap" onClick={e => e.stopPropagation()}>
+                <span className="text-gray-500 text-[10px] font-bold uppercase tracking-widest">Attendance:</span>
+                {(() => {
+                  const key = athlete.name.toLowerCase().trim();
+                  const status = attendance[key];
+                  const loading = markingAttendance[key];
+                  return (
+                    <>
+                      <button onClick={e => { e.stopPropagation(); onMarkAttendance(athlete, 'present'); }} disabled={loading}
+                        className={`text-[10px] font-black px-3 py-1 rounded-lg border transition ${status === 'present' ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-400' : 'border-gray-700 text-gray-600 hover:border-emerald-500/40 hover:text-emerald-400'}`}>
+                        ✓ Present
+                      </button>
+                      <button onClick={e => { e.stopPropagation(); onMarkAttendance(athlete, 'absent'); }} disabled={loading}
+                        className={`text-[10px] font-black px-3 py-1 rounded-lg border transition ${status === 'absent' ? 'bg-rose-500/20 border-rose-500/40 text-rose-400' : 'border-gray-700 text-gray-600 hover:border-rose-500/40 hover:text-rose-400'}`}>
+                        ✗ Absent
+                      </button>
+                      {status && <span className={`text-[10px] font-black uppercase tracking-widest ${status === 'present' ? 'text-emerald-400' : 'text-rose-400'}`}>{status === 'present' ? '✓ Marked Present' : '✗ Marked Absent'}</span>}
+                      {loading && <span className="text-gray-600 text-[10px]">saving...</span>}
+                    </>
+                  );
+                })()}
+              </div>
+
+              <button
+                onClick={() => setLogModalAthlete(athlete)}
+                className="w-full mt-3 border border-purple-500/40 text-purple-400 hover:bg-purple-500/10 py-2 rounded-xl text-xs font-black transition">
+                + Log Session
+              </button>
+
+              {insight?.insight && insight.insight !== 'No data yet' && (
+                <div className="bg-gray-900/80 rounded-xl p-4 border border-gray-700 mt-2">
+                  <p className="text-[10px] text-blue-400 uppercase font-black mb-2">🤖 AI Insight</p>
+                  <p className="text-gray-300 text-sm leading-relaxed">{insight.insight}</p>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {logModalAthlete && (
+        <GymLogModal
+          athlete={logModalAthlete}
+          academyId={academyId}
+          onClose={() => setLogModalAthlete(null)}
+          onSaved={() => window.location.reload()}
+        />
+      )}
+    </div>
+  );
+}
 
 function SportSection({ sport, athletes, insights, injuryRisks, checkins, onNavigate, skipLock = false, attendance = {}, onMarkAttendance, markingAttendance = {} }) {
   const sessionKey = `unlocked_${sport.toLowerCase()}`;
@@ -375,6 +687,7 @@ function Dashboard() {
   const retryTimerRef = useRef(null);
   const coachSport = getCoachSport();
   const academyId = getAcademyId();
+  const isGym = getAcademyType() === 'gym';
 
   const fetchData = useCallback(async (isSilent = false) => {
     if (!isSilent) setLoading(true);
@@ -449,10 +762,11 @@ function Dashboard() {
   }, [academyId]);
 
   useEffect(() => {
+    if (isGym) { navigate('/gym-dashboard', { replace: true }); return; }
     warmup().then(() => fetchData());
     const interval = setInterval(() => fetchData(true), 30000);
     return () => clearInterval(interval);
-  }, [fetchData]);
+  }, [fetchData, isGym, navigate]);
 
   useEffect(() => {
     if (loadError && athletes.length === 0) {
@@ -654,7 +968,7 @@ function Dashboard() {
 
           <div className="hidden sm:flex gap-2 flex-wrap">
             <Link to="/athletes" className="bg-gray-800 text-white px-5 py-2.5 rounded-xl text-xs font-bold hover:bg-gray-700 transition-all">
-              Manage Athletes
+              {isGym ? 'Manage Members' : 'Manage Athletes'}
             </Link>
             <Link to="/session-planner" className="bg-gray-800 text-white px-5 py-2.5 rounded-xl text-xs font-bold hover:bg-gray-700 transition-all">
               📋 Session Planner
@@ -691,7 +1005,7 @@ function Dashboard() {
           {menuOpen && (
             <div className="sm:hidden mt-3 flex flex-col gap-2">
               <Link to="/athletes" className="bg-gray-800 text-white px-5 py-3 rounded-xl text-sm font-bold text-center" onClick={() => setMenuOpen(false)}>
-                Manage Athletes
+                {isGym ? 'Manage Members' : 'Manage Athletes'}
               </Link>
               <Link to="/session-planner" className="bg-gray-800 text-white px-5 py-3 rounded-xl text-sm font-bold text-center" onClick={() => setMenuOpen(false)}>
                 📋 Session Planner
@@ -730,8 +1044,8 @@ function Dashboard() {
 
         {/* ── Stat Cards ── */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-10">
-          <StatCard label={coachSport ? `${coachSport} Athletes` : 'Total Athletes'} value={visibleAthletes.length} color="text-white" />
-          <StatCard label="Active Today" value={checkedInToday} color="text-emerald-400" />
+          <StatCard label={isGym ? 'Total Members' : (coachSport ? `${coachSport} Athletes` : 'Total Athletes')} value={visibleAthletes.length} color="text-white" />
+          <StatCard label={isGym ? 'Checked In Today' : 'Active Today'} value={checkedInToday} color="text-emerald-400" />
           <StatCard label="High Risk" value={highRiskCount} color="text-rose-400" />
           <StatCard label="Caution" value={cautionCount} color="text-amber-400" />
           <StatCard
@@ -811,12 +1125,14 @@ function Dashboard() {
           ) : (
             <div className="bg-gray-800 rounded-2xl p-10 sm:p-16 text-center border border-dashed border-gray-700">
               <h2 className="text-xl sm:text-2xl font-black text-white mb-2">
-                {coachSport ? `No ${coachSport} athletes found` : 'No athletes found'}
+                {isGym ? 'No members found' : coachSport ? `No ${coachSport} athletes found` : 'No athletes found'}
               </h2>
               <p className="text-gray-500 mb-6 font-medium text-sm">
-                {coachSport
-                  ? `No athletes assigned to ${coachSport} yet. Ask an admin to add them.`
-                  : 'Get started by adding your athlete profiles.'}
+                {isGym
+                  ? 'Add your gym members to get started.'
+                  : coachSport
+                    ? `No athletes assigned to ${coachSport} yet. Ask an admin to add them.`
+                    : 'Get started by adding your athlete profiles.'}
               </p>
               {!coachSport && (
                 <Link to="/athletes"
@@ -826,6 +1142,16 @@ function Dashboard() {
               )}
             </div>
           )
+        ) : isGym ? (
+          <GymSection
+            athletes={visibleAthletes}
+            insights={insights}
+            checkins={checkins}
+            onNavigate={navigate}
+            attendance={attendance}
+            onMarkAttendance={handleMarkAttendance}
+            markingAttendance={markingAttendance}
+          />
         ) : (
           <div className="space-y-4">
             {Object.entries(sportGroups).map(([sport, sportAthletes]) => (

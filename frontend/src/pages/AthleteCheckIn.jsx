@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { athleteHome, isGymAcademy } from '../homeRoutes';
 import axios from 'axios';
 import API_BASE_URL from '../config';
 import { isTrialActive } from '../utils/trialUtils';
@@ -126,7 +127,7 @@ function AthleteCheckIn() {
         mood: parseInt(form.mood),
       });
       setShowComparison(true);
-      setTimeout(() => navigate('/athlete-dashboard'), 4000);
+      setTimeout(() => navigate(athleteHome()), 4000);
     } catch (err) {
       console.error('Error submitting wellness:', err);
     } finally {
@@ -183,7 +184,7 @@ function AthleteCheckIn() {
           </div>
           {aiMessage && (
             <div className="bg-blue-500/10 border border-blue-500/20 rounded-2xl p-4 mb-6">
-              <p className="text-blue-400 text-[10px] font-black uppercase tracking-widest mb-2">🤖 AI Coach Wisdom</p>
+              <p className="text-blue-400 text-[10px] font-black uppercase tracking-widest mb-2">🤖 AI {isGymAcademy() ? 'Trainer' : 'Coach'} Wisdom</p>
               <p className="text-gray-200 text-sm italic">"{aiMessage}"</p>
             </div>
           )}
@@ -230,7 +231,7 @@ function AthleteCheckIn() {
               className="border border-rose-500/30 text-rose-400 py-2.5 rounded-xl text-xs hover:bg-rose-500/10 font-bold transition text-center">
               Vitals Scan
             </button>
-            <button onClick={() => navigate('/athlete-dashboard')}
+            <button onClick={() => navigate(athleteHome())}
               className="border border-gray-700 text-gray-500 py-2.5 rounded-xl text-xs hover:border-blue-500 hover:text-blue-400 font-bold transition text-center">
               Dashboard
             </button>

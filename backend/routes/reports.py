@@ -68,15 +68,23 @@ async def build_report(athlete_name: str, academy_id: str, week_start: date) -> 
 
     # --- fetch all data in parallel ---
     (
-        checkins_res, training_res, injuries_res,
+        checkins_res, training_res, gym_sessions_res, injuries_res,
         attendance_res, last_checkins_res
     ) = await asyncio.gather(
         asyncio.to_thread(lambda: safe_query(lambda sb: sb.table("checkins").select("*")
             .eq("athlete_name", athlete_name).eq("academy_id", academy_id)
+            .is_("logged_by", "null")
             .gte("created_at", week_start_str).lte("created_at", week_end_str + "T23:59:59")
             .order("created_at", desc=False).execute())),
         asyncio.to_thread(lambda: safe_query(lambda sb: sb.table("training_logs").select("*")
             .eq("athlete_name", athlete_name).eq("academy_id", academy_id)
+            .gte("created_at", week_start_str).lte("created_at", week_end_str + "T23:59:59")
+            .order("created_at", desc=False).execute())),
+        # Gym academies log sessions into `checkins` (logged_by='trainer'), not
+        # `training_logs`, so they have to be counted from there instead.
+        asyncio.to_thread(lambda: safe_query(lambda sb: sb.table("checkins").select("*")
+            .eq("athlete_name", athlete_name).eq("academy_id", academy_id)
+            .eq("logged_by", "trainer")
             .gte("created_at", week_start_str).lte("created_at", week_end_str + "T23:59:59")
             .order("created_at", desc=False).execute())),
         asyncio.to_thread(lambda: safe_query(lambda sb: sb.table("injury_logs").select("*")
@@ -88,12 +96,24 @@ async def build_report(athlete_name: str, academy_id: str, week_start: date) -> 
             .order("date", desc=False).execute())),
         asyncio.to_thread(lambda: safe_query(lambda sb: sb.table("checkins").select("*")
             .eq("athlete_name", athlete_name).eq("academy_id", academy_id)
+            .is_("logged_by", "null")
             .gte("created_at", last_week_start).lte("created_at", last_week_end + "T23:59:59")
             .execute())),
     )
 
     checkins = checkins_res.data or []
     training = training_res.data or []
+    gym_sessions = gym_sessions_res.data or []
+    # A gym academy writes no training_logs, so fall back to its trainer sessions
+    # wherever the report counts "sessions this week".
+    if not training and gym_sessions:
+        training = [{
+            "created_at": g["created_at"],
+            "duration":   g.get("session_duration"),
+            "rpe":        None,
+            "intensity":  g.get("intensity"),
+            "coach_notes": g.get("notes"),
+        } for g in gym_sessions]
     injuries = injuries_res.data or []
     attendance = attendance_res.data or []
     last_checkins = last_checkins_res.data or []
@@ -362,6 +382,7 @@ async def get_weekly_report(athlete_name: str, academy_id: str = ""):
         checkins_count_res = await asyncio.to_thread(
             lambda: safe_query(lambda sb: sb.table("checkins").select("id", count="exact")
             .eq("athlete_name", athlete_name).eq("academy_id", academy_id)
+            .is_("logged_by", "null")
             .gte("created_at", week_start.isoformat())
             .execute())
         )
@@ -371,13 +392,21 @@ async def get_weekly_report(athlete_name: str, academy_id: str = ""):
             .gte("created_at", week_start.isoformat())
             .execute())
         )
+        # Gym sessions are trainer-logged check-ins, not training_logs.
+        gym_count_res = await asyncio.to_thread(
+            lambda: safe_query(lambda sb: sb.table("checkins").select("id", count="exact")
+            .eq("athlete_name", athlete_name).eq("academy_id", academy_id)
+            .eq("logged_by", "trainer")
+            .gte("created_at", week_start.isoformat())
+            .execute())
+        )
         return {
             "week_in_progress": True,
             "week_start": week_start.isoformat(),
             "week_end": week_end.isoformat(),
             "days_remaining": days_remaining,
             "checkins_so_far": checkins_count_res.count or 0,
-            "sessions_so_far": training_count_res.count or 0,
+            "sessions_so_far": (training_count_res.count or 0) or (gym_count_res.count or 0),
         }
 
     # Saturday or Sunday — generate/return the full week report.

@@ -130,6 +130,25 @@ def get_training_logs(athlete_name: str, academy_id: str = Query(...)):
         return {"logs": []}
 
 
+@router.get("/all")
+def get_all_trainer_logs(academy_id: str = Query(...), limit: int = 200):
+    require_academy(academy_id)
+    try:
+        result = safe_query(
+            lambda sb: sb.table("checkins")
+            .select("*")
+            .eq("academy_id", academy_id)
+            .eq("logged_by", "trainer")
+            .order("created_at", desc=True)
+            .limit(min(limit, 500))
+            .execute()
+        )
+        return {"checkins": result.data}
+    except Exception as e:
+        log.error("GET /wellness/all failed: %s", e)
+        return {"checkins": []}
+
+
 @router.get("/history/{athlete_name}")
 def get_athlete_history(athlete_name: str, academy_id: str = Query(...), days: int = 7):
     require_academy(academy_id)
@@ -242,7 +261,19 @@ def get_session_status(academy_id: str = Query(...)):
             .limit(1)
             .execute()
         )
-        logged_today = bool(logs_today.data)
+        # Gym academies log sessions as trainer check-ins rather than
+        # training_logs, so count those too before nagging about an unlogged day.
+        gym_today = safe_query(
+            lambda sb: sb.table("checkins")
+            .select("id")
+            .eq("academy_id", academy_id)
+            .eq("logged_by", "trainer")
+            .gte("created_at", today_start)
+            .lte("created_at", today_end)
+            .limit(1)
+            .execute()
+        )
+        logged_today = bool(logs_today.data) or bool(gym_today.data)
 
         # Determine reminder level based on current time vs session schedule
         reminder_level = "none"
