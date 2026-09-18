@@ -3,6 +3,7 @@ import logging
 from fastapi import APIRouter, HTTPException
 
 from db import safe_query
+from trial import require_active_trial
 
 router = APIRouter()
 log = logging.getLogger(__name__)
@@ -10,6 +11,7 @@ log = logging.getLogger(__name__)
 
 @router.post("")
 async def log_injury(payload: dict):
+    require_active_trial(payload.get("academy_id"))
     try:
         data = {
             "academy_id":    payload.get("academy_id"),

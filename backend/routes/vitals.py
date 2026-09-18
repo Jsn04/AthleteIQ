@@ -4,6 +4,7 @@ from datetime import datetime, timezone, timedelta
 from fastapi import APIRouter, Query, HTTPException
 
 from db import safe_query
+from trial import require_active_trial
 
 router = APIRouter()
 log = logging.getLogger(__name__)
@@ -25,6 +26,7 @@ def _today_range_ist():
 
 @router.post("")
 def submit_vitals(data: dict, academy_id: str = Query(...)):
+    require_active_trial(academy_id)
     """
     Save a single vitals reading (HR + HRV) for an athlete.
     Only one reading per athlete per day is allowed.

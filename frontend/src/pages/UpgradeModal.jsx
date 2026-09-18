@@ -3,28 +3,6 @@ import axios from 'axios';
 import API_BASE_URL from '../config';
 
 const PLANS = {
-  founding: {
-    label: 'Founding 10',
-    price: '₹999',
-    period: '/month',
-    note: 'First 10 coaches only — locked for life',
-    amount: 99900,
-    borderColor: 'border-indigo-500',
-    bg: 'bg-indigo-500/5',
-    perAthlete: '₹999/month ÷ 50 athletes = ',
-    perAthleteHighlight: '₹20 per athlete per month',
-    features: [
-      'Up to 50 athletes',
-      '1 sport section',
-      'AI readiness insights (daily)',
-      'ACWR injury risk engine',
-      'Bulk session logger',
-      'Weekly PDF reports',
-      'Parent WhatsApp broadcast',
-      'Mental performance tools',
-      'AI session planner',
-    ],
-  },
   coach: {
     label: 'Coach',
     price: '₹2,499',

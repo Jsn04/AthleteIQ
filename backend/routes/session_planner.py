@@ -8,6 +8,7 @@ from fastapi import APIRouter, HTTPException
 from groq import Groq
 
 from db import safe_query
+from trial import require_active_trial
 
 router = APIRouter()
 log = logging.getLogger(__name__)
@@ -382,6 +383,7 @@ def save_plan(coach_id: str, academy_id: str, coach_input: dict, plan: dict):
 
 @router.post("/generate")
 async def generate_session_plan(payload: dict):
+    require_active_trial(payload.get("academy_id"))
 
     academy_id  = payload.get("academy_id")
     coach_input = payload.get("coach_input")

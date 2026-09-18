@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 from fastapi import APIRouter
 
 from db import safe_query, get_client
+from trial import check_trial_access
 from llm import call_llm
 import ml_model
 import ses_utils
@@ -75,26 +76,6 @@ def invalidate_ai_cache(athlete_name: str, academy_id: str):
         pass
 
 
-# ── Trial gate ────────────────────────────────────────────────────────────────
-def check_trial_access(academy_id: str):
-    if academy_id.startswith("solo_"):
-        return True
-    result = safe_query(
-        lambda sb: sb.table("academies")
-        .select("plan, trial_ends_at")
-        .eq("id", academy_id)
-        .execute().data
-    )
-    if not result:
-        return False
-    academy = result[0]
-    if academy["plan"] == "paid":
-        return True
-    trial_ends_at = academy.get("trial_ends_at")
-    if not trial_ends_at:
-        return False
-    expiry = datetime.fromisoformat(trial_ends_at.replace("Z", "+00:00"))
-    return datetime.now(timezone.utc) <= expiry
 
 
 def _session_load(log: dict) -> float:

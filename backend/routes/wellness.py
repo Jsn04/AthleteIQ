@@ -4,6 +4,7 @@ from datetime import datetime, timezone, timedelta
 from fastapi import APIRouter, BackgroundTasks, Query, HTTPException
 
 from db import safe_query
+from trial import require_active_trial
 from routes.ai import invalidate_ai_cache, analyze_checkin_text
 
 router = APIRouter()
@@ -40,6 +41,7 @@ def get_checkins(academy_id: str = Query(...)):
 
 @router.post("")
 def submit_checkin(checkin: dict, background_tasks: BackgroundTasks, academy_id: str = Query(...)):
+    require_active_trial(academy_id)
     require_academy(academy_id)
     try:
         if "athlete_name" in checkin:
@@ -64,6 +66,7 @@ def submit_checkin(checkin: dict, background_tasks: BackgroundTasks, academy_id:
 
 @router.post("/training-log")
 def log_training(data: dict, academy_id: str = Query(...)):
+    require_active_trial(academy_id)
     require_academy(academy_id)
     try:
         athlete = data["athlete_name"].strip()
@@ -85,6 +88,7 @@ def log_training(data: dict, academy_id: str = Query(...)):
 
 @router.post("/bulk-training-log")
 def bulk_log_training(data: dict, academy_id: str = Query(...)):
+    require_active_trial(academy_id)
     require_academy(academy_id)
     logs = data.get("logs", [])
     if not logs:

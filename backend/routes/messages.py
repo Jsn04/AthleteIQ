@@ -3,6 +3,7 @@ import logging
 from fastapi import APIRouter, HTTPException, Query
 
 from db import safe_query
+from trial import require_active_trial
 
 router = APIRouter()
 log = logging.getLogger(__name__)
@@ -10,6 +11,7 @@ log = logging.getLogger(__name__)
 
 @router.post("")
 def send_message(payload: dict, academy_id: str = Query(...)):
+    require_active_trial(academy_id)
     try:
         athlete_name = (payload.get("athlete_name") or "").strip()
         sender = payload.get("sender")

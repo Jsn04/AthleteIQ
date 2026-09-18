@@ -25,11 +25,8 @@ export default function Terms() {
 
       <h2>2. Subscription, Billing and Auto-Renewal</h2>
       <p>
-        Paid access is offered on the plans displayed in-app (currently Founding 15,
-        Pro and Elite). Subscriptions are billed monthly in Indian Rupees through
-        Razorpay. The <strong>Founding 15</strong> price is locked for the lifetime of
-        an uninterrupted subscription for the first fifteen academies to subscribe on
-        that tier; any lapse or cancellation forfeits the locked price.
+        Paid access is offered on the plans displayed in-app at the time of purchase.
+        Subscriptions are billed in Indian Rupees through Razorpay.
       </p>
       <p>
         Unless cancelled, subscriptions renew automatically at the start of each
@@ -76,7 +73,7 @@ export default function Terms() {
         We target high availability but do not guarantee uninterrupted service.
         Planned maintenance will be communicated in advance where possible. Support
         is provided over email at
-        {' '}<a href="mailto:support@athleteiq.in">support@athleteiq.in</a>{' '}
+        {' '}<a href="mailto:jineshnanal04@gmail.com">jineshnanal04@gmail.com</a>{' '}
         during business hours (Mon–Sat, 10:00–19:00 IST).
       </p>
 
@@ -123,7 +120,7 @@ export default function Terms() {
 
       <h2>12. Contact</h2>
       <p>
-        Questions about these Terms: <a href="mailto:support@athleteiq.in">support@athleteiq.in</a>.
+        Questions about these Terms: <a href="mailto:jineshnanal04@gmail.com">jineshnanal04@gmail.com</a>.
       </p>
     </LegalLayout>
   );

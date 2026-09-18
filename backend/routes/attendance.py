@@ -4,6 +4,7 @@ from datetime import date
 from fastapi import APIRouter, Query
 
 from db import safe_query
+from trial import require_active_trial
 
 router = APIRouter()
 log = logging.getLogger(__name__)
@@ -11,6 +12,7 @@ log = logging.getLogger(__name__)
 
 @router.post("")
 async def mark_attendance(payload: dict):
+    require_active_trial(payload.get("academy_id"))
     try:
         academy_id   = payload.get("academy_id")
         athlete_name = payload.get("athlete_name")

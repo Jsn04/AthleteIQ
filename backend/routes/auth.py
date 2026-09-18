@@ -24,7 +24,6 @@ class AcademyLoginRequest(BaseModel):
     password: str
 
 
-FOUNDING_CAP = 15
 
 
 @router.get("/founding-status")
@@ -43,12 +42,10 @@ def founding_status():
         return {
             "total_academies": total_academies,
             "total_athletes":  total_athletes,
-            "spots_left":      max(FOUNDING_CAP - total_academies, 0),
-            "founding_cap":    FOUNDING_CAP,
         }
     except Exception as e:
         log.error("GET /auth/founding-status failed: %s", e)
-        return {"total_academies": 0, "total_athletes": 0, "spots_left": FOUNDING_CAP, "founding_cap": FOUNDING_CAP}
+        return {"total_academies": 0, "total_athletes": 0}
 
 
 @router.post("/register-academy")

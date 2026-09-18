@@ -19,7 +19,6 @@ WEBHOOK_SECRET      = os.getenv("RAZORPAY_WEBHOOK_SECRET")
 rz_client = razorpay.Client(auth=(RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET))
 
 PLANS = {
-    "founding": {"amount": 99900,   "name": "Founding 15 — ₹999/mo"},
     "coach":    {"amount": 249900,  "name": "Coach — ₹2,499/mo"},
     "academy":  {"amount": 599900,  "name": "Academy — ₹5,999/mo"},
     "elite":    {"amount": 1199900, "name": "Elite — ₹11,999/mo"},

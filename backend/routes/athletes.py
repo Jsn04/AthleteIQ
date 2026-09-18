@@ -3,6 +3,7 @@ import logging
 from fastapi import APIRouter, Query, HTTPException
 
 from db import safe_query
+from trial import require_active_trial
 
 router = APIRouter()
 log = logging.getLogger(__name__)
@@ -33,6 +34,7 @@ def get_athletes(academy_id: str = Query(...)):
 
 @router.post("")
 def add_athlete(athlete: dict, academy_id: str = Query(...)):
+    require_active_trial(academy_id)
     require_academy(academy_id)
     try:
         athlete["academy_id"] = academy_id
