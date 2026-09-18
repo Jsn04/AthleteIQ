@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { athleteHome, isGymAcademy } from '../homeRoutes';
 import axios from 'axios';
 import API_BASE_URL from '../config';
-import { isTrialActive } from '../utils/trialUtils';
+import { requireTrial } from '../utils/trialUtils';
 
 
 const getAcademyId = () => localStorage.getItem('academyId') || '';
@@ -92,10 +92,7 @@ function AthleteCheckIn() {
   const handleChange = (e) => setForm({ ...form, [e.target.name]: e.target.value });
 
   const handleSubmit = async () => {
-    if (!isTrialActive()) {
-      setCheckInError('Your 14-day free trial has expired. Contact us to upgrade.');
-      return;
-    }
+    if (!requireTrial()) return;
     setLoading(true);
     try {
       await axios.post(

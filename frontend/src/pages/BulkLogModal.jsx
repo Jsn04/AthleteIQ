@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import axios from 'axios';
 import API_BASE_URL from '../config';
-import { isTrialActive } from '../utils/trialUtils';
+import { requireTrial } from '../utils/trialUtils';
 
 
 const EFFORT_OPTIONS = [
@@ -167,10 +167,7 @@ export default function BulkLogModal({ athletes, duration, onClose, onSuccess })
     };
 
     const handleSubmit = async () => {
-        if (!isTrialActive()) {
-            setSubmitError('Your 14-day free trial has expired. Contact us to upgrade.');
-            return;
-        }
+        if (!requireTrial()) return;
         setSubmitting(true);
         const academyId = localStorage.getItem('academyId') || '';
 

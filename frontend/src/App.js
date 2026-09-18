@@ -17,6 +17,7 @@ import GymTrainerDashboard from './pages/GymTrainerDashboard';
 import GymMemberDashboard from './pages/GymMemberDashboard';
 import GymTrainingLog from './pages/GymTrainingLog';
 import MessagesInbox from './pages/MessagesInbox';
+import UpgradeGate from './components/common/UpgradeGate';
 import Terms from './pages/legal/Terms';
 import Privacy from './pages/legal/Privacy';
 import Refund from './pages/legal/Refund';
@@ -42,6 +43,7 @@ const AcademyRoute = ({ children }) => {
 function App() {
   return (
     <Router>
+      <UpgradeGate />
       <Routes>
         <Route path="/" element={<AcademyLogin />} />
 

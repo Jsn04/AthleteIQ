@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { coachHome } from '../homeRoutes';
 import axios from 'axios';
 import API_BASE_URL from '../config';
-import { isTrialActive } from '../utils/trialUtils';
+import { requireTrial } from '../utils/trialUtils';
 import LoadingSkeleton from '../components/common/LoadingSkeleton';
 
 
@@ -136,10 +136,7 @@ function AthleteList() {
   const handleChange = (e) => setForm({ ...form, [e.target.name]: e.target.value });
 
   const handleAdd = async () => {
-    if (!isTrialActive()) {
-      setAddError('Your 14-day free trial has expired. Contact us to upgrade.');
-      return;
-    }
+    if (!requireTrial()) return;
     const sportValue = isGym ? form.goals.join(', ') : form.sport.trim();
     if (!form.name.trim() || !sportValue) return;
     setAdding(true);

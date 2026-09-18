@@ -32,6 +32,29 @@ api.interceptors.response.use(
 );
 
 /**
+ * A 402 means the trial lapsed or the plan cap was hit. Pages call dozens of
+ * endpoints and some still use raw axios, so rather than handling it in each
+ * catch block we broadcast one event here and let UpgradeGate react to it.
+ */
+export const PAYMENT_REQUIRED_EVENT = 'athleteiq:payment-required';
+
+const broadcastPaymentRequired = (error) => {
+  if (error?.response?.status === 402) {
+    const detail = error.response?.data?.detail;
+    window.dispatchEvent(
+      new CustomEvent(PAYMENT_REQUIRED_EVENT, {
+        detail: typeof detail === 'string' ? detail : '',
+      })
+    );
+  }
+  return Promise.reject(error);
+};
+
+api.interceptors.response.use((res) => res, broadcastPaymentRequired);
+// Pages that still import axios directly need the same handling.
+axios.interceptors.response.use((res) => res, broadcastPaymentRequired);
+
+/**
  * Ping /health to wake up Render before loading real data.
  * Call this once when the app mounts or on login.
  * Returns true if backend is reachable, false otherwise.
