@@ -3,7 +3,7 @@ import logging
 from fastapi import APIRouter, Query, HTTPException
 
 from db import safe_query
-from trial import require_active_trial
+from trial import require_active_trial, enforce_athlete_cap
 
 router = APIRouter()
 log = logging.getLogger(__name__)
@@ -36,6 +36,7 @@ def get_athletes(academy_id: str = Query(...)):
 def add_athlete(athlete: dict, academy_id: str = Query(...)):
     require_active_trial(academy_id)
     require_academy(academy_id)
+    enforce_athlete_cap(academy_id)
     try:
         athlete["academy_id"] = academy_id
         athlete["is_deleted"] = False

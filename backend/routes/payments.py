@@ -2,12 +2,13 @@ import os
 import hmac
 import hashlib
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import razorpay
 from fastapi import APIRouter, HTTPException, Request
 
 from db import safe_query
+from plans import PLANS, get_price
 
 router = APIRouter()
 log = logging.getLogger(__name__)
@@ -18,25 +19,30 @@ WEBHOOK_SECRET      = os.getenv("RAZORPAY_WEBHOOK_SECRET")
 
 rz_client = razorpay.Client(auth=(RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET))
 
-PLANS = {
-    "coach":    {"amount": 249900,  "name": "Coach — ₹2,499/mo"},
-    "academy":  {"amount": 599900,  "name": "Academy — ₹5,999/mo"},
-    "elite":    {"amount": 1199900, "name": "Elite — ₹11,999/mo"},
-}
+
+def _paid_until(cycle: str) -> str:
+    """Annual buys 365 days, monthly buys 30."""
+    days = 365 if cycle == "annual" else 30
+    return (datetime.now(timezone.utc) + timedelta(days=days)).isoformat()
 
 
 @router.post("/create-order")
 async def create_order(payload: dict):
     academy_id = payload.get("academy_id")
-    plan       = payload.get("plan", "academy")
+    tier       = payload.get("plan", "coach")
+    cycle      = payload.get("cycle", "monthly")
     if not academy_id:
         raise HTTPException(status_code=400, detail="academy_id required")
+
+    price = get_price(tier, cycle)
+    if not price:
+        # Institution is quoted manually, so it has no self-serve price.
+        raise HTTPException(status_code=400, detail="That plan is not available for self-serve checkout.")
     try:
-        plan_data = PLANS.get(plan, PLANS["academy"])
         order = rz_client.order.create({
-            "amount":   plan_data["amount"],
+            "amount":   price["amount"],
             "currency": "INR",
-            "notes":    {"academy_id": academy_id, "plan": plan}
+            "notes":    {"academy_id": academy_id, "plan": tier, "cycle": cycle}
         })
 
         safe_query(
@@ -47,10 +53,10 @@ async def create_order(payload: dict):
 
         return {
             "order_id":  order["id"],
-            "amount":    plan_data["amount"],
+            "amount":    price["amount"],
             "currency":  "INR",
             "key_id":    RAZORPAY_KEY_ID,
-            "plan_name": plan_data["name"],
+            "plan_name": price["label"],
         }
     except HTTPException:
         raise
@@ -65,6 +71,8 @@ async def verify_payment(payload: dict):
     payment_id = payload.get("razorpay_payment_id")
     signature  = payload.get("razorpay_signature")
     academy_id = payload.get("academy_id")
+    tier       = payload.get("plan", "coach")
+    cycle      = payload.get("cycle", "monthly")
 
     if not all([order_id, payment_id, signature, academy_id]):
         raise HTTPException(status_code=400, detail="Missing payment fields")
@@ -80,7 +88,10 @@ async def verify_payment(payload: dict):
         safe_query(
             lambda sb: sb.table("academies").update({
                 "plan":                "paid",
+                "plan_tier":           tier if tier in PLANS else "coach",
+                "billing_cycle":       cycle if cycle in ("monthly", "annual") else "monthly",
                 "paid_at":             datetime.now(timezone.utc).isoformat(),
+                "paid_until":          _paid_until(cycle),
                 "razorpay_payment_id": payment_id,
             }).eq("id", academy_id).execute()
         )
@@ -109,12 +120,18 @@ async def razorpay_webhook(request: Request):
         event = await request.json()
         if event.get("event") == "payment.captured":
             payment    = event["payload"]["payment"]["entity"]
-            academy_id = payment.get("notes", {}).get("academy_id")
+            notes      = payment.get("notes", {}) or {}
+            academy_id = notes.get("academy_id")
+            tier       = notes.get("plan", "coach")
+            cycle      = notes.get("cycle", "monthly")
             if academy_id:
                 safe_query(
                     lambda sb: sb.table("academies").update({
                         "plan":                "paid",
+                        "plan_tier":           tier if tier in PLANS else "coach",
+                        "billing_cycle":       cycle if cycle in ("monthly", "annual") else "monthly",
                         "paid_at":             datetime.now(timezone.utc).isoformat(),
+                        "paid_until":          _paid_until(cycle),
                         "razorpay_payment_id": payment["id"],
                     }).eq("id", academy_id).execute()
                 )
